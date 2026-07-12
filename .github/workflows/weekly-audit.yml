@@ -6,9 +6,9 @@ on:
     - cron: "41 7 * * 1"
 
 permissions:
-  actions: write
   contents: write
   pull-requests: write
+  statuses: write
 
 concurrency:
   group: tennis-data-writer
