@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+title: Open Tennis Data v3
+message: Please cite the dataset, its pinned source revision, and Jeff Sackmann / Tennis Abstract.
+type: dataset
+authors:
+  - name: Open Tennis Data contributors
+repository-code: https://github.com/ryantjx/tennis-match-data
+license: CC-BY-NC-SA-4.0
+version: 2026.07.12
+date-released: 2026-07-12

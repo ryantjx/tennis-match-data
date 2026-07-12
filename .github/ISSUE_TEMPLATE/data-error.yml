@@ -1,0 +1,24 @@
+name: Data error
+description: Report a result, identity, ranking, or coverage problem.
+title: "data: "
+labels: [data-quality]
+body:
+  - type: input
+    id: canonical-id
+    attributes:
+      label: Canonical ID
+      description: The v3 match, event, or player ID.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Reusable public source
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What is wrong?
+    validations:
+      required: true
