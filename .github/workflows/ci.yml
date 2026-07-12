@@ -73,6 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      STATUS_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       TEST_RESULT: ${{ needs.test.result }}
       INTEGRATION_RESULT: ${{ needs.integration-coverage.result }}
     steps:
@@ -84,7 +85,7 @@ jobs:
             state=success
             description="Python matrix and integration validation passed"
           fi
-          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$STATUS_SHA" \
             -f state="$state" \
             -f context=v3-required \
             -f description="$description"
