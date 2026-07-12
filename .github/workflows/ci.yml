@@ -2,6 +2,7 @@ name: Validate v3
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -63,3 +64,28 @@ jobs:
           coverage run --append -m open_tennis_data.cli promote \
             --source "$RUNNER_TEMP/v3-data" --target "$RUNNER_TEMP/v3-copy"
       - run: coverage report --fail-under=90
+
+  required-status:
+    if: always()
+    needs: [test, integration-coverage]
+    permissions:
+      statuses: write
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TEST_RESULT: ${{ needs.test.result }}
+      INTEGRATION_RESULT: ${{ needs.integration-coverage.result }}
+    steps:
+      - name: Publish required validation status
+        run: |
+          state=failure
+          description="v3 validation failed"
+          if [ "$TEST_RESULT" = success ] && [ "$INTEGRATION_RESULT" = success ]; then
+            state=success
+            description="Python matrix and integration validation passed"
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state="$state" \
+            -f context=v3-required \
+            -f description="$description"
+          test "$state" = success
