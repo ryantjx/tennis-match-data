@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-tennis-data"
+version = "3.0.0"
+description = "A provenance-first, Parquet-native tennis data platform"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Open Tennis Data contributors"}]
+dependencies = [
+  "duckdb>=1.4,<2",
+  "mwparserfromhell>=0.7,<1",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+]
+
+[project.optional-dependencies]
+dev = [
+  "coverage[toml]>=7,<8",
+  "mypy>=1.15,<2",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+open-tennis-data = "open_tennis_data.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+
+[tool.coverage.run]
+source = ["open_tennis_data"]
+
+[tool.coverage.report]
+show_missing = true

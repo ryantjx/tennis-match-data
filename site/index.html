@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Open Tennis Data v3 Explorer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">OPEN TENNIS DATA V3</p>
+      <h1>Query tennis history in your browser.</h1>
+      <p>DuckDB-Wasm reads only the selected Parquet partition. No server, account, or full download.</p>
+    </header>
+    <section class="controls">
+      <label>Tour
+        <select id="tour"><option>atp</option><option>wta</option></select>
+      </label>
+      <label>Year
+        <input id="year" type="number" min="1968" max="2026" value="2025">
+      </label>
+      <button id="example">Load example</button>
+    </section>
+    <section>
+      <label for="sql">DuckDB SQL</label>
+      <textarea id="sql" spellcheck="false">SELECT level, surface, count(*) AS matches
+FROM matches
+GROUP BY level, surface
+ORDER BY matches DESC
+LIMIT 50;</textarea>
+      <button id="run">Run query</button>
+      <span id="status">Initializing DuckDB…</span>
+    </section>
+    <section class="results">
+      <table id="results"></table>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

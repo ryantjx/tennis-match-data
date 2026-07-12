@@ -1,0 +1,9 @@
+{{8TeamBracket-Tennis3
+|RD1=Quarterfinals
+|RD2=Semifinals
+|RD3=Final
+|RD1-team1={{flagicon|ITA}} [[Jannik Sinner]]
+|RD1-team2=
+|RD1-team3=Qualifier
+|RD1-team4={{flagicon|SRB}} [[Novak Djokovic]]
+}}
