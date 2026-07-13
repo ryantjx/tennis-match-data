@@ -15,13 +15,13 @@ best-effort future fixtures. They are regenerated after validated data updates.
 `mens.parquet` is an alias of `atp.parquet`; `womens.parquet` is an alias of
 `wta.parquet`.
 
-| Download | Contents |
-| --- | --- |
-| [Men's matches](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/mens.parquet) | All ATP completed matches and future fixtures |
-| [Women's matches](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/womens.parquet) | All WTA completed matches and future fixtures |
-| [ATP](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/atp.parquet) | All ATP completed matches and future fixtures |
-| [WTA](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet) | All WTA completed matches and future fixtures |
-| [All matches](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet) | Combined ATP and WTA completed matches and future fixtures |
+| Dataset | Download URL | Contents |
+| --- | --- | --- |
+| Men's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/mens.parquet> | All ATP completed matches and future fixtures |
+| Women's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/womens.parquet> | All WTA completed matches and future fixtures |
+| ATP | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/atp.parquet> | All ATP completed matches and future fixtures |
+| WTA | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet> | All WTA completed matches and future fixtures |
+| All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Combined ATP and WTA completed matches and future fixtures |
 
 ### Future-only downloads
 
