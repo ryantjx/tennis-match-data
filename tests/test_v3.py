@@ -93,6 +93,7 @@ class V3Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "data"
             output = Path(temporary) / "downloads"
+            future_output = Path(temporary) / "future-downloads"
             connection = duckdb.connect()
             for tour in ("atp", "wta"):
                 match_output = root / "matches" / f"tour={tour}" / "year=2026" / "matches.parquet"
@@ -104,7 +105,8 @@ class V3Tests(unittest.TestCase):
                     f"TO '{match_output}' (FORMAT PARQUET)"
                 )
                 connection.execute(
-                    f"COPY (SELECT * FROM read_parquet('{DATA / 'fixtures' / f'tour={tour}' / 'current.parquet'}') LIMIT 2) "
+                    f"COPY (SELECT * REPLACE (NULL::DATE AS scheduled_on, NULL::TIMESTAMP AS scheduled_at) "
+                    f"FROM read_parquet('{DATA / 'fixtures' / f'tour={tour}' / 'current.parquet'}') LIMIT 2) "
                     f"TO '{fixture_output}' (FORMAT PARQUET)"
                 )
             (root / "catalog").mkdir(parents=True)
@@ -143,6 +145,18 @@ class V3Tests(unittest.TestCase):
                 ).fetchall()
             )
             self.assertEqual(metadata["schema_version"], "3")
+
+            future_summary = create_direct_downloads(root, future_output, future_only=True)
+            self.assertEqual(set(future_summary), set(summary))
+            future_rows, future_fixtures, future_tours, completed = connection.execute(
+                f"SELECT count(*), count(*) FILTER (WHERE record_type='fixture'), "
+                f"count(DISTINCT tour), count(*) FILTER (WHERE record_type='completed') "
+                f"FROM read_parquet('{future_output / 'all-matches.parquet'}')"
+            ).fetchone()
+            self.assertEqual(future_rows, 4)
+            self.assertEqual(future_fixtures, 4)
+            self.assertEqual(future_tours, 2)
+            self.assertEqual(completed, 0)
 
     def test_correction_is_deterministic_parquet(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

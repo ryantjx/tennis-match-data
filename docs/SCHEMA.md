@@ -26,6 +26,12 @@ completed match and `fixture_id` only for a fixture. Fixture rows use
 `fixture_source`, and `fixture_source_match_id`. Match-only result, winner,
 score, ranking, and exact-date fields remain null for fixtures.
 
+The `data-latest` release contains completed matches and fixtures. The
+`future-latest` release exposes the same five filenames and the same schema, but
+contains only dated fixtures on or after the dataset version date plus undated
+future draw slots. This makes `data-latest/atp.parquet` and
+`future-latest/atp.parquet`, for example, interchangeable at the schema level.
+
 ## Dimensions and auxiliary facts
 
 - `events`: source-stable tournament draws. Names never define identity.

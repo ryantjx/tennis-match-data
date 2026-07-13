@@ -2,6 +2,7 @@
 set -euo pipefail
 
 directory=${1:?download directory required}
+release=${2:-data-latest}
 repository=${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}
 
 assets=(
@@ -15,4 +16,4 @@ for asset in "${assets[@]}"; do
   test -f "$asset"
 done
 
-gh release upload data-latest "${assets[@]}" --repo "$repository" --clobber
+gh release upload "$release" "${assets[@]}" --repo "$repository" --clobber
