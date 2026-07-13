@@ -10,6 +10,8 @@ Repository: https://github.com/ryantjx/tennis-match-data
 
 Dataset inventory, health, file URLs, and notes: [DATA.md](DATA.md)
 
+Query data: [https://ryantjx.github.io/tennis-match-data/](https://ryantjx.github.io/tennis-match-data/)
+
 ## Direct Parquet downloads
 
 These rolling files contain completed singles matches **and** the current
