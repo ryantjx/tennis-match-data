@@ -57,6 +57,9 @@ jobs:
       - run: |
           coverage run --append -m open_tennis_data.cli refresh-wikimedia \
             --data "$RUNNER_TEMP/v3-data" --as-of "$(date -u +%F)"
+      - run: |
+          coverage run --append -m open_tennis_data.cli downloads \
+            --data "$RUNNER_TEMP/v3-data" --output "$RUNNER_TEMP/downloads"
       - run: cp -a "$RUNNER_TEMP/v3-data" "$RUNNER_TEMP/v3-copy"
       - run: |
           coverage run --append -m open_tennis_data.cli promote \

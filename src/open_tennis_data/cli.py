@@ -11,6 +11,7 @@ from pathlib import Path
 from open_tennis_data.v3 import (
     add_correction,
     build_dataset,
+    create_direct_downloads,
     extract_dataset,
     format_rows,
     parse_years,
@@ -122,6 +123,16 @@ def command_promote(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_downloads(args: argparse.Namespace) -> int:
+    summary = create_direct_downloads(Path(args.data), Path(args.output))
+    for filename, details in summary.items():
+        print(
+            f"wrote {filename}: {details['rows']} rows, "
+            f"{details['fixtures']} fixtures, {details['bytes']} bytes"
+        )
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="open-tennis-data")
     result.add_argument("--version", action="version", version="open-tennis-data 3.0.0")
@@ -184,6 +195,13 @@ def parser() -> argparse.ArgumentParser:
     promote.add_argument("--source", required=True)
     promote.add_argument("--target", default="data")
     promote.set_defaults(handler=command_promote)
+
+    downloads = commands.add_parser(
+        "downloads", help="build rolling direct-download Parquet assets"
+    )
+    downloads.add_argument("--data", default="data")
+    downloads.add_argument("--output", default="dist/downloads")
+    downloads.set_defaults(handler=command_downloads)
     return result
 
 

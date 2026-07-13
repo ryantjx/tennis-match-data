@@ -30,6 +30,16 @@ NORMAL_COMMIT_BYTES = 25 * 1024 * 1024
 MATCH_ROW_GROUP_SIZE = 16_384
 OBSERVATION_ROW_GROUP_SIZE = 32_768
 RANKING_ROW_GROUP_SIZE = 65_536
+DOWNLOAD_ROW_GROUP_SIZE = 65_536
+DOWNLOAD_COMPRESSION_LEVEL = 19
+
+DOWNLOAD_FILENAMES = (
+    "mens.parquet",
+    "womens.parquet",
+    "atp.parquet",
+    "wta.parquet",
+    "all-matches.parquet",
+)
 
 RANKING_KEYS = {
     "atp": ("70s", "80s", "90s", "00s", "10s", "20s", "current"),
@@ -1132,17 +1142,140 @@ def _copy_parquet(
     dataset_version: str,
     *,
     row_group_size: int,
+    compression_level: int = 6,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     connection.execute(
         f"""
         COPY ({query}) TO {_quoted(path)} (
-          FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 6,
+          FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL {compression_level},
           ROW_GROUP_SIZE {row_group_size},
           KV_METADATA {{schema_version: '{SCHEMA_VERSION}', dataset_version: '{dataset_version}'}}
         )
         """
     )
+
+
+def create_direct_downloads(root: Path, output: Path) -> dict[str, dict[str, int]]:
+    """Create rolling ATP/WTA aliases and an all-records Parquet download set.
+
+    Each file contains completed matches plus the best-effort fixture rows. The
+    flat union keeps every match column and adds record and scheduling fields so
+    clients can distinguish completed matches from fixtures without a join.
+    """
+    root = root.resolve()
+    output = output.resolve()
+    catalog = root / "catalog" / "catalog.parquet"
+    if not catalog.exists():
+        raise ValueError("downloads require an existing v3 dataset catalog")
+    match_files = sorted((root / "matches").glob("tour=*/year=*/matches.parquet"))
+    fixture_files = sorted((root / "fixtures").glob("tour=*/current.parquet"))
+    if not match_files or not fixture_files:
+        raise ValueError("downloads require match and fixture Parquet files")
+
+    connection = duckdb.connect()
+    dataset_version = str(
+        _required_row(
+            connection.execute(
+                f"SELECT dataset_version FROM read_parquet({_quoted(catalog)}) LIMIT 1"
+            )
+        )[0]
+    )
+    union_query = f"""
+        WITH completed AS (
+          SELECT 'completed'::VARCHAR AS record_type, match_id AS record_id,
+            false AS is_fixture, NULL::VARCHAR AS fixture_id,
+            NULL::DATE AS scheduled_on, NULL::TIMESTAMP AS scheduled_at,
+            NULL::VARCHAR AS schedule_date_source,
+            NULL::DATE AS fixture_observed_on,
+            NULL::VARCHAR AS fixture_source,
+            NULL::VARCHAR AS fixture_source_match_id,
+            m.*
+          FROM read_parquet({_sql_list(match_files)}, union_by_name=true) m
+        ), scheduled AS (
+          SELECT 'fixture'::VARCHAR AS record_type, fixture_id AS record_id,
+            true AS is_fixture, fixture_id, scheduled_on, scheduled_at,
+            date_source AS schedule_date_source,
+            observed_on AS fixture_observed_on, source AS fixture_source,
+            source_match_id AS fixture_source_match_id,
+            'singles'::VARCHAR AS discipline,
+            f.* EXCLUDE (
+              fixture_id, scheduled_on, scheduled_at, date_source,
+              observed_on, source, source_match_id
+            )
+          FROM read_parquet({_sql_list(fixture_files)}, union_by_name=true) f
+        )
+        SELECT * FROM completed
+        UNION ALL BY NAME
+        SELECT * FROM scheduled
+    """
+    order = (
+        "tour, is_fixture, year, coalesce(scheduled_on, event_start_date), "
+        "event_id, round_order, record_id"
+    )
+    output.mkdir(parents=True, exist_ok=True)
+    for filename in DOWNLOAD_FILENAMES:
+        path = output / filename
+        if path.exists():
+            path.unlink()
+
+    for tour in TOURS:
+        destination = output / f"{tour}.parquet"
+        _copy_parquet(
+            connection,
+            f"SELECT * FROM ({union_query}) records "
+            f"WHERE tour={_quoted(tour)} ORDER BY {order}",
+            destination,
+            dataset_version,
+            row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
+            compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        )
+    shutil.copy2(output / "atp.parquet", output / "mens.parquet")
+    shutil.copy2(output / "wta.parquet", output / "womens.parquet")
+    _copy_parquet(
+        connection,
+        f"SELECT * FROM ({union_query}) records ORDER BY {order}",
+        output / "all-matches.parquet",
+        dataset_version,
+        row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
+        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+    )
+
+    expected_schema: list[tuple[str, str]] | None = None
+    summary: dict[str, dict[str, int]] = {}
+    for filename in DOWNLOAD_FILENAMES:
+        path = output / filename
+        if path.stat().st_size > MAX_PARQUET_BYTES:
+            raise RuntimeError(f"direct download exceeds 75 MB: {filename}")
+        schema = [
+            (row[0], row[1])
+            for row in connection.execute(
+                f"DESCRIBE SELECT * FROM read_parquet({_quoted(path)})"
+            ).fetchall()
+        ]
+        if expected_schema is None:
+            expected_schema = schema
+        elif schema != expected_schema:
+            raise RuntimeError(f"direct download schema drift: {filename}")
+        rows, fixtures = _required_row(
+            connection.execute(
+                f"SELECT count(*), count(*) FILTER (WHERE is_fixture) "
+                f"FROM read_parquet({_quoted(path)})"
+            )
+        )
+        summary[filename] = {
+            "rows": int(rows),
+            "fixtures": int(fixtures),
+            "bytes": path.stat().st_size,
+        }
+    if sha256_file(output / "atp.parquet") != sha256_file(output / "mens.parquet"):
+        raise RuntimeError("ATP and men's direct download aliases differ")
+    if sha256_file(output / "wta.parquet") != sha256_file(output / "womens.parquet"):
+        raise RuntimeError("WTA and women's direct download aliases differ")
+    if summary["all-matches.parquet"]["fixtures"] == 0:
+        raise RuntimeError("direct downloads contain no future fixtures")
+    connection.close()
+    return summary
 
 
 def _write_partitioned_tables(

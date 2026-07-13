@@ -42,3 +42,21 @@ gh api --method POST "repos/$repository/statuses/$head_sha" \
   -f context=v3-required \
   -f description="Automated Parquet refresh passed repository validation"
 gh pr merge "$pr_url" --auto --squash --delete-branch
+
+merged=false
+for _ in $(seq 1 60); do
+  state=$(gh pr view "$pr_url" --json state --jq .state)
+  if [ "$state" = MERGED ]; then
+    merged=true
+    break
+  fi
+  if [ "$state" = CLOSED ]; then
+    echo "Automated data pull request closed without merging: $pr_url" >&2
+    exit 1
+  fi
+  sleep 2
+done
+if [ "$merged" != true ]; then
+  echo "Timed out waiting for automated data pull request to merge: $pr_url" >&2
+  exit 1
+fi
