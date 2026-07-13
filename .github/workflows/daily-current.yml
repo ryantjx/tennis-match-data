@@ -40,3 +40,11 @@ jobs:
         run: open-tennis-data downloads --output "$RUNNER_TEMP/downloads"
       - name: Publish rolling direct downloads
         run: bash scripts/publish-downloads.sh "$RUNNER_TEMP/downloads"
+      - name: Build rolling future-only downloads
+        run: |
+          open-tennis-data downloads --future-only \
+            --output "$RUNNER_TEMP/future-downloads"
+      - name: Publish rolling future-only downloads
+        run: |
+          bash scripts/publish-downloads.sh \
+            "$RUNNER_TEMP/future-downloads" future-latest

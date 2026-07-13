@@ -1156,12 +1156,16 @@ def _copy_parquet(
     )
 
 
-def create_direct_downloads(root: Path, output: Path) -> dict[str, dict[str, int]]:
+def create_direct_downloads(
+    root: Path, output: Path, *, future_only: bool = False
+) -> dict[str, dict[str, int]]:
     """Create rolling ATP/WTA aliases and an all-records Parquet download set.
 
-    Each file contains completed matches plus the best-effort fixture rows. The
-    flat union keeps every match column and adds record and scheduling fields so
-    clients can distinguish completed matches from fixtures without a join.
+    By default each file contains completed matches plus the best-effort fixture
+    rows. ``future_only`` emits only fixtures scheduled on or after the dataset
+    version date, plus undated future draw slots. The flat union keeps every
+    match column and adds record and scheduling fields so clients can use one
+    schema for both release sets.
     """
     root = root.resolve()
     output = output.resolve()
@@ -1181,6 +1185,12 @@ def create_direct_downloads(root: Path, output: Path) -> dict[str, dict[str, int
             )
         )[0]
     )
+    try:
+        dataset_date = date.fromisoformat(dataset_version.replace(".", "-"))
+    except ValueError as exc:
+        raise ValueError(
+            f"downloads require a YYYY.MM.DD dataset version, got {dataset_version!r}"
+        ) from exc
     union_query = f"""
         WITH completed AS (
           SELECT 'completed'::VARCHAR AS record_type, match_id AS record_id,
@@ -1209,6 +1219,17 @@ def create_direct_downloads(root: Path, output: Path) -> dict[str, dict[str, int
         UNION ALL BY NAME
         SELECT * FROM scheduled
     """
+    records_query = union_query
+    if future_only:
+        records_query = f"""
+            SELECT * FROM ({union_query}) records
+            WHERE record_type = 'fixture'
+              AND (
+                coalesce(CAST(scheduled_at AS DATE), scheduled_on)
+                  >= DATE {_quoted(dataset_date.isoformat())}
+                OR (scheduled_at IS NULL AND scheduled_on IS NULL)
+              )
+        """
     order = (
         "tour, is_fixture, year, coalesce(scheduled_on, event_start_date), "
         "event_id, round_order, record_id"
@@ -1223,7 +1244,7 @@ def create_direct_downloads(root: Path, output: Path) -> dict[str, dict[str, int
         destination = output / f"{tour}.parquet"
         _copy_parquet(
             connection,
-            f"SELECT * FROM ({union_query}) records "
+            f"SELECT * FROM ({records_query}) records "
             f"WHERE tour={_quoted(tour)} ORDER BY {order}",
             destination,
             dataset_version,
@@ -1234,7 +1255,7 @@ def create_direct_downloads(root: Path, output: Path) -> dict[str, dict[str, int
     shutil.copy2(output / "wta.parquet", output / "womens.parquet")
     _copy_parquet(
         connection,
-        f"SELECT * FROM ({union_query}) records ORDER BY {order}",
+        f"SELECT * FROM ({records_query}) records ORDER BY {order}",
         output / "all-matches.parquet",
         dataset_version,
         row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
@@ -1268,6 +1289,8 @@ def create_direct_downloads(root: Path, output: Path) -> dict[str, dict[str, int
             "fixtures": int(fixtures),
             "bytes": path.stat().st_size,
         }
+        if future_only and int(rows) != int(fixtures):
+            raise RuntimeError(f"future direct download contains completed rows: {filename}")
     if sha256_file(output / "atp.parquet") != sha256_file(output / "mens.parquet"):
         raise RuntimeError("ATP and men's direct download aliases differ")
     if sha256_file(output / "wta.parquet") != sha256_file(output / "womens.parquet"):

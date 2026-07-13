@@ -22,6 +22,23 @@ best-effort future fixtures. They are regenerated after validated data updates.
 | [WTA](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet) | All WTA completed matches and future fixtures |
 | [All matches](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet) | Combined ATP and WTA completed matches and future fixtures |
 
+### Future-only downloads
+
+The future-only release uses the same filenames. Change `data-latest` to
+`future-latest` in any download URL:
+
+| Download | Future-only URL |
+| --- | --- |
+| [Men's future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/mens.parquet) | ATP fixtures only |
+| [Women's future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/womens.parquet) | WTA fixtures only |
+| [ATP future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/atp.parquet) | ATP fixtures only |
+| [WTA future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/wta.parquet) | WTA fixtures only |
+| [All future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet) | Combined ATP and WTA fixtures |
+
+Every future-only row has `record_type = 'fixture'`. Dated fixtures are on or
+after the dataset version date; undated future draw slots are retained until
+their source publishes an exact schedule or completed result.
+
 Completed rows have `record_type = 'completed'`; scheduled rows have
 `record_type = 'fixture'`. Query known future matches while retaining undated
 future draw slots:
@@ -43,38 +60,21 @@ ORDER BY scheduled_on NULLS LAST, scheduled_at NULLS LAST, tour, event_name;
 
 ### Query with Polars
 
-Install Polars, then lazily scan the combined remote file. This example returns
-known future fixtures and retains fixture draw slots whose exact date is not yet
-published:
+Install Polars, then lazily scan the combined future-only file. Replace
+`all-matches.parquet` with `mens.parquet`, `womens.parquet`, `atp.parquet`, or
+`wta.parquet` to query one of the matching subsets:
 
 ```bash
 python -m pip install polars
 ```
 
 ```python
-from datetime import date
-
 import polars as pl
 
-URL = "https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet"
-
-effective_date = pl.coalesce(
-    pl.col("scheduled_at").dt.date(),
-    pl.col("scheduled_on"),
-)
+URL = "https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet"
 
 future_matches = (
     pl.scan_parquet(URL)
-    .filter(
-        (pl.col("record_type") == "fixture")
-        & (
-            (effective_date >= pl.lit(date.today()))
-            | (
-                pl.col("scheduled_at").is_null()
-                & pl.col("scheduled_on").is_null()
-            )
-        )
-    )
     .select(
         "tour",
         "event_name",
@@ -93,7 +93,7 @@ print(future_matches)
 ```
 
 `scan_parquet` keeps the operation lazy until `collect()`, allowing Polars to
-push the selected columns and filters into the Parquet scan.
+push the selected columns into the Parquet scan.
 
 ## Quick start
 

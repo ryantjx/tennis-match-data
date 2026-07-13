@@ -124,7 +124,9 @@ def command_promote(args: argparse.Namespace) -> int:
 
 
 def command_downloads(args: argparse.Namespace) -> int:
-    summary = create_direct_downloads(Path(args.data), Path(args.output))
+    summary = create_direct_downloads(
+        Path(args.data), Path(args.output), future_only=args.future_only
+    )
     for filename, details in summary.items():
         print(
             f"wrote {filename}: {details['rows']} rows, "
@@ -201,6 +203,11 @@ def parser() -> argparse.ArgumentParser:
     )
     downloads.add_argument("--data", default="data")
     downloads.add_argument("--output", default="dist/downloads")
+    downloads.add_argument(
+        "--future-only",
+        action="store_true",
+        help="emit only current/future fixtures and undated future draw slots",
+    )
     downloads.set_defaults(handler=command_downloads)
     return result
 
