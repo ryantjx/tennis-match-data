@@ -7,7 +7,7 @@ Last reviewed: 2026-07-12.
 - Primary origin: Jeff Sackmann's ATP and WTA repositories.
 - Current transport fallback: the pinned `Aneeshers/tennis-sackmann-archive`
   Hugging Face revision because the original repositories were unavailable
-  during the v3 build.
+  during the initial source rebuild.
 - Coverage: tour singles, qualifying, Challenger, ATP Futures, WTA ITF,
   players, statistics, and historical rankings.
 - Licence: CC BY-NC-SA 4.0.

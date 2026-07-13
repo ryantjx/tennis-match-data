@@ -8,7 +8,7 @@ from pathlib import Path
 
 import duckdb
 
-from open_tennis_data.v3 import (
+from open_tennis_data.dataset import (
     add_correction,
     create_direct_downloads,
     extract_dataset,
@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 
 
-class V3Tests(unittest.TestCase):
+class DatasetTests(unittest.TestCase):
     def test_year_parser(self) -> None:
         self.assertEqual(parse_years("2020,2022:2024"), [2020, 2022, 2023, 2024])
         with self.assertRaises(ValueError):
@@ -29,12 +29,12 @@ class V3Tests(unittest.TestCase):
 
     def test_repository_dataset_validates(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated v3 dataset is not present")
+            self.skipTest("generated dataset is not present")
         self.assertEqual(validate_dataset(DATA), [])
 
     def test_query_prunes_tour_and_year(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated v3 dataset is not present")
+            self.skipTest("generated dataset is not present")
         columns, rows = query_dataset(
             DATA,
             "SELECT min(tour), max(tour), min(year), max(year), count(*) FROM matches",
@@ -47,7 +47,7 @@ class V3Tests(unittest.TestCase):
 
     def test_repeated_futures_events_are_distinct(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated v3 dataset is not present")
+            self.skipTest("generated dataset is not present")
         _, rows = query_dataset(
             DATA,
             """
@@ -62,7 +62,7 @@ class V3Tests(unittest.TestCase):
 
     def test_statistics_and_date_semantics(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated v3 dataset is not present")
+            self.skipTest("generated dataset is not present")
         _, rows = query_dataset(
             DATA,
             "SELECT (SELECT count(*) FROM match_stats), "
@@ -71,9 +71,9 @@ class V3Tests(unittest.TestCase):
         self.assertGreater(rows[0][0], 300_000)
         self.assertEqual(rows[0][1], 0)
 
-    def test_extract_is_parquet_v3(self) -> None:
+    def test_extract_has_no_version_metadata(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated v3 dataset is not present")
+            self.skipTest("generated dataset is not present")
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "subset.parquet"
             count = extract_dataset(DATA, output, tours=["wta"], years=[2023], levels=["itf"])
@@ -85,11 +85,11 @@ class V3Tests(unittest.TestCase):
                     f"SELECT * FROM parquet_kv_metadata('{output}')"
                 ).fetchall()
             )
-            self.assertEqual(metadata["schema_version"], "3")
+            self.assertEqual(metadata, {})
 
     def test_direct_downloads_include_matches_and_fixtures(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated v3 dataset is not present")
+            self.skipTest("generated dataset is not present")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "data"
             output = Path(temporary) / "downloads"
@@ -144,7 +144,7 @@ class V3Tests(unittest.TestCase):
                     f"SELECT * FROM parquet_kv_metadata('{output / 'all-matches.parquet'}')"
                 ).fetchall()
             )
-            self.assertEqual(metadata["schema_version"], "3")
+            self.assertEqual(metadata, {})
 
             future_summary = create_direct_downloads(root, future_output, future_only=True)
             self.assertEqual(set(future_summary), set(summary))

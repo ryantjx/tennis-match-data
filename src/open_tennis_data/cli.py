@@ -1,4 +1,4 @@
-"""Command-line interface for Open Tennis Data v3."""
+"""Command-line interface for Open Tennis Data."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 
-from open_tennis_data.v3 import (
+from open_tennis_data.dataset import (
     add_correction,
     build_dataset,
     create_direct_downloads,
@@ -47,11 +47,10 @@ def command_build(args: argparse.Namespace) -> int:
         Path(args.output),
         parse_years(args.years),
         as_of=date.fromisoformat(args.as_of),
-        dataset_version=args.dataset_version,
         workers=args.workers,
     )
     print(
-        f"built v3 {summary['dataset_version']}: {summary['catalog_rows']} files, "
+        f"built dataset as of {summary['as_of']}: {summary['catalog_rows']} files, "
         f"{summary['logical_rows']} logical rows, {summary['bytes']} bytes"
     )
     return 0
@@ -66,7 +65,7 @@ def command_query(args: argparse.Namespace) -> int:
 
 def command_extract(args: argparse.Namespace) -> int:
     if Path(args.output).suffix != ".parquet":
-        raise ValueError("v3 extracts must use a .parquet output path")
+        raise ValueError("extracts must use a .parquet output path")
     rows = extract_dataset(
         Path(args.data),
         Path(args.output),
@@ -84,7 +83,7 @@ def command_validate(args: argparse.Namespace) -> int:
         print(error, file=sys.stderr)
     if errors:
         return 1
-    print("valid Parquet v3 dataset")
+    print("valid Parquet dataset")
     return 0
 
 
@@ -106,7 +105,6 @@ def command_refresh_wikimedia(args: argparse.Namespace) -> int:
     summary = refresh_wikimedia_dataset(
         Path(args.data),
         as_of=date.fromisoformat(args.as_of),
-        dataset_version=args.dataset_version,
         workers=args.workers,
     )
     print(
@@ -137,13 +135,11 @@ def command_downloads(args: argparse.Namespace) -> int:
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="open-tennis-data")
-    result.add_argument("--version", action="version", version="open-tennis-data 3.0.0")
     commands = result.add_subparsers(dest="command", required=True)
 
-    build = commands.add_parser("build", help="rebuild the Parquet v3 dataset from pinned sources")
+    build = commands.add_parser("build", help="rebuild the Parquet dataset from pinned sources")
     build.add_argument("--years", default=f"1968:{date.today().year}")
     build.add_argument("--as-of", default=date.today().isoformat())
-    build.add_argument("--dataset-version")
     build.add_argument("--output", default="data")
     build.add_argument("--workers", type=int, default=12)
     build.set_defaults(handler=command_build)
@@ -189,7 +185,6 @@ def parser() -> argparse.ArgumentParser:
     )
     refresh.add_argument("--data", default="data")
     refresh.add_argument("--as-of", default=date.today().isoformat())
-    refresh.add_argument("--dataset-version")
     refresh.add_argument("--workers", type=int, default=12)
     refresh.set_defaults(handler=command_refresh_wikimedia)
 

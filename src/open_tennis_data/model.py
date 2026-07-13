@@ -8,8 +8,6 @@ import unicodedata
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from open_tennis_data.schema import SCHEMA_VERSION
-
 ROUND_ALIASES = {
     "first round": "R128",
     "second round": "R64",
@@ -88,7 +86,6 @@ def new_event(
 ) -> dict[str, Any]:
     return {
         "kind": "event",
-        "schema_version": SCHEMA_VERSION,
         "event": {
             "id": event_id,
             "name": event_name,

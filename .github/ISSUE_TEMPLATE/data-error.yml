@@ -7,7 +7,7 @@ body:
     id: canonical-id
     attributes:
       label: Canonical ID
-      description: The v3 match, event, or player ID.
+      description: The match, event, or player ID.
     validations:
       required: true
   - type: input

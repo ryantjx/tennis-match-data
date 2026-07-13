@@ -39,7 +39,7 @@ pr_url=$(gh pr create \
 head_sha=$(git rev-parse HEAD)
 gh api --method POST "repos/$repository/statuses/$head_sha" \
   -f state=success \
-  -f context=v3-required \
+  -f context=data-required \
   -f description="Automated Parquet refresh passed repository validation"
 gh pr merge "$pr_url" --auto --squash --delete-branch
 

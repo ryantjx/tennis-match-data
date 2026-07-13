@@ -1,4 +1,4 @@
-"""Open Tennis Data v3 Parquet build, query, and validation services."""
+"""Open Tennis Data Parquet build, query, and validation services."""
 
 from __future__ import annotations
 
@@ -20,11 +20,11 @@ from typing import Any
 
 import duckdb
 
-from open_tennis_data.schema import SCHEMA_VERSION, SOURCE_LICENSES, TOURS
+from open_tennis_data.schema import SOURCE_LICENSES, TOURS
 
 ARCHIVE_REPOSITORY = "Aneeshers/tennis-sackmann-archive"
 ARCHIVE_RESOLVE = f"https://huggingface.co/datasets/{ARCHIVE_REPOSITORY}/resolve"
-USER_AGENT = "open-tennis-data/3.0 (https://github.com/ryantjx/tennis-match-data)"
+USER_AGENT = "open-tennis-data (https://github.com/ryantjx/tennis-match-data)"
 MAX_PARQUET_BYTES = 75 * 1024 * 1024
 NORMAL_COMMIT_BYTES = 25 * 1024 * 1024
 MATCH_ROW_GROUP_SIZE = 16_384
@@ -1139,7 +1139,6 @@ def _copy_parquet(
     connection: duckdb.DuckDBPyConnection,
     query: str,
     path: Path,
-    dataset_version: str,
     *,
     row_group_size: int,
     compression_level: int = 6,
@@ -1149,8 +1148,7 @@ def _copy_parquet(
         f"""
         COPY ({query}) TO {_quoted(path)} (
           FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL {compression_level},
-          ROW_GROUP_SIZE {row_group_size},
-          KV_METADATA {{schema_version: '{SCHEMA_VERSION}', dataset_version: '{dataset_version}'}}
+          ROW_GROUP_SIZE {row_group_size}
         )
         """
     )
@@ -1162,8 +1160,8 @@ def create_direct_downloads(
     """Create rolling ATP/WTA aliases and an all-records Parquet download set.
 
     By default each file contains completed matches plus the best-effort fixture
-    rows. ``future_only`` emits only fixtures scheduled on or after the dataset
-    version date, plus undated future draw slots. The flat union keeps every
+    rows. ``future_only`` emits only fixtures scheduled on or after the catalog's
+    as-of date, plus undated future draw slots. The flat union keeps every
     match column and adds record and scheduling fields so clients can use one
     schema for both release sets.
     """
@@ -1171,26 +1169,18 @@ def create_direct_downloads(
     output = output.resolve()
     catalog = root / "catalog" / "catalog.parquet"
     if not catalog.exists():
-        raise ValueError("downloads require an existing v3 dataset catalog")
+        raise ValueError("downloads require an existing dataset catalog")
     match_files = sorted((root / "matches").glob("tour=*/year=*/matches.parquet"))
     fixture_files = sorted((root / "fixtures").glob("tour=*/current.parquet"))
     if not match_files or not fixture_files:
         raise ValueError("downloads require match and fixture Parquet files")
 
     connection = duckdb.connect()
-    dataset_version = str(
-        _required_row(
-            connection.execute(
-                f"SELECT dataset_version FROM read_parquet({_quoted(catalog)}) LIMIT 1"
-            )
-        )[0]
-    )
-    try:
-        dataset_date = date.fromisoformat(dataset_version.replace(".", "-"))
-    except ValueError as exc:
-        raise ValueError(
-            f"downloads require a YYYY.MM.DD dataset version, got {dataset_version!r}"
-        ) from exc
+    as_of = _required_row(
+        connection.execute(f"SELECT as_of FROM read_parquet({_quoted(catalog)}) LIMIT 1")
+    )[0]
+    if not isinstance(as_of, date):
+        raise ValueError(f"catalog as_of must be a DATE, got {as_of!r}")
     union_query = f"""
         WITH completed AS (
           SELECT 'completed'::VARCHAR AS record_type, match_id AS record_id,
@@ -1226,7 +1216,7 @@ def create_direct_downloads(
             WHERE record_type = 'fixture'
               AND (
                 coalesce(CAST(scheduled_at AS DATE), scheduled_on)
-                  >= DATE {_quoted(dataset_date.isoformat())}
+                  >= DATE {_quoted(as_of.isoformat())}
                 OR (scheduled_at IS NULL AND scheduled_on IS NULL)
               )
         """
@@ -1247,7 +1237,6 @@ def create_direct_downloads(
             f"SELECT * FROM ({records_query}) records "
             f"WHERE tour={_quoted(tour)} ORDER BY {order}",
             destination,
-            dataset_version,
             row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
             compression_level=DOWNLOAD_COMPRESSION_LEVEL,
         )
@@ -1257,7 +1246,6 @@ def create_direct_downloads(
         connection,
         f"SELECT * FROM ({records_query}) records ORDER BY {order}",
         output / "all-matches.parquet",
-        dataset_version,
         row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
         compression_level=DOWNLOAD_COMPRESSION_LEVEL,
     )
@@ -1302,7 +1290,6 @@ def create_direct_downloads(
 def _write_partitioned_tables(
     connection: duckdb.DuckDBPyConnection,
     output: Path,
-    dataset_version: str,
 ) -> None:
     for table, filename, row_group in (
         ("matches", "matches.parquet", MATCH_ROW_GROUP_SIZE),
@@ -1320,7 +1307,6 @@ def _write_partitioned_tables(
                 connection,
                 f"SELECT * FROM {table} WHERE tour = {_quoted(tour)} AND year = {int(year)}",
                 destination,
-                dataset_version,
                 row_group_size=row_group,
             )
 
@@ -1329,14 +1315,12 @@ def _write_partitioned_tables(
             connection,
             f"SELECT * FROM players WHERE tour = {_quoted(tour)}",
             output / "players" / f"tour={tour}" / "players.parquet",
-            dataset_version,
             row_group_size=OBSERVATION_ROW_GROUP_SIZE,
         )
         _copy_parquet(
             connection,
             f"SELECT * FROM fixtures WHERE tour = {_quoted(tour)}",
             output / "fixtures" / f"tour={tour}" / "current.parquet",
-            dataset_version,
             row_group_size=MATCH_ROW_GROUP_SIZE,
         )
 
@@ -1352,7 +1336,6 @@ def _write_partitioned_tables(
             / f"tour={tour}"
             / f"year={year}"
             / "match-links.parquet",
-            dataset_version,
             row_group_size=OBSERVATION_ROW_GROUP_SIZE,
         )
 
@@ -1369,7 +1352,6 @@ def _write_partitioned_tables(
             connection,
             f"SELECT * FROM {table}",
             output / relative,
-            dataset_version,
             row_group_size=row_group,
         )
 
@@ -1385,7 +1367,7 @@ def _table_name_for_path(path: Path, root: Path) -> str:
 
 
 def _create_catalog(
-    connection: duckdb.DuckDBPyConnection, output: Path, dataset_version: str, revision: str
+    connection: duckdb.DuckDBPyConnection, output: Path, as_of: date, revision: str
 ) -> None:
     records: list[tuple[Any, ...]] = []
     for path in sorted(output.rglob("*.parquet")):
@@ -1407,8 +1389,7 @@ def _create_catalog(
                 int(count),
                 path.stat().st_size,
                 sha256_file(path),
-                SCHEMA_VERSION,
-                dataset_version,
+                as_of,
                 revision,
             )
         )
@@ -1417,16 +1398,15 @@ def _create_catalog(
         CREATE TABLE catalog (
           path VARCHAR, table_name VARCHAR, tour VARCHAR, year INTEGER,
           row_count BIGINT, byte_size BIGINT, sha256 VARCHAR,
-          schema_version INTEGER, dataset_version VARCHAR, source_revision VARCHAR
+          as_of DATE, source_revision VARCHAR
         )
         """
     )
-    connection.executemany("INSERT INTO catalog VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", records)
+    connection.executemany("INSERT INTO catalog VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", records)
     _copy_parquet(
         connection,
         "SELECT * FROM catalog ORDER BY table_name, tour, year, path",
         output / "catalog" / "catalog.parquet",
-        dataset_version,
         row_group_size=MATCH_ROW_GROUP_SIZE,
     )
 
@@ -1436,13 +1416,11 @@ def build_dataset(
     years: Sequence[int],
     *,
     as_of: date,
-    dataset_version: str | None = None,
     workers: int = 12,
 ) -> dict[str, Any]:
-    dataset_version = dataset_version or as_of.strftime("%Y.%m.%d")
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="open-tennis-v3-") as temporary_name:
+    with tempfile.TemporaryDirectory(prefix="open-tennis-data-") as temporary_name:
         temporary = Path(temporary_name)
         sources, revision = download_sources(temporary / "sources", years, workers=workers)
         generated = temporary / "generated"
@@ -1465,16 +1443,15 @@ def build_dataset(
         )
         _create_ranking_tables(connection, sources)
         _create_identity_and_reports(connection, sources, as_of)
-        _write_partitioned_tables(connection, generated, dataset_version)
+        _write_partitioned_tables(connection, generated)
         corrections_path = generated.parent / "corrections.parquet"
         _copy_parquet(
             connection,
             "SELECT * FROM corrections",
             corrections_path,
-            dataset_version,
             row_group_size=MATCH_ROW_GROUP_SIZE,
         )
-        _create_catalog(connection, generated, dataset_version, revision)
+        _create_catalog(connection, generated, as_of, revision)
         connection.close()
         validation = validate_dataset(generated)
         if validation:
@@ -1491,7 +1468,7 @@ def build_dataset(
         )
     )
     return {
-        "dataset_version": dataset_version,
+        "as_of": as_of,
         "source_revision": revision,
         "catalog_rows": int(catalog_rows[2]),
         "logical_rows": int(catalog_rows[0] or 0),
@@ -1503,7 +1480,6 @@ def _replace_parquet(
     connection: duckdb.DuckDBPyConnection,
     query: str,
     path: Path,
-    dataset_version: str,
     *,
     row_group_size: int,
 ) -> None:
@@ -1512,7 +1488,6 @@ def _replace_parquet(
         connection,
         query,
         temporary,
-        dataset_version,
         row_group_size=row_group_size,
     )
     os.replace(temporary, path)
@@ -1522,16 +1497,14 @@ def refresh_wikimedia_dataset(
     root: Path,
     *,
     as_of: date,
-    dataset_version: str | None = None,
     workers: int = 12,
 ) -> dict[str, int]:
-    """Replace only current Wikimedia rows, fixtures, and affected v3 metadata."""
+    """Replace only current Wikimedia rows, fixtures, and affected reports."""
     root = root.resolve()
-    dataset_version = dataset_version or as_of.strftime("%Y.%m.%d")
     year = as_of.year
     catalog_path = root / "catalog" / "catalog.parquet"
     if not catalog_path.exists():
-        raise ValueError("refresh requires an existing v3 dataset")
+        raise ValueError("refresh requires an existing dataset")
     metadata_connection = duckdb.connect()
     revision_row = _required_row(
         metadata_connection.execute(
@@ -1577,7 +1550,6 @@ def refresh_wikimedia_dataset(
                 connection,
                 f"SELECT * FROM {table} WHERE tour={_quoted(tour)} ORDER BY ALL",
                 root / table / f"tour={tour}" / f"year={year}" / filename,
-                dataset_version,
                 row_group_size=row_group,
             )
     for tour in TOURS:
@@ -1585,14 +1557,12 @@ def refresh_wikimedia_dataset(
             connection,
             f"SELECT * FROM players WHERE tour={_quoted(tour)} ORDER BY player_id",
             root / "players" / f"tour={tour}" / "players.parquet",
-            dataset_version,
             row_group_size=OBSERVATION_ROW_GROUP_SIZE,
         )
         _replace_parquet(
             connection,
             f"SELECT * FROM wikimedia_fixtures WHERE tour={_quoted(tour)} ORDER BY fixture_id",
             root / "fixtures" / f"tour={tour}" / "current.parquet",
-            dataset_version,
             row_group_size=MATCH_ROW_GROUP_SIZE,
         )
         _replace_parquet(
@@ -1600,7 +1570,6 @@ def refresh_wikimedia_dataset(
             f"SELECT source, source_match_id, row_fingerprint, match_id, event_id, tour, year, "
             f"false AS provisional FROM observations WHERE tour={_quoted(tour)} ORDER BY source, source_match_id",
             root / "identity" / "matches" / f"tour={tour}" / f"year={year}" / "match-links.parquet",
-            dataset_version,
             row_group_size=OBSERVATION_ROW_GROUP_SIZE,
         )
 
@@ -1621,7 +1590,6 @@ def refresh_wikimedia_dataset(
         connection,
         "SELECT DISTINCT * FROM event_links_all ORDER BY source, source_label, source_event_id, draw, tour, year, event_id",
         root / "identity" / "event-links.parquet",
-        dataset_version,
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
     )
     _replace_parquet(
@@ -1629,14 +1597,12 @@ def refresh_wikimedia_dataset(
         "SELECT preferred_source AS source, preferred_source_player_id AS source_player_id, "
         "player_id, tour, false AS provisional FROM players ORDER BY source, source_player_id",
         root / "identity" / "player-links.parquet",
-        dataset_version,
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
     )
     _replace_parquet(
         connection,
         "SELECT * FROM wikimedia_conflicts ORDER BY conflict_id",
         root / "conflicts" / "conflicts.parquet",
-        dataset_version,
         row_group_size=MATCH_ROW_GROUP_SIZE,
     )
 
@@ -1659,7 +1625,6 @@ def refresh_wikimedia_dataset(
         connection,
         "SELECT * FROM coverage_all ORDER BY tour, year, level, draw",
         root / "coverage" / "coverage.parquet",
-        dataset_version,
         row_group_size=MATCH_ROW_GROUP_SIZE,
     )
 
@@ -1681,14 +1646,13 @@ def refresh_wikimedia_dataset(
         connection,
         "SELECT * FROM health_all ORDER BY tour",
         root / "health" / "health.parquet",
-        dataset_version,
         row_group_size=MATCH_ROW_GROUP_SIZE,
     )
     connection.close()
 
     catalog_path.unlink()
     catalog_connection = duckdb.connect()
-    _create_catalog(catalog_connection, root, dataset_version, revision)
+    _create_catalog(catalog_connection, root, as_of, revision)
     catalog_connection.close()
     errors = validate_dataset(root)
     if errors:
@@ -1715,7 +1679,6 @@ def _semantically_equal_parquet(
         "revision",
         "retrieved_on",
         "as_of",
-        "dataset_version",
         "source_revision",
     }
     selected = [column for column in columns if column not in volatile]
@@ -1747,9 +1710,9 @@ def promote_dataset(generated: Path, target: Path) -> dict[str, int]:
     if not generated_catalog.exists():
         raise ValueError("generated dataset has no catalog")
     connection = duckdb.connect()
-    dataset_version, revision = _required_row(
+    as_of, revision = _required_row(
         connection.execute(
-            f"SELECT dataset_version, source_revision FROM read_parquet({_quoted(generated_catalog)}) LIMIT 1"
+            f"SELECT as_of, source_revision FROM read_parquet({_quoted(generated_catalog)}) LIMIT 1"
         )
     )
     new_paths = {
@@ -1780,7 +1743,7 @@ def promote_dataset(generated: Path, target: Path) -> dict[str, int]:
     if target_catalog.exists():
         target_catalog.unlink()
     catalog_connection = duckdb.connect()
-    _create_catalog(catalog_connection, target, str(dataset_version), str(revision))
+    _create_catalog(catalog_connection, target, as_of, str(revision))
     catalog_connection.close()
     errors = validate_dataset(target)
     if errors:
@@ -1859,8 +1822,8 @@ def extract_dataset(
     output.parent.mkdir(parents=True, exist_ok=True)
     connection.execute(
         f"COPY (SELECT * FROM matches{where} ORDER BY tour, year, level, event_start_date, event_id, round_order, match_id) "
-        f"TO {_quoted(output)} (FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 6, ROW_GROUP_SIZE {MATCH_ROW_GROUP_SIZE}, "
-        f"KV_METADATA {{schema_version: '{SCHEMA_VERSION}'}})"
+        f"TO {_quoted(output)} (FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 6, "
+        f"ROW_GROUP_SIZE {MATCH_ROW_GROUP_SIZE})"
     )
     return int(
         _required_row(connection.execute(f"SELECT count(*) FROM read_parquet({_quoted(output)})"))[
@@ -1892,14 +1855,6 @@ def add_correction(
         connection.execute(
             f"CREATE TABLE corrections AS SELECT * FROM read_parquet({_quoted(path)})"
         )
-        metadata = connection.execute(
-            f"SELECT value FROM parquet_kv_metadata({_quoted(path)}) WHERE key = 'dataset_version'"
-        ).fetchone()
-        dataset_version = (
-            (metadata[0].decode() if metadata and isinstance(metadata[0], bytes) else metadata[0])
-            if metadata
-            else contributed_on.strftime("%Y.%m.%d")
-        )
     else:
         connection.execute(
             """
@@ -1910,7 +1865,6 @@ def add_correction(
             )
             """
         )
-        dataset_version = contributed_on.strftime("%Y.%m.%d")
     connection.execute("DELETE FROM corrections WHERE correction_id = ?", [correction_id])
     connection.execute(
         "INSERT INTO corrections VALUES (?, ?, ?, ?, ?, ?, ?, 'CC0-1.0', 'proposed')",
@@ -1921,7 +1875,6 @@ def add_correction(
         connection,
         "SELECT * FROM corrections ORDER BY correction_id",
         temporary,
-        str(dataset_version),
         row_group_size=MATCH_ROW_GROUP_SIZE,
     )
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1940,6 +1893,39 @@ def validate_dataset(root: Path) -> list[str]:
         f"SELECT * FROM read_parquet({_quoted(catalog)}) ORDER BY path"
     ).fetchall()
     catalog_columns = [item[0] for item in connection.description]
+    required_catalog_columns = {
+        "path",
+        "table_name",
+        "tour",
+        "year",
+        "row_count",
+        "byte_size",
+        "sha256",
+        "as_of",
+        "source_revision",
+    }
+    missing_catalog_columns = sorted(required_catalog_columns - set(catalog_columns))
+    if missing_catalog_columns:
+        return ["catalog missing columns: " + ", ".join(missing_catalog_columns)]
+    unexpected_catalog_columns = sorted(set(catalog_columns) - required_catalog_columns)
+    if unexpected_catalog_columns:
+        errors.append("catalog contains unexpected columns: " + ", ".join(unexpected_catalog_columns))
+    metadata_paths = list(root.rglob("*.parquet"))
+    contributions = root.parent / "contributions"
+    if contributions.is_dir():
+        metadata_paths.extend(contributions.rglob("*.parquet"))
+    for metadata_path in sorted(set(metadata_paths)):
+        metadata_keys = {
+            key.decode() if isinstance(key, bytes) else str(key)
+            for (key,) in connection.execute(
+                f"SELECT key FROM parquet_kv_metadata({_quoted(metadata_path)})"
+            ).fetchall()
+        }
+        if metadata_keys:
+            errors.append(
+                f"unexpected key-value metadata in {metadata_path.relative_to(root.parent)}: "
+                + ", ".join(sorted(metadata_keys))
+            )
     positions = {name: index for index, name in enumerate(catalog_columns)}
     schemas: dict[str, list[tuple[str, str]]] = {}
     for row in catalog_rows:
@@ -1952,17 +1938,6 @@ def validate_dataset(root: Path) -> list[str]:
             errors.append(f"file exceeds 75 MB: {path.relative_to(root)}")
         if sha256_file(path) != row[positions["sha256"]]:
             errors.append(f"checksum mismatch: {path.relative_to(root)}")
-        metadata = connection.execute(
-            f"SELECT key, value FROM parquet_kv_metadata({_quoted(path)})"
-        ).fetchall()
-        decoded = {
-            (key.decode() if isinstance(key, bytes) else key): (
-                value.decode() if isinstance(value, bytes) else value
-            )
-            for key, value in metadata
-        }
-        if decoded.get("schema_version") != str(SCHEMA_VERSION):
-            errors.append(f"missing schema_version=3 metadata: {path.relative_to(root)}")
         schema = [
             (item[0], item[1])
             for item in connection.execute(
@@ -2037,7 +2012,7 @@ def format_rows(columns: Sequence[str], rows: Sequence[Sequence[Any]], output: A
 def shell(root: Path) -> int:
     connection = duckdb.connect()
     register_views(connection, root)
-    print("Open Tennis Data v3 DuckDB shell. End statements with ';'. Use .quit to exit.")
+    print("Open Tennis Data DuckDB shell. End statements with ';'. Use .quit to exit.")
     buffer: list[str] = []
     while True:
         try:

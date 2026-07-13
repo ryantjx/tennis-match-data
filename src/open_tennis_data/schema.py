@@ -1,6 +1,4 @@
-"""Shared constants for the Parquet v3 data model."""
-
-SCHEMA_VERSION = 3
+"""Shared constants for the Parquet data model."""
 TOURS = ("atp", "wta")
 DRAWS = ("main", "qualifying")
 SOURCE_LICENSES = {
