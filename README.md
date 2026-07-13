@@ -41,6 +41,60 @@ WHERE record_type = 'fixture'
 ORDER BY scheduled_on NULLS LAST, scheduled_at NULLS LAST, tour, event_name;
 ```
 
+### Query with Polars
+
+Install Polars, then lazily scan the combined remote file. This example returns
+known future fixtures and retains fixture draw slots whose exact date is not yet
+published:
+
+```bash
+python -m pip install polars
+```
+
+```python
+from datetime import date
+
+import polars as pl
+
+URL = "https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet"
+
+effective_date = pl.coalesce(
+    pl.col("scheduled_at").dt.date(),
+    pl.col("scheduled_on"),
+)
+
+future_matches = (
+    pl.scan_parquet(URL)
+    .filter(
+        (pl.col("record_type") == "fixture")
+        & (
+            (effective_date >= pl.lit(date.today()))
+            | (
+                pl.col("scheduled_at").is_null()
+                & pl.col("scheduled_on").is_null()
+            )
+        )
+    )
+    .select(
+        "tour",
+        "event_name",
+        "round",
+        "player1_name",
+        "player2_name",
+        "scheduled_on",
+        "scheduled_at",
+        "schedule_date_source",
+    )
+    .sort(["scheduled_on", "scheduled_at", "tour", "event_name"], nulls_last=True)
+    .collect()
+)
+
+print(future_matches)
+```
+
+`scan_parquet` keeps the operation lazy until `collect()`, allowing Polars to
+push the selected columns and filters into the Parquet scan.
+
 ## Quick start
 
 Clone only the current dataset and install the CLI with Python 3.11 or newer:
