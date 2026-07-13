@@ -59,46 +59,64 @@ WHERE record_type = 'fixture'
 ORDER BY scheduled_on NULLS LAST, scheduled_at NULLS LAST, tour, event_name;
 ```
 
+## Quick start
+
+### Data you can query
+
+- Rolling downloads: completed matches plus current fixtures for ATP, WTA, or
+  both tours. Use `atp.parquet`, `wta.parquet`, or `all-matches.parquet`.
+- Equivalent aliases: `mens.parquet` is ATP and `womens.parquet` is WTA.
+- Future-only downloads: the same filenames under the `future-latest` release.
+- Repository tables: matches, fixtures, events, players, rankings, statistics,
+  observations, identity mappings, coverage, and health data.
+
+### Ways to query
+
+| Method | Use case |
+| --- | --- |
+| Polars | Lazy DataFrame queries directly against a download URL |
+| DuckDB | SQL against remote downloads or local Parquet partitions |
+| `open-tennis-data` CLI | Catalog-pruned queries, an interactive shell, and Parquet extracts |
+| pandas or R | Standard Parquet analysis after downloading a file |
+
 ### Query with Polars
 
-Install Polars, then lazily scan the combined future-only file. Replace
-`all-matches.parquet` with `mens.parquet`, `womens.parquet`, `atp.parquet`, or
-`wta.parquet` to query one of the matching subsets:
-
-```bash
-python -m pip install polars
-```
+Install Polars with `python -m pip install polars`, then query the combined
+rolling dataset. Change the filename to `atp.parquet`, `wta.parquet`,
+`mens.parquet`, or `womens.parquet` for a tour-specific subset.
 
 ```python
 import polars as pl
 
-URL = "https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet"
+url = "https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet"
 
-future_matches = (
-    pl.scan_parquet(URL)
-    .select(
-        "tour",
-        "event_name",
-        "round",
-        "player1_name",
-        "player2_name",
-        "scheduled_on",
-        "scheduled_at",
-        "schedule_date_source",
-    )
-    .sort(["scheduled_on", "scheduled_at", "tour", "event_name"], nulls_last=True)
+matches = (
+    pl.scan_parquet(url)
+    .filter(pl.col("record_type") == "completed")
+    .select("tour", "event_name", "round", "player1_name", "player2_name", "score")
+    .head(10)
     .collect()
 )
-
-print(future_matches)
+print(matches)
 ```
 
-`scan_parquet` keeps the operation lazy until `collect()`, allowing Polars to
-push the selected columns into the Parquet scan.
+### Query with DuckDB
 
-## Quick start
+Query the same rolling download directly with SQL:
 
-Clone only the current dataset and install the CLI with Python 3.11 or newer:
+```sql
+SELECT tour, level, count(*) AS matches
+FROM read_parquet(
+  'https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet'
+)
+WHERE record_type = 'completed'
+GROUP BY tour, level
+ORDER BY matches DESC;
+```
+
+### Query with the CLI
+
+Clone the repository and install the CLI with Python 3.11 or newer:
 
 ```bash
 git clone --depth 1 https://github.com/ryantjx/tennis-match-data.git
@@ -106,7 +124,7 @@ cd tennis-match-data
 python -m pip install .
 ```
 
-Query selected partitions without loading the entire corpus:
+Query selected local partitions without loading the entire corpus:
 
 ```bash
 open-tennis-data query --tour atp --years 2020:2025 --sql \
@@ -114,20 +132,20 @@ open-tennis-data query --tour atp --years 2020:2025 --sql \
    FROM matches GROUP BY level, surface ORDER BY matches DESC"
 ```
 
-Open an interactive DuckDB session:
+Open an interactive DuckDB session with all tables registered as views:
 
 ```bash
 open-tennis-data shell
 ```
 
-Create a smaller Parquet dataset:
+Create a smaller Parquet extract:
 
 ```bash
 open-tennis-data extract --tour wta --years 2015:2025 \
   --levels wta_125,itf --output wta-lower-level.parquet
 ```
 
-Or query a local partition directly with DuckDB, Polars, pandas, or R:
+You can also query any local partition directly:
 
 ```sql
 SELECT player1_name, count(*) AS wins
