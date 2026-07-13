@@ -16,6 +16,16 @@ best-of; observation dates and preferred-source summary.
 `played_on_precision` is `day`, `event_only`, or `unknown`. `event_only` means
 the tournament start date is known but `played_on` remains null.
 
+## Rolling direct-download schema
+
+The five release assets use one flat superset schema. `record_type` is
+`completed` for canonical match facts and `fixture` for best-effort future draw
+slots. `record_id` is always populated; `match_id` is populated only for a
+completed match and `fixture_id` only for a fixture. Fixture rows use
+`scheduled_on`, `scheduled_at`, `schedule_date_source`, `fixture_observed_on`,
+`fixture_source`, and `fixture_source_match_id`. Match-only result, winner,
+score, ranking, and exact-date fields remain null for fixtures.
+
 ## Dimensions and auxiliary facts
 
 - `events`: source-stable tournament draws. Names never define identity.

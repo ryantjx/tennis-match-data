@@ -7,6 +7,40 @@ calendar-versioned dataset identifier.
 
 Repository: https://github.com/ryantjx/tennis-match-data
 
+## Direct Parquet downloads
+
+These rolling files contain completed singles matches **and** the current
+best-effort future fixtures. They are regenerated after validated data updates.
+`mens.parquet` is an alias of `atp.parquet`; `womens.parquet` is an alias of
+`wta.parquet`.
+
+| Download | Contents |
+| --- | --- |
+| [Men's matches](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/mens.parquet) | All ATP completed matches and future fixtures |
+| [Women's matches](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/womens.parquet) | All WTA completed matches and future fixtures |
+| [ATP](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/atp.parquet) | All ATP completed matches and future fixtures |
+| [WTA](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet) | All WTA completed matches and future fixtures |
+| [All matches](https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet) | Combined ATP and WTA completed matches and future fixtures |
+
+Completed rows have `record_type = 'completed'`; scheduled rows have
+`record_type = 'fixture'`. Query known future matches while retaining undated
+future draw slots:
+
+```sql
+SELECT
+  tour, event_name, round, player1_name, player2_name,
+  scheduled_on, scheduled_at, schedule_date_source
+FROM read_parquet(
+  'https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet'
+)
+WHERE record_type = 'fixture'
+  AND (
+    coalesce(CAST(scheduled_at AS DATE), scheduled_on) >= current_date
+    OR (scheduled_at IS NULL AND scheduled_on IS NULL)
+  )
+ORDER BY scheduled_on NULLS LAST, scheduled_at NULLS LAST, tour, event_name;
+```
+
 ## Quick start
 
 Clone only the current dataset and install the CLI with Python 3.11 or newer:

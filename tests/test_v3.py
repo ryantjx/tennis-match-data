@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import tempfile
 import unittest
 from datetime import date
@@ -9,6 +10,7 @@ import duckdb
 
 from open_tennis_data.v3 import (
     add_correction,
+    create_direct_downloads,
     extract_dataset,
     parse_years,
     query_dataset,
@@ -81,6 +83,63 @@ class V3Tests(unittest.TestCase):
                 (key.decode(), value.decode())
                 for _, key, value in connection.execute(
                     f"SELECT * FROM parquet_kv_metadata('{output}')"
+                ).fetchall()
+            )
+            self.assertEqual(metadata["schema_version"], "3")
+
+    def test_direct_downloads_include_matches_and_fixtures(self) -> None:
+        if not (DATA / "catalog" / "catalog.parquet").exists():
+            self.skipTest("generated v3 dataset is not present")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data"
+            output = Path(temporary) / "downloads"
+            connection = duckdb.connect()
+            for tour in ("atp", "wta"):
+                match_output = root / "matches" / f"tour={tour}" / "year=2026" / "matches.parquet"
+                fixture_output = root / "fixtures" / f"tour={tour}" / "current.parquet"
+                match_output.parent.mkdir(parents=True, exist_ok=True)
+                fixture_output.parent.mkdir(parents=True, exist_ok=True)
+                connection.execute(
+                    f"COPY (SELECT * FROM read_parquet('{DATA / 'matches' / f'tour={tour}' / 'year=2026' / 'matches.parquet'}') LIMIT 10) "
+                    f"TO '{match_output}' (FORMAT PARQUET)"
+                )
+                connection.execute(
+                    f"COPY (SELECT * FROM read_parquet('{DATA / 'fixtures' / f'tour={tour}' / 'current.parquet'}') LIMIT 2) "
+                    f"TO '{fixture_output}' (FORMAT PARQUET)"
+                )
+            (root / "catalog").mkdir(parents=True)
+            shutil.copy2(DATA / "catalog" / "catalog.parquet", root / "catalog/catalog.parquet")
+
+            summary = create_direct_downloads(root, output)
+            self.assertEqual(
+                set(summary),
+                {
+                    "mens.parquet",
+                    "womens.parquet",
+                    "atp.parquet",
+                    "wta.parquet",
+                    "all-matches.parquet",
+                },
+            )
+            self.assertEqual(
+                (output / "atp.parquet").read_bytes(),
+                (output / "mens.parquet").read_bytes(),
+            )
+            self.assertEqual(
+                (output / "wta.parquet").read_bytes(),
+                (output / "womens.parquet").read_bytes(),
+            )
+            rows, fixtures, tours = connection.execute(
+                f"SELECT count(*), count(*) FILTER (WHERE record_type='fixture'), "
+                f"count(DISTINCT tour) FROM read_parquet('{output / 'all-matches.parquet'}')"
+            ).fetchone()
+            self.assertEqual(rows, 24)
+            self.assertEqual(fixtures, 4)
+            self.assertEqual(tours, 2)
+            metadata = dict(
+                (key.decode(), value.decode())
+                for _, key, value in connection.execute(
+                    f"SELECT * FROM parquet_kv_metadata('{output / 'all-matches.parquet'}')"
                 ).fetchall()
             )
             self.assertEqual(metadata["schema_version"], "3")

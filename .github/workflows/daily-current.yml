@@ -36,3 +36,7 @@ jobs:
       - run: open-tennis-data validate
       - run: |
           bash scripts/commit-data.sh "data: reconcile current results and rankings"
+      - name: Build rolling direct downloads
+        run: open-tennis-data downloads --output "$RUNNER_TEMP/downloads"
+      - name: Publish rolling direct downloads
+        run: bash scripts/publish-downloads.sh "$RUNNER_TEMP/downloads"
