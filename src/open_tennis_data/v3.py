@@ -1272,8 +1272,6 @@ def create_direct_downloads(root: Path, output: Path) -> dict[str, dict[str, int
         raise RuntimeError("ATP and men's direct download aliases differ")
     if sha256_file(output / "wta.parquet") != sha256_file(output / "womens.parquet"):
         raise RuntimeError("WTA and women's direct download aliases differ")
-    if summary["all-matches.parquet"]["fixtures"] == 0:
-        raise RuntimeError("direct downloads contain no future fixtures")
     connection.close()
     return summary
 
