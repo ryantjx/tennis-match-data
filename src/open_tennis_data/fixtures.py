@@ -1,4 +1,4 @@
-"""Reusable Wikimedia future draw-slot parsing for Parquet v3."""
+"""Reusable Wikimedia future draw-slot parsing for Parquet."""
 
 from __future__ import annotations
 

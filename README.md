@@ -1,9 +1,10 @@
-# Open Tennis Data v3
+# tennis-match-data
 
 A self-updating, provenance-first collection of men's and women's singles data,
 from tour level through Challenger, WTA 125, ITF, and Futures. Every published
-data artifact is Parquet and every file carries `schema_version=3` plus a
-calendar-versioned dataset identifier.
+structured data artifact is Parquet. Files carry no repository-wide identity
+marker; relevant tables expose ordinary as-of, source, retrieval, and
+observation dates instead.
 
 Repository: https://github.com/ryantjx/tennis-match-data
 
@@ -36,7 +37,7 @@ The future-only release uses the same filenames. Change `data-latest` to
 | [All future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet) | Combined ATP and WTA fixtures |
 
 Every future-only row has `record_type = 'fixture'`. Dated fixtures are on or
-after the dataset version date; undated future draw slots are retained until
+after the catalog's `as_of` date; undated future draw slots are retained until
 their source publishes an exact schedule or completed result.
 
 Completed rows have `record_type = 'completed'`; scheduled rows have
@@ -157,8 +158,8 @@ contributions/corrections.parquet
 ```
 
 `catalog.parquet` is the entry point. It lists each data file, logical table,
-tour/year partition, row count, byte size, SHA-256 checksum, schema version,
-dataset version, and pinned source revision.
+tour/year partition, row count, byte size, SHA-256 checksum, dataset as-of date,
+and pinned source revision.
 
 The `matches` fact table repeats commonly queried event and player attributes.
 Parquet dictionary encoding keeps this compact while avoiding joins for routine

@@ -1,9 +1,10 @@
-# Parquet schema v3
+# Parquet schemas
 
-All published structured data is Parquet. Each file contains key-value metadata
-`schema_version=3` and `dataset_version=YYYY.MM.DD`. The exact Arrow schema is
-the contract; `open-tennis-data validate` checks types, metadata, checksums,
-uniqueness, referential integrity, source reconciliation, and file limits.
+All published structured data is Parquet. Files contain no repository-wide
+identity marker. The exact Arrow schema is the contract; `open-tennis-data validate`
+checks types, checksums, uniqueness, referential integrity, source
+reconciliation, and file limits. Freshness is represented by ordinary `as_of`,
+retrieval, source, and observation date fields where relevant.
 
 ## Match fact table
 
@@ -28,7 +29,7 @@ score, ranking, and exact-date fields remain null for fixtures.
 
 The `data-latest` release contains completed matches and fixtures. The
 `future-latest` release exposes the same five filenames and the same schema, but
-contains only dated fixtures on or after the dataset version date plus undated
+contains only dated fixtures on or after the catalog's `as_of` date plus undated
 future draw slots. This makes `data-latest/atp.parquet` and
 `future-latest/atp.parquet`, for example, interchangeable at the schema level.
 
@@ -58,4 +59,4 @@ ATP values are `grand_slam`, `tour_finals`, `masters_1000`, `atp_500`,
 `atp_250`, `challenger`, `itf`, `team`, `olympics`, or `other`. WTA values are
 `grand_slam`, `tour_finals`, `wta_1000`, `wta_500`, `wta_250`, `wta_125`,
 `itf`, `team`, `olympics`, or `other`. Where the source cannot distinguish a
-modern category safely, v3 uses `other` and preserves the original code.
+modern category safely, the dataset uses `other` and preserves the original code.

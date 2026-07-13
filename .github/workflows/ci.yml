@@ -1,4 +1,4 @@
-name: Validate v3
+name: Validate data
 
 on:
   pull_request:
@@ -44,29 +44,29 @@ jobs:
         run: |
           coverage run --append -m open_tennis_data.cli build \
             --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
-            --output "$RUNNER_TEMP/v3-data"
-      - run: coverage run --append -m open_tennis_data.cli validate --data "$RUNNER_TEMP/v3-data"
+            --output "$RUNNER_TEMP/tennis-data"
+      - run: coverage run --append -m open_tennis_data.cli validate --data "$RUNNER_TEMP/tennis-data"
       - run: |
           coverage run --append -m open_tennis_data.cli query \
-            --data "$RUNNER_TEMP/v3-data" --tour all \
+            --data "$RUNNER_TEMP/tennis-data" --tour all \
             --sql "SELECT tour, count(*) FROM matches GROUP BY tour"
       - run: |
           coverage run --append -m open_tennis_data.cli extract \
-            --data "$RUNNER_TEMP/v3-data" --tour atp --levels itf \
+            --data "$RUNNER_TEMP/tennis-data" --tour atp --levels itf \
             --output "$RUNNER_TEMP/itf.parquet"
       - run: |
           coverage run --append -m open_tennis_data.cli refresh-wikimedia \
-            --data "$RUNNER_TEMP/v3-data" --as-of "$(date -u +%F)"
+            --data "$RUNNER_TEMP/tennis-data" --as-of "$(date -u +%F)"
       - run: |
           coverage run --append -m open_tennis_data.cli downloads \
-            --data "$RUNNER_TEMP/v3-data" --output "$RUNNER_TEMP/downloads"
+            --data "$RUNNER_TEMP/tennis-data" --output "$RUNNER_TEMP/downloads"
       - run: |
           coverage run --append -m open_tennis_data.cli downloads --future-only \
-            --data "$RUNNER_TEMP/v3-data" --output "$RUNNER_TEMP/future-downloads"
-      - run: cp -a "$RUNNER_TEMP/v3-data" "$RUNNER_TEMP/v3-copy"
+            --data "$RUNNER_TEMP/tennis-data" --output "$RUNNER_TEMP/future-downloads"
+      - run: cp -a "$RUNNER_TEMP/tennis-data" "$RUNNER_TEMP/tennis-copy"
       - run: |
           coverage run --append -m open_tennis_data.cli promote \
-            --source "$RUNNER_TEMP/v3-data" --target "$RUNNER_TEMP/v3-copy"
+            --source "$RUNNER_TEMP/tennis-data" --target "$RUNNER_TEMP/tennis-copy"
       - run: coverage report --fail-under=90
 
   required-status:
@@ -84,13 +84,13 @@ jobs:
       - name: Publish required validation status
         run: |
           state=failure
-          description="v3 validation failed"
+          description="Data validation failed"
           if [ "$TEST_RESULT" = success ] && [ "$INTEGRATION_RESULT" = success ]; then
             state=success
             description="Python matrix and integration validation passed"
           fi
           gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$STATUS_SHA" \
             -f state="$state" \
-            -f context=v3-required \
+            -f context=data-required \
             -f description="$description"
           test "$state" = success

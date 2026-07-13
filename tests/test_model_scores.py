@@ -30,7 +30,7 @@ class ModelAndScoreTests(unittest.TestCase):
             surface=None,
             level=None,
         )
-        self.assertEqual(event["schema_version"], 3)
+        self.assertEqual(set(event), {"kind", "event", "source_catalog", "matches"})
         self.assertEqual(
             semantic_match(
                 {"winner_id": "wta:1", "status": "completed", "round": "F", "score": "7-6(4) RET"}
