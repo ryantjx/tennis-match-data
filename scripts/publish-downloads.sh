@@ -11,6 +11,7 @@ assets=(
   "$directory/atp.parquet"
   "$directory/wta.parquet"
   "$directory/all-matches.parquet"
+  "$directory/tournaments.parquet"
 )
 for asset in "${assets[@]}"; do
   test -f "$asset"

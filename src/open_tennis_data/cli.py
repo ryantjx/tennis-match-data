@@ -10,6 +10,8 @@ from pathlib import Path
 
 from open_tennis_data.dataset import (
     add_correction,
+    audit_retroactive_dataset,
+    bootstrap_dataset,
     build_dataset,
     create_direct_downloads,
     extract_dataset,
@@ -17,6 +19,8 @@ from open_tennis_data.dataset import (
     parse_years,
     promote_dataset,
     query_dataset,
+    refresh_current_dataset,
+    refresh_fixtures_dataset,
     refresh_wikimedia_dataset,
     shell,
     validate_dataset,
@@ -78,7 +82,11 @@ def command_extract(args: argparse.Namespace) -> int:
 
 
 def command_validate(args: argparse.Namespace) -> int:
-    errors = validate_dataset(Path(args.data))
+    errors = validate_dataset(
+        Path(args.data),
+        baseline_catalog=Path(args.baseline_catalog) if args.baseline_catalog else None,
+        immutable_before_year=args.immutable_before_year,
+    )
     for error in errors:
         print(error, file=sys.stderr)
     if errors:
@@ -108,9 +116,58 @@ def command_refresh_wikimedia(args: argparse.Namespace) -> int:
         workers=args.workers,
     )
     print(
-        f"refreshed Wikimedia: {summary['pages']} pages, {summary['new_matches']} new matches, "
-        f"{summary['linked_matches']} linked, {summary['fixtures']} fixtures, "
-        f"{summary['conflicts']} conflicts"
+        f"refreshed fixtures/current results: {summary['changed_files']} changed files "
+        f"({summary['changed_bytes']} bytes)"
+    )
+    return 0
+
+
+def command_bootstrap(args: argparse.Namespace) -> int:
+    summary = bootstrap_dataset(
+        Path(args.output),
+        through_year=args.through_year,
+        as_of=date.fromisoformat(args.as_of),
+        workers=args.workers,
+    )
+    print(
+        f"bootstrapped dataset through {args.through_year}: "
+        f"{summary['catalog_rows']} files, {summary['logical_rows']} logical rows"
+    )
+    return 0
+
+
+def command_refresh_current(args: argparse.Namespace) -> int:
+    summary = refresh_current_dataset(
+        Path(args.data), as_of=date.fromisoformat(args.as_of), workers=args.workers
+    )
+    print(
+        f"refreshed current year: {summary['changed_files']} changed files "
+        f"({summary['changed_bytes']} bytes)"
+    )
+    return 0
+
+
+def command_refresh_fixtures(args: argparse.Namespace) -> int:
+    summary = refresh_fixtures_dataset(
+        Path(args.data), as_of=date.fromisoformat(args.as_of), workers=args.workers
+    )
+    print(
+        f"refreshed fixtures: {summary['changed_files']} changed files "
+        f"({summary['changed_bytes']} bytes)"
+    )
+    return 0
+
+
+def command_audit_retroactive(args: argparse.Namespace) -> int:
+    report = audit_retroactive_dataset(
+        Path(args.data),
+        Path(args.output),
+        as_of=date.fromisoformat(args.as_of),
+        workers=args.workers,
+    )
+    print(
+        f"retroactive audit passed: {report['changed_files']} changed files; "
+        f"reports written to {args.output}"
     )
     return 0
 
@@ -137,12 +194,23 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="open-tennis-data")
     commands = result.add_subparsers(dest="command", required=True)
 
-    build = commands.add_parser("build", help="rebuild the Parquet dataset from pinned sources")
+    build = commands.add_parser(
+        "build", help="deprecated full rebuild; use bootstrap for initialization"
+    )
     build.add_argument("--years", default=f"1968:{date.today().year}")
     build.add_argument("--as-of", default=date.today().isoformat())
     build.add_argument("--output", default="data")
     build.add_argument("--workers", type=int, default=12)
     build.set_defaults(handler=command_build)
+
+    bootstrap = commands.add_parser(
+        "bootstrap", help="initialize an empty repository with complete history"
+    )
+    bootstrap.add_argument("--through-year", type=int, default=date.today().year)
+    bootstrap.add_argument("--as-of", default=date.today().isoformat())
+    bootstrap.add_argument("--output", default="data")
+    bootstrap.add_argument("--workers", type=int, default=12)
+    bootstrap.set_defaults(handler=command_bootstrap)
 
     query = commands.add_parser("query", help="query selected Parquet partitions with DuckDB SQL")
     query.add_argument("--data", default="data")
@@ -168,6 +236,8 @@ def parser() -> argparse.ArgumentParser:
 
     validate = commands.add_parser("validate", help="validate schemas, checksums, and integrity")
     validate.add_argument("--data", default="data")
+    validate.add_argument("--baseline-catalog")
+    validate.add_argument("--immutable-before-year", type=int)
     validate.set_defaults(handler=command_validate)
 
     correction = commands.add_parser("add-correction", help="append a CC0 correction to Parquet")
@@ -181,12 +251,37 @@ def parser() -> argparse.ArgumentParser:
     correction.set_defaults(handler=command_add_correction)
 
     refresh = commands.add_parser(
-        "refresh-wikimedia", help="refresh only current Wikimedia results and fixtures"
+        "refresh-wikimedia", help="deprecated alias for refresh-fixtures"
     )
     refresh.add_argument("--data", default="data")
     refresh.add_argument("--as-of", default=date.today().isoformat())
     refresh.add_argument("--workers", type=int, default=12)
     refresh.set_defaults(handler=command_refresh_wikimedia)
+
+    refresh_current = commands.add_parser(
+        "refresh-current", help="atomically refresh only the current result year"
+    )
+    refresh_current.add_argument("--data", default="data")
+    refresh_current.add_argument("--as-of", default=date.today().isoformat())
+    refresh_current.add_argument("--workers", type=int, default=12)
+    refresh_current.set_defaults(handler=command_refresh_current)
+
+    refresh_fixtures = commands.add_parser(
+        "refresh-fixtures", help="refresh current results and current/next-year fixtures"
+    )
+    refresh_fixtures.add_argument("--data", default="data")
+    refresh_fixtures.add_argument("--as-of", default=date.today().isoformat())
+    refresh_fixtures.add_argument("--workers", type=int, default=12)
+    refresh_fixtures.set_defaults(handler=command_refresh_fixtures)
+
+    audit = commands.add_parser(
+        "audit-retroactive", help="review previous/current results and future fixtures"
+    )
+    audit.add_argument("--data", default="data")
+    audit.add_argument("--output", default="audit")
+    audit.add_argument("--as-of", default=date.today().isoformat())
+    audit.add_argument("--workers", type=int, default=12)
+    audit.set_defaults(handler=command_audit_retroactive)
 
     promote = commands.add_parser("promote", help="promote only semantic Parquet changes")
     promote.add_argument("--source", required=True)
@@ -201,7 +296,7 @@ def parser() -> argparse.ArgumentParser:
     downloads.add_argument(
         "--future-only",
         action="store_true",
-        help="emit only current/future fixtures and undated future draw slots",
+        help="emit current/future fixtures, retaining undated draw slots",
     )
     downloads.set_defaults(handler=command_downloads)
     return result

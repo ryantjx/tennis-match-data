@@ -133,7 +133,7 @@
               <span>Table</span>
               <select id="explorer-table">
                 <option value="matches">matches</option>
-                <option value="events">events</option>
+                <option value="tournaments">tournaments</option>
                 <option value="match_stats">match_stats</option>
                 <option value="observations">observations</option>
                 <option value="rankings">rankings</option>
@@ -174,10 +174,9 @@
             <button class="text-button" id="load-example" type="button">Load example</button>
           </div>
           <label class="visually-hidden" for="sql">DuckDB SQL</label>
-          <textarea id="sql" spellcheck="false">SELECT event_name, round, player1_name, player2_name, score
+          <textarea id="sql" spellcheck="false">SELECT tournament_id, round, player1_name, player2_name, score
 FROM matches
-WHERE level = 'grand_slam'
-ORDER BY event_start_date DESC, round_order DESC
+ORDER BY year DESC, tournament_id, round DESC
 LIMIT 100;</textarea>
           <div class="query-actions">
             <button class="primary-button" id="run-query" type="button">Run query</button>

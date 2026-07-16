@@ -1,62 +1,71 @@
 # Parquet schemas
 
-All published structured data is Parquet. Files contain no repository-wide
-identity marker. The exact Arrow schema is the contract; `open-tennis-data validate`
-checks types, checksums, uniqueness, referential integrity, source
-reconciliation, and file limits. Freshness is represented by ordinary `as_of`,
-retrieval, source, and observation date fields where relevant.
+All published structured data is Parquet. The exact Arrow schema is the public
+contract, and `open-tennis-data validate` checks schemas, checksums, uniqueness,
+references, source reconciliation, and file limits.
 
-## Match fact table
+## Completed matches
 
-`matches` contains canonical match/event IDs; tour and season; denormalized
-event name, level, detailed and source levels, surface and location; event and
-nullable match dates; draw and canonical round; both players; winner/loser;
-seeds, entries, event-time rankings; result status, termination, raw score and
-best-of; observation dates and preferred-source summary.
+Match partitions and the `data-latest` release contain only completed result
+records. Their columns, in order, are:
 
-`played_on_precision` is `day`, `event_only`, or `unknown`. `event_only` means
-the tournament start date is known but `played_on` remains null.
+```text
+match_id, tournament_id, tour, year, draw, round,
+player1_id, player1_name, player1_country,
+player2_id, player2_name, player2_country,
+winner_id, loser_id,
+player1_seed, player2_seed, player1_entry, player2_entry,
+player1_rank, player2_rank, player1_rank_points, player2_rank_points,
+status, score, best_of
+```
 
-## Rolling direct-download schema
+`match_id` is a stable canonical identifier. Result `status` is one of
+`completed`, `walkover`, `retired`, `defaulted`, or `abandoned`.
 
-The five release assets use one flat superset schema. `record_type` is
-`completed` for canonical match facts and `fixture` for best-effort future draw
-slots. `record_id` is always populated; `match_id` is populated only for a
-completed match and `fixture_id` only for a fixture. Fixture rows use
-`scheduled_on`, `scheduled_at`, `schedule_date_source`, `fixture_observed_on`,
-`fixture_source`, and `fixture_source_match_id`. Match-only result, winner,
-score, ranking, and exact-date fields remain null for fixtures.
+## Fixtures
 
-The `data-latest` release contains completed matches and fixtures. The
-`future-latest` release exposes the same five filenames and the same schema, but
-contains only dated fixtures on or after the catalog's `as_of` date plus undated
-future draw slots. This makes `data-latest/atp.parquet` and
-`future-latest/atp.parquet`, for example, interchangeable at the schema level.
+Fixture partitions and the `future-latest` release use a separate schema:
 
-## Dimensions and auxiliary facts
+```text
+fixture_id, tournament_id, tour, year, draw, round,
+player1_id, player1_name, player2_id, player2_name,
+scheduled_on, source_url
+```
 
-- `events`: source-stable tournament draws. Names never define identity.
-- `players`: canonical player records and preferred source identifiers.
+Fixtures never have a `match_id`. `scheduled_on` is nullable because a draw can
+be known before the order of play. Dated rows older than the dataset `as_of`
+date are excluded from `future-latest`; undated draw slots remain.
+
+## Annual tournaments
+
+Tournament partitions and each rolling release include `tournaments.parquet`:
+
+```text
+tournament_id, tour, year, tournament_name, level, surface, indoor,
+start_date, end_date, city, country, source_url
+```
+
+One ID represents one annual tour edition and is shared by its main and
+qualifying draws. IDs use `tournament_{tour}_{year}_{stable_hash}`. ATP and WTA
+editions remain separate even when they share a brand or venue. Start and end
+dates describe the tournament window, not an individual match date.
+
+## Auxiliary facts and provenance
+
+- `players`: canonical player records and source identifiers.
 - `match_stats`: sparse duration, service, and break-point totals.
-- `rankings`: long-form published ranking snapshots.
-- `observations`: source-native IDs, fingerprints, revisions, checksums, URLs,
-  retrieval dates, and licences for canonical matches.
-- `fixtures`: separate scheduled or tentative source-observed slots.
-- `identity`: persistent source-to-canonical mappings.
-- `coverage`, `health`, `conflicts`, and `quarantine`: queryable quality state.
-- `corrections`: proposed CC0 field-level patches.
-
-## Identity
-
-Source events use `(source, source_event_id, draw)`. Source matches use
-`(source, source_match_id, row_fingerprint)`. Cross-source merging requires one
-unambiguous event, round, and unordered canonical player pair. Ambiguities are
-published as conflicts; no observation is silently discarded.
+- `rankings`: long-form ranking snapshots.
+- `observations`: compact match-to-source rows containing only `match_id`,
+  `tour`, `year`, `source_file_id`, and `source_match_id`.
+- `source-audit`: one row per source file with URL, revision, checksum, licence,
+  and source/normalized/quarantined counts.
+- `tournament-sources` and `player-links`: persistent source crosswalks.
+- `coverage`, `health`, `conflicts`, `quarantine`, and `corrections`: queryable
+  quality and contribution state.
 
 ## Canonical levels
 
 ATP values are `grand_slam`, `tour_finals`, `masters_1000`, `atp_500`,
 `atp_250`, `challenger`, `itf`, `team`, `olympics`, or `other`. WTA values are
 `grand_slam`, `tour_finals`, `wta_1000`, `wta_500`, `wta_250`, `wta_125`,
-`itf`, `team`, `olympics`, or `other`. Where the source cannot distinguish a
-modern category safely, the dataset uses `other` and preserves the original code.
+`itf`, `team`, `olympics`, or `other`.

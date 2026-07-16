@@ -9,7 +9,7 @@ from open_tennis_data.model import (
     semantic_match,
     slugify,
 )
-from open_tennis_data.scores import parse_sackmann_score
+from open_tennis_data.scores import parse_bracket_scores, parse_sackmann_score
 
 
 class ModelAndScoreTests(unittest.TestCase):
@@ -54,6 +54,12 @@ class ModelAndScoreTests(unittest.TestCase):
     def test_round_aliases(self):
         self.assertEqual(canonical_round("Quarterfinals"), "QF")
         self.assertEqual(canonical_round("R64"), "R64")
+
+    def test_bracket_scores_and_empty_values(self):
+        score = parse_bracket_scores(["6", "4", "<sup>r</sup>"], ["3", "6", ""], 0)
+        self.assertEqual(score["raw"], "6-3 4-6")
+        self.assertEqual(score["termination"], "retired")
+        self.assertEqual(parse_sackmann_score("")["sets"], [])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
 import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+esm";
 
 const PAGE_SIZE = 10;
-const RAW_ROOT = "https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data";
+const RAW_ROOT = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+  ? `${window.location.origin}/data`
+  : "https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data";
 const currentYear = new Date().getUTCFullYear();
 
 const TABLES = {
@@ -9,8 +11,8 @@ const TABLES = {
     path: ({tour, year}) => `matches/tour=${tour}/year=${year}/matches.parquet`,
     year: true,
   },
-  events: {
-    path: ({tour, year}) => `events/tour=${tour}/year=${year}/events.parquet`,
+  tournaments: {
+    path: ({tour, year}) => `tournaments/tour=${tour}/year=${year}/tournaments.parquet`,
     year: true,
   },
   match_stats: {
@@ -36,8 +38,8 @@ const TABLES = {
 };
 
 const SEARCH_COLUMNS = [
-  "event_start_date",
-  "event_name",
+  "start_date",
+  "tournament_name",
   "round",
   "player1_name",
   "player2_name",
@@ -46,8 +48,8 @@ const SEARCH_COLUMNS = [
   "surface",
 ];
 const SEARCH_LABELS = {
-  event_start_date: "Date",
-  event_name: "Tournament",
+  start_date: "Date",
+  tournament_name: "Tournament",
   round: "Round",
   player1_name: "Player 1",
   player2_name: "Player 2",
@@ -192,7 +194,7 @@ function searchPredicate() {
   if (query) {
     const pattern = sqlLiteral(`%${query}%`);
     predicates.push(`(
-      lower(coalesce(event_name, '')) LIKE ${pattern}
+      lower(coalesce(tournament_name, '')) LIKE ${pattern}
       OR lower(coalesce(player1_name, '')) LIKE ${pattern}
       OR lower(coalesce(player2_name, '')) LIKE ${pattern}
     )`);
@@ -212,21 +214,28 @@ async function runSearch({resetPage = true} = {}) {
     const partitionKey = `${tour}/${year}`;
     if (state.search.partition !== partitionKey) {
       await registerTable("matches", tour, year);
+      await registerTable("tournaments", tour, year);
+      await state.connection.query(`
+        CREATE OR REPLACE VIEW search_matches AS
+        SELECT m.*, t.tournament_name, t.level, t.surface, t.start_date
+        FROM matches m
+        JOIN tournaments t USING (tournament_id, tour, year)
+      `);
       state.search.partition = partitionKey;
     }
     if (resetPage) state.search.page = 1;
     state.search.where = searchPredicate();
     const started = performance.now();
     const countResult = await state.connection.query(
-      `SELECT count(*) AS total FROM matches WHERE ${state.search.where}`
+      `SELECT count(*) AS total FROM search_matches WHERE ${state.search.where}`
     );
     state.search.total = firstValue(countResult);
     const offset = (state.search.page - 1) * PAGE_SIZE;
     const result = await state.connection.query(`
       SELECT ${SEARCH_COLUMNS.join(", ")}
-      FROM matches
+      FROM search_matches
       WHERE ${state.search.where}
-      ORDER BY event_start_date DESC NULLS LAST, event_id, round_order DESC, match_id
+      ORDER BY start_date DESC NULLS LAST, tournament_id, round DESC, match_id
       LIMIT ${PAGE_SIZE} OFFSET ${offset}
     `);
     renderTable(elements["search-results"], elements["search-empty"], result, SEARCH_LABELS);
@@ -350,7 +359,7 @@ elements["load-table"].addEventListener("click", () => loadExplorerTable());
 elements["load-example"].addEventListener("click", () => {
   elements["explorer-table"].value = "matches";
   elements["explorer-year"].disabled = false;
-  elements.sql.value = `SELECT event_name, round, player1_name, player2_name, score\nFROM matches\nWHERE level = 'grand_slam'\nORDER BY event_start_date DESC, round_order DESC\nLIMIT 100;`;
+  elements.sql.value = `SELECT tournament_id, round, player1_name, player2_name, score\nFROM matches\nORDER BY year DESC, tournament_id, round DESC\nLIMIT 100;`;
 });
 elements["run-query"].addEventListener("click", () => runExplorerQuery());
 elements["query-previous"].addEventListener("click", () => {

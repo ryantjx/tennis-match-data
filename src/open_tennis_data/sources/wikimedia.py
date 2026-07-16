@@ -29,6 +29,27 @@ TITLE_PATTERN = re.compile(
     r"^(?P<year>\d{4})\s+(?P<event>.+?)\s+[–-]\s+"
     r"(?:(?:Men|Women)'s\s+)?[Ss]ingles(?P<qualifying>\s+qualifying)?$"
 )
+MONTHS = {
+    month.lower(): number
+    for number, month in enumerate(
+        (
+            "",
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        )
+    )
+    if month
+}
 
 
 def api(params: Mapping[str, Any], attempts: int = 3) -> dict[str, Any]:
@@ -103,6 +124,97 @@ def fetch_page(title: str) -> dict[str, Any]:
     }
 
 
+def fetch_page_optional(title: str) -> dict[str, Any] | None:
+    data = api(
+        {
+            "action": "query",
+            "prop": "revisions|pageprops",
+            "titles": title,
+            "redirects": 1,
+            "rvprop": "ids|timestamp|content",
+            "rvslots": "main",
+        }
+    )
+    page = data.get("query", {}).get("pages", [{}])[0]
+    revisions = page.get("revisions", [])
+    if page.get("missing") or not revisions:
+        return None
+    revision = revisions[0]
+    return {
+        "title": page["title"],
+        "page_id": page["pageid"],
+        "wikidata_id": page.get("pageprops", {}).get("wikibase_item"),
+        "revision_id": revision["revid"],
+        "revision_timestamp": revision["timestamp"],
+        "content": revision["slots"]["main"]["content"],
+    }
+
+
+def fetch_pages_optional(titles: list[str], batch_size: int = 20) -> dict[str, dict[str, Any]]:
+    """Fetch optional tournament pages in batches to respect MediaWiki limits."""
+    found: dict[str, dict[str, Any]] = {}
+    for offset in range(0, len(titles), batch_size):
+        batch = titles[offset : offset + batch_size]
+        data = api(
+            {
+                "action": "query",
+                "prop": "revisions|pageprops",
+                "titles": "|".join(batch),
+                "redirects": 1,
+                "rvprop": "ids|timestamp|content",
+                "rvslots": "main",
+            }
+        )
+        aliases = {title: title for title in batch}
+        for item in data.get("query", {}).get("normalized", []):
+            aliases[str(item["to"])] = aliases.pop(str(item["from"]), str(item["from"]))
+        for item in data.get("query", {}).get("redirects", []):
+            aliases[str(item["to"])] = aliases.get(str(item["from"]), str(item["from"]))
+        for page in data.get("query", {}).get("pages", []):
+            revisions = page.get("revisions", [])
+            if page.get("missing") or not revisions:
+                continue
+            revision = revisions[0]
+            original_title = aliases.get(str(page["title"]), str(page["title"]))
+            found[original_title] = {
+                "title": page["title"],
+                "page_id": page["pageid"],
+                "wikidata_id": page.get("pageprops", {}).get("wikibase_item"),
+                "revision_id": revision["revid"],
+                "revision_timestamp": revision["timestamp"],
+                "content": revision["slots"]["main"]["content"],
+            }
+    return found
+
+
+def fetch_page_revisions(titles: list[str], batch_size: int = 50) -> dict[str, str]:
+    """Fetch revision IDs without downloading page content."""
+    revisions: dict[str, str] = {}
+    for offset in range(0, len(titles), batch_size):
+        batch = titles[offset : offset + batch_size]
+        data = api(
+            {
+                "action": "query",
+                "prop": "revisions",
+                "titles": "|".join(batch),
+                "redirects": 1,
+                "rvprop": "ids",
+            }
+        )
+        aliases = {title: title for title in batch}
+        for item in data.get("query", {}).get("normalized", []):
+            aliases[str(item["to"])] = aliases.pop(str(item["from"]), str(item["from"]))
+        for item in data.get("query", {}).get("redirects", []):
+            aliases[str(item["to"])] = aliases.get(str(item["from"]), str(item["from"]))
+        for page in data.get("query", {}).get("pages", []):
+            page_revisions = page.get("revisions", [])
+            if page.get("missing") or not page_revisions:
+                continue
+            original_title = aliases.get(str(page["title"]), str(page["title"]))
+            revisions[original_title] = str(page_revisions[0]["revid"])
+    return revisions
+
+
 def _plain(value: str) -> str:
     return str(mwparserfromhell.parse(value or "").strip_code()).strip(" ' \n\t")
 
@@ -110,6 +222,96 @@ def _plain(value: str) -> str:
 def _parameter_map(template: Any) -> dict[str, str]:
     return {
         str(parameter.name).strip(): str(parameter.value).strip() for parameter in template.params
+    }
+
+
+def _date_range(value: str, year: int) -> tuple[date | None, date | None]:
+    plain = _plain(value).replace("–", "-").replace("—", "-")
+    plain = re.sub(r"(\d)(?:st|nd|rd|th)\b", r"\1", plain, flags=re.I)
+    patterns = (
+        re.search(
+            r"(?P<start>\d{1,2})\s*-\s*(?P<end>\d{1,2})\s+"
+            r"(?P<month>[A-Za-z]+)(?:\s*,?\s*(?P<year>\d{4}))?",
+            plain,
+        ),
+        re.search(
+            r"(?P<month>[A-Za-z]+)\s+(?P<start>\d{1,2})\s*-\s*"
+            r"(?P<end>\d{1,2})(?:\s*,?\s*(?P<year>\d{4}))?",
+            plain,
+        ),
+        re.search(
+            r"between\s+(?P<start>\d{1,2})\s+and\s+(?P<end>\d{1,2})\s+"
+            r"(?P<month>[A-Za-z]+)(?:\s+(?P<year>\d{4}))?",
+            plain,
+            flags=re.I,
+        ),
+    )
+    match = next((item for item in patterns if item), None)
+    if match:
+        month = MONTHS.get(match.group("month").lower())
+        parsed_year = int(match.group("year") or year)
+        if month:
+            try:
+                return (
+                    date(parsed_year, month, int(match.group("start"))),
+                    date(parsed_year, month, int(match.group("end"))),
+                )
+            except ValueError:
+                return None, None
+    single = re.search(
+        r"(?P<day>\d{1,2})\s+(?P<month>[A-Za-z]+)(?:\s+(?P<year>\d{4}))?",
+        plain,
+    )
+    if single and (month := MONTHS.get(single.group("month").lower())):
+        try:
+            parsed = date(int(single.group("year") or year), month, int(single.group("day")))
+            return parsed, parsed
+        except ValueError:
+            pass
+    return None, None
+
+
+def parse_tournament_page(page: Mapping[str, Any], tour: str, year: int) -> dict[str, Any]:
+    parameters: dict[str, str] = {}
+    code = mwparserfromhell.parse(str(page["content"]))
+    for template in code.filter_templates(recursive=True):
+        name = _plain(str(template.name)).lower()
+        if "infobox" in name and "tennis" in name:
+            parameters = {
+                str(key).strip().lower().replace(" ", "_"): value
+                for key, value in _parameter_map(template).items()
+            }
+            break
+    start_date, end_date = _date_range(parameters.get("date", ""), year)
+    if start_date is None:
+        start_date, end_date = _date_range(str(page["content"])[:4000], year)
+    location = _plain(parameters.get("location", ""))
+    city = country = None
+    if location:
+        parts = [part.strip() for part in location.split(",") if part.strip()]
+        city = parts[0] if parts else None
+        country = parts[-1] if len(parts) > 1 else None
+    surface_text = _plain(parameters.get("surface", "")).lower()
+    surface = next(
+        (value for value in ("hard", "clay", "grass", "carpet") if value in surface_text),
+        None,
+    )
+    source_url = (
+        "https://en.wikipedia.org/wiki/"
+        + urllib.parse.quote(str(page["title"]).replace(" ", "_"))
+    )
+    return {
+        "tour": tour,
+        "year": year,
+        "event_name": re.sub(rf"^{year}\s+", "", str(page["title"])).strip(),
+        "start_date": start_date,
+        "end_date": end_date,
+        "city": city,
+        "country": country,
+        "surface": surface,
+        "indoor": "indoor" in surface_text,
+        "source_url": source_url,
+        "source_tournament_id": str(page.get("wikidata_id") or page["page_id"]),
     }
 
 
