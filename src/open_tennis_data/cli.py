@@ -25,6 +25,7 @@ from open_tennis_data.dataset import (
     shell,
     validate_dataset,
 )
+from open_tennis_data.migration import migrate_v31_to_v32
 
 
 def _tours(value: str) -> list[str]:
@@ -96,9 +97,13 @@ def command_validate(args: argparse.Namespace) -> int:
 
 
 def command_add_correction(args: argparse.Namespace) -> int:
+    entity_id = args.entity_id or args.match_id
+    if not entity_id:
+        raise ValueError("--entity-id is required (or deprecated --match-id)")
     identifier = add_correction(
         Path(args.path),
-        match_id=args.match_id,
+        entity_type="match" if args.match_id else args.entity_type,
+        entity_id=entity_id,
         field=args.field,
         corrected_value=args.value,
         source_url=args.source_url,
@@ -190,6 +195,17 @@ def command_downloads(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_migrate_v32(args: argparse.Namespace) -> int:
+    report = migrate_v31_to_v32(
+        Path(args.data), Path(args.output), Path(args.report)
+    )
+    print(
+        f"migrated v3.2: {report['new_match_rows']} matches, "
+        f"{report['fixture_rows']} fixtures"
+    )
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="open-tennis-data")
     commands = result.add_subparsers(dest="command", required=True)
@@ -242,7 +258,9 @@ def parser() -> argparse.ArgumentParser:
 
     correction = commands.add_parser("add-correction", help="append a CC0 correction to Parquet")
     correction.add_argument("--path", default="contributions/corrections.parquet")
-    correction.add_argument("--match-id", required=True)
+    correction.add_argument("--entity-type", choices=("match", "tournament", "player"), default="match")
+    correction.add_argument("--entity-id")
+    correction.add_argument("--match-id", help="deprecated shorthand for a match entity")
     correction.add_argument("--field", required=True)
     correction.add_argument("--value", required=True)
     correction.add_argument("--source-url", required=True)
@@ -299,6 +317,14 @@ def parser() -> argparse.ArgumentParser:
         help="emit current/future fixtures, retaining undated draw slots",
     )
     downloads.set_defaults(handler=command_downloads)
+
+    migrate = commands.add_parser(
+        "migrate-v3-2", help="stage the one-time offline v3.1 to v3.2 migration"
+    )
+    migrate.add_argument("--data", default="data")
+    migrate.add_argument("--output", required=True)
+    migrate.add_argument("--report", default="reports/v3.2")
+    migrate.set_defaults(handler=command_migrate_v32)
     return result
 
 

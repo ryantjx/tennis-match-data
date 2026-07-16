@@ -4,7 +4,7 @@ set -euo pipefail
 directory=${1:?download directory required}
 mode=${2:-all}
 
-files=(mens.parquet womens.parquet atp.parquet wta.parquet all-matches.parquet tournaments.parquet)
+files=(mens.parquet womens.parquet atp.parquet wta.parquet all-matches.parquet tournaments.parquet provenance.parquet sources.parquet)
 for filename in "${files[@]}"; do
   test -f "$directory/$filename"
 done
@@ -26,22 +26,12 @@ as_of = connection.execute(
     "SELECT as_of FROM read_parquet('data/catalog/catalog.parquet') LIMIT 1"
 ).fetchone()[0]
 expected_schema = None
-expected_columns = (
-    [
-        "fixture_id", "tournament_id", "tour", "year", "draw", "round",
-        "player1_id", "player1_name", "player2_id", "player2_name",
-        "scheduled_on", "source_url",
-    ]
-    if future_only
-    else [
-        "match_id", "tournament_id", "tour", "year", "draw", "round",
-        "player1_id", "player1_name", "player1_country", "player2_id",
-        "player2_name", "player2_country", "winner_id", "loser_id",
-        "player1_seed", "player2_seed", "player1_entry", "player2_entry",
-        "player1_rank", "player2_rank", "player1_rank_points",
-        "player2_rank_points", "status", "score", "best_of",
-    ]
-)
+expected_columns = [
+    "date", "match_id", "tournament_id", "tournament_name", "tour", "year",
+    "draw", "round", "format", "player1_id", "player1_name", "player1_seed",
+    "player2_id", "player2_name", "player2_seed", "winner_id", "status",
+    "score", "best_of",
+]
 match_paths = [directory / name for name in (
     "mens.parquet", "womens.parquet", "atp.parquet", "wta.parquet", "all-matches.parquet"
 )]
@@ -56,15 +46,18 @@ for path in match_paths:
         expected_schema = typed_schema
     elif typed_schema != expected_schema:
         raise SystemExit(f"download schema drift: {path.name}")
-    metadata = connection.execute(
-        f"SELECT count(*) FROM parquet_kv_metadata('{path}')"
-    ).fetchone()[0]
-    if metadata:
-        raise SystemExit(f"unexpected Parquet metadata: {path.name}")
+    metadata = {
+        key.decode(): value.decode()
+        for _, key, value in connection.execute(
+            f"SELECT * FROM parquet_kv_metadata('{path}')"
+        ).fetchall()
+    }
+    if metadata != {"open_tennis_data_schema_version": "3.2"}:
+        raise SystemExit(f"unexpected Parquet metadata: {path.name}: {metadata}")
     if future_only:
         invalid_past = connection.execute(
             f"SELECT count(*) FROM read_parquet('{path}') "
-            "WHERE scheduled_on IS NOT NULL AND scheduled_on < ?",
+            "WHERE date IS NOT NULL AND date < ?",
             [as_of],
         ).fetchone()[0]
         if invalid_past:
@@ -86,5 +79,15 @@ if [
     "indoor", "start_date", "end_date", "city", "country", "source_url",
 ]:
     raise SystemExit("unexpected tournaments.parquet schema")
+if [row[0] for row in connection.execute(
+    f"DESCRIBE SELECT * FROM read_parquet('{directory / 'provenance.parquet'}')"
+).fetchall()] != ["match_id", "tour", "year", "source_file_id", "source_match_id"]:
+    raise SystemExit("unexpected provenance.parquet schema")
+source_columns = [row[0] for row in connection.execute(
+    f"DESCRIBE SELECT * FROM read_parquet('{directory / 'sources.parquet'}')"
+).fetchall()]
+for required in ("source_file_id", "source_url", "revision", "sha256", "license"):
+    if required not in source_columns:
+        raise SystemExit(f"sources.parquet is missing {required}")
 connection.close()
 PY

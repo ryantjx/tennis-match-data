@@ -25,33 +25,78 @@ jobs:
       - run: coverage run -m unittest discover -s tests -v
       - run: coverage report
       - run: open-tennis-data validate
-      - name: Enforce historical immutability after the lean baseline
+      - name: Enforce Parquet-only published data
+        run: test -z "$(find data contributions -type f ! -name '*.parquet' -print -quit)"
+      - name: Enforce 75 MB data-file limit
+        run: test -z "$(find data contributions -name '*.parquet' -size +75M -print -quit)"
+
+  schema-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install '.[dev]'
+      - run: python -m unittest tests.test_v32_contract -v
+      - name: Run migration equivalence or historical immutability gate
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          git fetch origin "$BASE_REF"
           git show "origin/$BASE_REF:data/catalog/catalog.parquet" > "$RUNNER_TEMP/base-catalog.parquet"
-          if python - "$RUNNER_TEMP/base-catalog.parquet" <<'PY'
+          git show "origin/$BASE_REF:data/matches/tour=atp/year=2025/matches.parquet" > "$RUNNER_TEMP/base-match.parquet"
+          if python - "$RUNNER_TEMP/base-match.parquet" <<'PY'
           import sys
           import duckdb
           path = sys.argv[1].replace("'", "''")
-          tables = {row[0] for row in duckdb.connect().execute(
-              f"SELECT DISTINCT table_name FROM read_parquet('{path}')"
-          ).fetchall()}
-          raise SystemExit(0 if 'tournaments' in tables else 1)
+          metadata = {
+              key.decode(): value.decode()
+              for _, key, value in duckdb.connect().execute(
+                  f"SELECT * FROM parquet_kv_metadata('{path}')"
+              ).fetchall()
+          }
+          raise SystemExit(0 if metadata.get("open_tennis_data_schema_version") == "3.2" else 1)
           PY
           then
             open-tennis-data validate \
               --baseline-catalog "$RUNNER_TEMP/base-catalog.parquet" \
               --immutable-before-year "$(date -u +%Y)"
           else
-            echo "Lean baseline is not on the base branch yet; migration PR is exempt."
+            mkdir -p "$RUNNER_TEMP/v3.1"
+            git archive "origin/$BASE_REF" data | tar -x -C "$RUNNER_TEMP/v3.1"
+            open-tennis-data migrate-v3-2 \
+              --data "$RUNNER_TEMP/v3.1/data" \
+              --output "$RUNNER_TEMP/migrated-v3.2" \
+              --report "$RUNNER_TEMP/migration-report"
+            python - "$RUNNER_TEMP/migrated-v3.2" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+          checked = Path("data")
+          migrated = Path(sys.argv[1])
+          report = json.loads(Path("reports/v3.2/migration-v3.2.json").read_text())
+          generated = json.loads(
+              (Path(sys.argv[1]).parent / "migration-report/migration-v3.2.json").read_text()
+          )
+          assert report["status"] == generated["status"] == "passed"
+          assert report["old_match_rows"] == report["new_match_rows"]
+          assert report["retained_differences"] == generated["retained_differences"] == 0
+          checked_files = {path.relative_to(checked) for path in checked.rglob("*.parquet")}
+          migrated_files = {path.relative_to(migrated) for path in migrated.rglob("*.parquet")}
+          assert checked_files == migrated_files
+          for relative in checked_files:
+              assert hashlib.sha256((checked / relative).read_bytes()).digest() == hashlib.sha256(
+                  (migrated / relative).read_bytes()
+              ).digest(), relative
+          PY
+            open-tennis-data validate
           fi
-      - name: Enforce Parquet-only published data
-        run: test -z "$(find data contributions -type f ! -name '*.parquet' -print -quit)"
-      - name: Enforce 75 MB data-file limit
-        run: test -z "$(find data contributions -name '*.parquet' -size +75M -print -quit)"
 
   integration-coverage:
     runs-on: ubuntu-latest
@@ -68,6 +113,24 @@ jobs:
           coverage run --append -m open_tennis_data.cli build \
             --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
             --output "$RUNNER_TEMP/tennis-data"
+      - name: Prove two-build byte determinism
+        run: |
+          open-tennis-data build \
+            --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
+            --output "$RUNNER_TEMP/tennis-data-repeat"
+          python - "$RUNNER_TEMP/tennis-data" "$RUNNER_TEMP/tennis-data-repeat" <<'PY'
+          import hashlib
+          import sys
+          from pathlib import Path
+          first, second = map(Path, sys.argv[1:])
+          first_files = {path.relative_to(first) for path in first.rglob("*.parquet")}
+          second_files = {path.relative_to(second) for path in second.rglob("*.parquet")}
+          assert first_files == second_files
+          for relative in first_files:
+              assert hashlib.sha256((first / relative).read_bytes()).digest() == hashlib.sha256(
+                  (second / relative).read_bytes()
+              ).digest(), relative
+          PY
       - run: coverage run --append -m open_tennis_data.cli validate --data "$RUNNER_TEMP/tennis-data"
       - run: |
           coverage run --append -m open_tennis_data.cli query \
@@ -105,13 +168,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
-      - run: npm install
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
 
   required-status:
     if: always()
-    needs: [test, integration-coverage, browser-smoke]
+    needs: [test, schema-contract, integration-coverage, browser-smoke]
     permissions:
       statuses: write
     runs-on: ubuntu-latest
@@ -119,6 +182,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       STATUS_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       TEST_RESULT: ${{ needs.test.result }}
+      SCHEMA_RESULT: ${{ needs.schema-contract.result }}
       INTEGRATION_RESULT: ${{ needs.integration-coverage.result }}
       BROWSER_RESULT: ${{ needs.browser-smoke.result }}
     steps:
@@ -126,7 +190,7 @@ jobs:
         run: |
           state=failure
           description="Data validation failed"
-          if [ "$TEST_RESULT" = success ] && [ "$INTEGRATION_RESULT" = success ] && [ "$BROWSER_RESULT" = success ]; then
+          if [ "$TEST_RESULT" = success ] && [ "$SCHEMA_RESULT" = success ] && [ "$INTEGRATION_RESULT" = success ] && [ "$BROWSER_RESULT" = success ]; then
             state=success
             description="Python, integration, data, and browser validation passed"
           fi

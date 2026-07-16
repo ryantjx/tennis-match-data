@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 from collections.abc import Mapping
 from datetime import date
@@ -10,13 +9,8 @@ from typing import Any
 
 import mwparserfromhell
 
-from open_tennis_data.model import canonical_round, normalize_text
+from open_tennis_data.model import canonical_round, normalize_text, source_slot_match_id
 from open_tennis_data.sources import wikimedia
-
-
-def fixture_id(*parts: Any) -> str:
-    identity = "|".join(str(part or "") for part in parts)
-    return f"fixture-{hashlib.sha256(identity.encode()).hexdigest()[:24]}"
 
 
 def _plain(value: str) -> str:
@@ -116,7 +110,7 @@ def parse_wikimedia_fixture_page(
                 source_match_id = f"{page['page_id']}:{bracket_index}:{round_number}:{match_number}"
                 fixtures.append(
                     {
-                        "match_id": fixture_id("wikimedia", source_match_id),
+                        "match_id": source_slot_match_id("wikimedia", source_match_id),
                         "round": canonical_round(round_name),
                         "bracket_slot": f"b{bracket_index}-r{round_number}-m{match_number}",
                         "status": "tentative",

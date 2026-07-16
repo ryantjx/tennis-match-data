@@ -13,10 +13,13 @@ import duckdb
 
 from open_tennis_data.dataset import (
     SourceFile,
+    _copy_parquet,
     _create_catalog,
     _create_match_tables,
     _create_source_file_table,
     _remote_audit_revisions,
+    _reuse_match_ids,
+    _reuse_player_ids,
     _reuse_tournament_ids,
     _write_audit_report,
     add_correction,
@@ -28,6 +31,7 @@ from open_tennis_data.dataset import (
     query_dataset,
     validate_dataset,
 )
+from open_tennis_data.schema import MATCH_COLUMNS, SCHEMA_METADATA_KEY, SCHEMA_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
@@ -99,7 +103,7 @@ class DatasetTests(unittest.TestCase):
                 f"TO '{tournament}' (FORMAT PARQUET)"
             )
             connection.execute(
-                f"COPY (SELECT 'generated' tournament_id, 'fixture' fixture_id) "
+                f"COPY (SELECT 'generated' tournament_id, 'match_fixture' match_id) "
                 f"TO '{fixture}' (FORMAT PARQUET)"
             )
             connection.close()
@@ -122,6 +126,101 @@ class DatasetTests(unittest.TestCase):
                     f"SELECT {source_columns} FROM read_parquet('{new_sources}')"
                 ).fetchone()[2],
                 "established",
+            )
+            connection.close()
+
+    def test_incremental_refresh_reuses_fixture_lifecycle_match_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            existing = base / "existing"
+            generated = base / "generated"
+            old_observation = existing / "observations/tour=atp/year=2026/observations.parquet"
+            new_observation = generated / "observations/tour=atp/year=2026/observations.parquet"
+            old_audit = existing / "coverage/source-audit.parquet"
+            new_audit = generated / "coverage/source-audit.parquet"
+            fixture = generated / "fixtures/tour=atp/current.parquet"
+            for path in (old_observation, new_observation, old_audit, new_audit, fixture):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            connection = duckdb.connect()
+            for path, match_id, source_file_id in (
+                (old_observation, "match_established", "old-source"),
+                (new_observation, "match_generated", "new-source"),
+            ):
+                connection.execute(
+                    f"COPY (SELECT '{match_id}'::VARCHAR match_id, 'atp'::VARCHAR tour, "
+                    f"2026::SMALLINT AS year, '{source_file_id}'::VARCHAR source_file_id, "
+                    f"'page:slot'::VARCHAR source_match_id) TO '{path}' (FORMAT PARQUET)"
+                )
+            for path, source_file_id in (
+                (old_audit, "old-source"),
+                (new_audit, "new-source"),
+            ):
+                connection.execute(
+                    f"COPY (SELECT '{source_file_id}'::VARCHAR source_file_id, "
+                    f"'wikimedia'::VARCHAR source_label, "
+                    f"'https://example.org/draw'::VARCHAR source_url) "
+                    f"TO '{path}' (FORMAT PARQUET)"
+                )
+            connection.execute(
+                f"COPY (SELECT * FROM (VALUES "
+                f"(DATE '2026-07-02','tournament_2','main','R16','match_unchanged'),"
+                f"(DATE '2026-07-01','tournament_1','main','R32','match_generated')) "
+                f"fixture(date,tournament_id,draw,round,match_id)) "
+                f"TO '{fixture}' (FORMAT PARQUET)"
+            )
+            connection.close()
+            self.assertEqual(_reuse_match_ids(generated, existing, [2026]), 1)
+            connection = duckdb.connect()
+            self.assertEqual(
+                connection.execute(
+                    f"SELECT match_id FROM read_parquet('{fixture}', "
+                    "hive_partitioning=false)"
+                ).fetchall(),
+                [("match_established",), ("match_unchanged",)],
+            )
+            self.assertEqual(
+                connection.execute(
+                    f"SELECT match_id FROM read_parquet('{new_observation}')"
+                ).fetchone()[0],
+                "match_established",
+            )
+            connection.close()
+
+    def test_incremental_refresh_reuses_established_player_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            existing = base / "existing"
+            generated = base / "generated"
+            old_links = existing / "identity/player-links.parquet"
+            new_links = generated / "identity/player-links.parquet"
+            players = generated / "players/tour=atp/players.parquet"
+            for path in (old_links, new_links, players):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            connection = duckdb.connect()
+            for path, player_id in (
+                (old_links, "player_established"),
+                (new_links, "player_generated"),
+            ):
+                connection.execute(
+                    f"COPY (SELECT 'wikimedia'::VARCHAR AS \"source\", 'Q1'::VARCHAR "
+                    f"source_player_id, '{player_id}'::VARCHAR player_id, "
+                    f"'atp'::VARCHAR tour, false provisional) TO '{path}' (FORMAT PARQUET)"
+                )
+            connection.execute(
+                f"COPY (SELECT 'player_generated'::VARCHAR AS player_id, "
+                f"'atp'::VARCHAR AS tour, 'Corrected Name'::VARCHAR AS name) "
+                f"TO '{players}' (FORMAT PARQUET)"
+            )
+            connection.close()
+            self.assertEqual(_reuse_player_ids(generated, existing), 1)
+            connection = duckdb.connect()
+            self.assertEqual(
+                connection.execute(f"SELECT player_id FROM read_parquet('{players}')").fetchone()[0],
+                "player_established",
+            )
+            self.assertEqual(
+                connection.execute(f"SELECT player_id FROM read_parquet('{new_links}')").fetchone()[0],
+                "player_established",
             )
             connection.close()
 
@@ -273,6 +372,60 @@ class DatasetTests(unittest.TestCase):
                 any(error.startswith("coverage does not match canonical tables:") for error in errors)
             )
 
+    def test_validator_rejects_invalid_lists_placeholders_and_winners(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data"
+            shutil.copytree(DATA, root, copy_function=os.link)
+            matches = root / "matches/tour=atp/year=1969/matches.parquet"
+            replacement = matches.with_suffix(".replacement.parquet")
+            connection = duckdb.connect()
+            _copy_parquet(
+                connection,
+                f"""
+                WITH numbered AS (
+                  SELECT *, row_number() OVER (ORDER BY match_id) rn
+                  FROM read_parquet('{matches}', hive_partitioning=false)
+                )
+                SELECT * EXCLUDE(rn) REPLACE (
+                  CASE rn
+                    WHEN 1 THEN []::VARCHAR[]
+                    WHEN 3 THEN [player1_id[1],player1_id[1]]::VARCHAR[]
+                    WHEN 4 THEN [player1_id[1],'player_overlap']::VARCHAR[]
+                    ELSE player1_id END AS player1_id,
+                  CASE rn
+                    WHEN 1 THEN []::VARCHAR[]
+                    WHEN 2 THEN ['TBD']::VARCHAR[]
+                    WHEN 3 THEN [player1_name[1],player1_name[1]]::VARCHAR[]
+                    WHEN 4 THEN [player1_name[1],'Overlap Partner']::VARCHAR[]
+                    ELSE player1_name END AS player1_name,
+                  CASE rn
+                    WHEN 3 THEN [player2_id[1],'player_other']::VARCHAR[]
+                    WHEN 4 THEN [player1_id[1],'player_opponent']::VARCHAR[]
+                    ELSE player2_id END AS player2_id,
+                  CASE rn
+                    WHEN 3 THEN [player2_name[1],'Other Partner']::VARCHAR[]
+                    WHEN 4 THEN [player1_name[1],'Opponent Partner']::VARCHAR[]
+                    ELSE player2_name END AS player2_name,
+                  CASE rn
+                    WHEN 3 THEN [player1_id[1],player1_id[1]]::VARCHAR[]
+                    WHEN 4 THEN [player1_id[1],'player_overlap']::VARCHAR[]
+                    WHEN 5 THEN ['player_not_in_match']::VARCHAR[]
+                    ELSE winner_id END AS winner_id,
+                  CASE WHEN rn IN (3,4) THEN 'doubles' ELSE format END AS format
+                ) FROM numbered
+                ORDER BY date NULLS LAST,tournament_id,draw,round,match_id
+                """,
+                replacement,
+                row_group_size=65_536,
+                match_shaped=True,
+            )
+            connection.close()
+            os.replace(replacement, matches)
+            self.rebuild_test_catalog(root)
+            errors = validate_dataset(root)
+            self.assertTrue(any("invalid match participants" in error for error in errors))
+            self.assertTrue(any("invalid match participant text" in error for error in errors))
+
     def test_validator_detects_catalog_accounting_corruption(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "data"
@@ -351,7 +504,7 @@ class DatasetTests(unittest.TestCase):
         self.assertGreater(rows[0][0], 300_000)
         self.assertEqual(rows[0][1], 0)
 
-    def test_extract_has_no_version_metadata(self) -> None:
+    def test_extract_has_v32_version_metadata(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
             self.skipTest("generated dataset is not present")
         with tempfile.TemporaryDirectory() as temporary:
@@ -365,7 +518,13 @@ class DatasetTests(unittest.TestCase):
                     f"SELECT * FROM parquet_kv_metadata('{output}')"
                 ).fetchall()
             )
-            self.assertEqual(metadata, {})
+            self.assertEqual(metadata, {SCHEMA_METADATA_KEY: SCHEMA_VERSION})
+            self.assertEqual(
+                [row[0] for row in connection.execute(
+                    f"DESCRIBE SELECT * FROM read_parquet('{output}')"
+                ).fetchall()],
+                list(MATCH_COLUMNS),
+            )
 
     def test_direct_downloads_include_matches_and_fixtures(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
@@ -390,19 +549,27 @@ class DatasetTests(unittest.TestCase):
                     / "year=2026"
                     / "tournaments.parquet"
                 )
+                observation_output = (
+                    root
+                    / "observations"
+                    / f"tour={tour}"
+                    / "year=2026"
+                    / "observations.parquet"
+                )
                 match_output.parent.mkdir(parents=True, exist_ok=True)
                 fixture_output.parent.mkdir(parents=True, exist_ok=True)
                 tournament_output.parent.mkdir(parents=True, exist_ok=True)
+                observation_output.parent.mkdir(parents=True, exist_ok=True)
                 connection.execute(
                     f"COPY (SELECT * FROM read_parquet('{DATA / 'matches' / f'tour={tour}' / 'year=2026' / 'matches.parquet'}') LIMIT 10) "
                     f"TO '{match_output}' (FORMAT PARQUET)"
                 )
                 connection.execute(
-                    f"COPY (WITH numbered AS (SELECT *, row_number() OVER (ORDER BY fixture_id) AS rn "
+                    f"COPY (WITH numbered AS (SELECT *, row_number() OVER (ORDER BY match_id) AS rn "
                     f"FROM read_parquet('{DATA / 'fixtures' / f'tour={tour}' / 'current.parquet'}') LIMIT 4) "
                     f"SELECT * EXCLUDE (rn) REPLACE (CASE rn WHEN 1 THEN DATE '{past}' "
                     f"WHEN 2 THEN DATE '{as_of}' WHEN 3 THEN DATE '{future}' "
-                    f"ELSE NULL END AS scheduled_on) FROM numbered) "
+                    f"ELSE NULL END AS date) FROM numbered) "
                     f"TO '{fixture_output}' (FORMAT PARQUET)"
                 )
                 connection.execute(
@@ -410,8 +577,17 @@ class DatasetTests(unittest.TestCase):
                     f"'{DATA / 'tournaments' / f'tour={tour}' / 'year=2026' / 'tournaments.parquet'}')) "
                     f"TO '{tournament_output}' (FORMAT PARQUET)"
                 )
+                shutil.copy2(
+                    DATA / "observations" / f"tour={tour}" / "year=2026" / "observations.parquet",
+                    observation_output,
+                )
             (root / "catalog").mkdir(parents=True)
+            (root / "coverage").mkdir(parents=True)
             shutil.copy2(DATA / "catalog" / "catalog.parquet", root / "catalog/catalog.parquet")
+            shutil.copy2(
+                DATA / "coverage/source-audit.parquet",
+                root / "coverage/source-audit.parquet",
+            )
 
             summary = create_direct_downloads(root, output)
             self.assertEqual(
@@ -423,6 +599,8 @@ class DatasetTests(unittest.TestCase):
                     "wta.parquet",
                     "all-matches.parquet",
                     "tournaments.parquet",
+                    "provenance.parquet",
+                    "sources.parquet",
                 },
             )
             self.assertEqual(
@@ -445,14 +623,14 @@ class DatasetTests(unittest.TestCase):
                     f"SELECT * FROM parquet_kv_metadata('{output / 'all-matches.parquet'}')"
                 ).fetchall()
             )
-            self.assertEqual(metadata, {})
+            self.assertEqual(metadata, {SCHEMA_METADATA_KEY: SCHEMA_VERSION})
 
             future_summary = create_direct_downloads(root, future_output, future_only=True)
             self.assertEqual(set(future_summary), set(summary))
             future_rows, future_tours, past_dates, undated = connection.execute(
                 f"SELECT count(*), count(DISTINCT tour), "
-                f"count(*) FILTER (WHERE scheduled_on < DATE '{as_of}'), "
-                f"count(*) FILTER (WHERE scheduled_on IS NULL) "
+                f"count(*) FILTER (WHERE date < DATE '{as_of}'), "
+                f"count(*) FILTER (WHERE date IS NULL) "
                 f"FROM read_parquet('{future_output / 'all-matches.parquet'}')"
             ).fetchone()
             self.assertEqual(future_rows, 6)
@@ -465,7 +643,8 @@ class DatasetTests(unittest.TestCase):
             path = Path(temporary) / "corrections.parquet"
             first = add_correction(
                 path,
-                match_id="match:atp:test",
+                entity_type="match",
+                entity_id="match:atp:test",
                 field="score",
                 corrected_value="6-4 6-4",
                 source_url="https://example.org/result",
@@ -474,7 +653,8 @@ class DatasetTests(unittest.TestCase):
             )
             second = add_correction(
                 path,
-                match_id="match:atp:test",
+                entity_type="match",
+                entity_id="match:atp:test",
                 field="score",
                 corrected_value="6-4 6-4",
                 source_url="https://example.org/result",

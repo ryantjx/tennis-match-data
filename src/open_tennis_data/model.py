@@ -55,7 +55,21 @@ def canonical_player_id(tour: str, source_id: str, name: str) -> str:
         if source_id.startswith(("atp:", "wta:", "wikimedia:")):
             return source_id
         return f"{tour}:{source_id}"
-    return f"name:{hashlib.sha256(normalize_text(name).encode()).hexdigest()[:16]}"
+    return f"player_{hashlib.sha256(normalize_text(name).encode()).hexdigest()[:16]}"
+
+
+def source_slot_match_id(source: str, source_match_id: str) -> str:
+    """Allocate a participant-independent public ID for a persistent source slot."""
+    digest = hashlib.sha256(f"{source}|{source_match_id}".encode()).hexdigest()[:24]
+    return f"match_{digest}"
+
+
+def normalize_participant(value: str | Sequence[str] | None) -> list[str] | None:
+    """Normalize adapter scalar/list input into the public list representation."""
+    if value is None:
+        return None
+    values = [value] if isinstance(value, str) else list(value)
+    return [str(item) for item in values]
 
 
 def match_id(

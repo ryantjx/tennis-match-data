@@ -9,11 +9,22 @@ test("search and SQL explorer work against published Parquet", async ({page}) =>
   await page.locator("#search-button").click();
   await expect(page.locator("#search-status")).toContainText("ATP 2025", {timeout: 90_000});
   await expect(page.locator("#search-results tbody tr").first()).toBeVisible();
+  await expect(page.locator("#search-results thead")).toContainText("Player/Team 1");
   await expect(page.locator("#search-pagination")).toBeVisible();
   if (await page.locator("#search-next").isEnabled()) {
     await page.locator("#search-next").click();
     await expect(page.locator("#search-page-info")).toContainText("Page 2");
   }
+
+  await page.locator("#search-kind").selectOption("fixtures");
+  await page.locator("#search-year").fill("2026");
+  await page.locator("#search-level").selectOption("");
+  await page.locator("#search-button").click();
+  await expect(page.locator("#search-status")).toContainText("future", {timeout: 90_000});
+  await expect(page.locator("#search-results tbody tr").first()).toBeVisible();
+  await expect(page.locator("#search-results thead")).toContainText("Status");
+  const source = page.locator("#search-results a", {hasText: "Source"}).first();
+  if (await source.count()) await expect(source).toHaveAttribute("rel", "noopener noreferrer");
 
   await page.locator("#explorer-tab").click();
   await expect(page.locator("#explorer-panel")).toBeVisible();

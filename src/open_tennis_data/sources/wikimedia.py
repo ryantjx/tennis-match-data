@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import time
@@ -337,7 +338,7 @@ def _player_from_markup(
     player_id = names.get(normalized)
     if not player_id:
         key = page_title or display_name
-        player_id = f"wikimedia:{urllib.parse.quote(key.replace(' ', '_'), safe=':_()-')}"
+        player_id = f"player_{hashlib.sha256(f'wikimedia|{key}'.encode()).hexdigest()[:16]}"
         players[player_id] = {
             "id": player_id,
             "name": display_name,

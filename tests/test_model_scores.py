@@ -17,7 +17,7 @@ class ModelAndScoreTests(unittest.TestCase):
         self.assertEqual(normalize_text("Émilie's Open"), "emilie s open")
         self.assertEqual(slugify("Émilie's Open"), "emilie-s-open")
         self.assertEqual(canonical_player_id("atp", "123", "Player"), "atp:123")
-        self.assertTrue(canonical_player_id("atp", "", "Player").startswith("name:"))
+        self.assertTrue(canonical_player_id("atp", "", "Player").startswith("player_"))
 
     def test_transient_wikimedia_event_and_semantic_score(self):
         event = new_event(
