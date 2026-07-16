@@ -22,7 +22,7 @@ year and the current/next fixture horizon.
    year, refresh the current year, and assert that older paths, row counts, and
    checksums remain identical. A rollover case creates year N+1 without
    rewriting years before N. A temporary remote also proves validated hourly
-   and daily refreshes commit directly to `main` without creating a PR.
+   and daily refreshes commit through an automatically merged data PR.
 5. **Weekly retroactive audit** checks all local history, then rebuilds only the
    previous/current result years and current/next fixtures. It emits
    `retroactive-audit.json` and `retroactive-audit.md`; validated changes open a
@@ -61,9 +61,9 @@ writing its report.
   bootstrap refusal. Tests never mutate checked-in data.
 - Mock upstream revision maps model unchanged, added, removed, and modified
   source pages without network access.
-- Temporary bare Git repositories verify that routine refreshes push directly
-  to `main`, while the weekly publisher creates a review PR and never invokes
-  merge or auto-merge.
+- Temporary bare Git repositories verify that routine refreshes create and
+  auto-merge a validated data PR, while the weekly publisher creates a review
+  PR and never invokes merge or auto-merge.
 
 ## Expected artifacts
 

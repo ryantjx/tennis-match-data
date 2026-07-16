@@ -82,7 +82,7 @@ class ScriptTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertIn("No semantic data changes", completed.stdout)
 
-    def test_commit_script_pushes_validated_data_directly_to_main(self) -> None:
+    def test_commit_script_opens_and_auto_merges_validated_data_pr(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             origin = root / "origin.git"
@@ -110,27 +110,57 @@ class ScriptTests(unittest.TestCase):
             subprocess.run(["git", "push", "-q", "-u", "origin", "main"], cwd=repository, check=True)
             data_file.write_bytes(b"new")
 
+            bin_directory = root / "bin"
+            bin_directory.mkdir()
+            invocation = root / "gh-args"
+            fake_gh = bin_directory / "gh"
+            fake_gh.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s\\n' --- \"$@\" >> \"$GH_ARGS_FILE\"\n"
+                "if [ \"${1:-}\" = pr ] && [ \"${2:-}\" = create ]; then\n"
+                "  printf '%s\\n' https://github.example/pull/1\n"
+                "fi\n"
+                "if [ \"${1:-}\" = pr ] && [ \"${2:-}\" = view ]; then\n"
+                "  printf '%s\\n' MERGED\n"
+                "fi\n",
+                encoding="utf-8",
+            )
+            fake_gh.chmod(0o755)
+            environment = {
+                **os.environ,
+                "PATH": f"{bin_directory}:{os.environ['PATH']}",
+                "GH_ARGS_FILE": str(invocation),
+                "GITHUB_RUN_ID": "123",
+                "GITHUB_RUN_ATTEMPT": "1",
+                "GITHUB_REPOSITORY": "owner/repository",
+            }
             completed = subprocess.run(
                 ["bash", str(ROOT / "scripts/commit-data.sh"), "data: test update"],
                 cwd=repository,
+                env=environment,
                 capture_output=True,
                 text=True,
                 check=False,
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
             remote_contents = subprocess.run(
-                ["git", "--git-dir", str(origin), "show", "main:data/example.parquet"],
+                [
+                    "git",
+                    "--git-dir",
+                    str(origin),
+                    "show",
+                    "automation/data-123-1:data/example.parquet",
+                ],
                 capture_output=True,
                 check=True,
             ).stdout
             self.assertEqual(remote_contents, b"new")
-            subject = subprocess.run(
-                ["git", "--git-dir", str(origin), "log", "-1", "--format=%s", "main"],
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip()
-            self.assertEqual(subject, "data: test update")
+            arguments = invocation.read_text(encoding="utf-8")
+            self.assertIn("pr\ncreate", arguments)
+            self.assertIn("statuses/", arguments)
+            self.assertIn("data-required", arguments)
+            self.assertIn("--auto", arguments)
+            self.assertIn("--squash", arguments)
 
     def test_audit_script_opens_review_pr_without_auto_merge(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
