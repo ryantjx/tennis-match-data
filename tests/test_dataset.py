@@ -1,15 +1,27 @@
 from __future__ import annotations
 
+import csv
+import os
 import shutil
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import duckdb
 
 from open_tennis_data.dataset import (
+    SourceFile,
+    _create_catalog,
+    _create_match_tables,
+    _create_source_file_table,
+    _remote_audit_revisions,
+    _reuse_tournament_ids,
+    _write_audit_report,
     add_correction,
+    audit_retroactive_dataset,
+    bootstrap_dataset,
     create_direct_downloads,
     extract_dataset,
     parse_years,
@@ -22,15 +34,283 @@ DATA = ROOT / "data"
 
 
 class DatasetTests(unittest.TestCase):
+    def rebuild_test_catalog(self, root: Path) -> None:
+        catalog = root / "catalog/catalog.parquet"
+        connection = duckdb.connect()
+        as_of, revision = connection.execute(
+            f"SELECT as_of, source_revision FROM read_parquet('{catalog}') LIMIT 1"
+        ).fetchone()
+        connection.close()
+        catalog.unlink()
+        connection = duckdb.connect()
+        _create_catalog(connection, root, as_of, revision)
+        connection.close()
+
+    def replace_test_parquet(self, path: Path, query: str) -> None:
+        temporary = path.with_suffix(".replacement.parquet")
+        connection = duckdb.connect()
+        connection.execute(f"COPY ({query}) TO '{temporary}' (FORMAT PARQUET, COMPRESSION ZSTD)")
+        connection.close()
+        os.replace(temporary, path)
+
     def test_year_parser(self) -> None:
         self.assertEqual(parse_years("2020,2022:2024"), [2020, 2022, 2023, 2024])
         with self.assertRaises(ValueError):
             parse_years("1967")
 
+    def test_bootstrap_refuses_an_initialized_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "existing.parquet").touch()
+            with self.assertRaisesRegex(ValueError, "empty, uninitialized"):
+                bootstrap_dataset(
+                    root, through_year=2026, as_of=date(2026, 7, 16), workers=1
+                )
+
+    def test_incremental_refresh_reuses_established_tournament_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            existing = base / "existing"
+            generated = base / "generated"
+            old_sources = existing / "identity/tournament-sources.parquet"
+            new_sources = generated / "identity/tournament-sources.parquet"
+            old_sources.parent.mkdir(parents=True)
+            new_sources.parent.mkdir(parents=True)
+            tournament = generated / "tournaments/tour=atp/year=2026/tournaments.parquet"
+            fixture = generated / "fixtures/tour=atp/current.parquet"
+            tournament.parent.mkdir(parents=True)
+            fixture.parent.mkdir(parents=True)
+            connection = duckdb.connect()
+            source_columns = (
+                "source,source_tournament_id,tournament_id,tour,year,source_url"
+            )
+            connection.execute(
+                f"COPY (SELECT 'wikimedia' AS \"source\", 'Q1' AS source_tournament_id, "
+                f"'established' AS tournament_id, 'atp' AS tour, 2026 AS year, "
+                f"'https://example.org' AS source_url) TO '{old_sources}' (FORMAT PARQUET)"
+            )
+            connection.execute(
+                f"COPY (SELECT 'wikimedia' AS \"source\", 'Q1' AS source_tournament_id, "
+                f"'generated' AS tournament_id, 'atp' AS tour, 2026 AS year, "
+                f"'https://example.org' AS source_url) TO '{new_sources}' (FORMAT PARQUET)"
+            )
+            connection.execute(
+                f"COPY (SELECT 'generated' tournament_id, 'Test' tournament_name) "
+                f"TO '{tournament}' (FORMAT PARQUET)"
+            )
+            connection.execute(
+                f"COPY (SELECT 'generated' tournament_id, 'fixture' fixture_id) "
+                f"TO '{fixture}' (FORMAT PARQUET)"
+            )
+            connection.close()
+            self.assertEqual(_reuse_tournament_ids(generated, existing, [2026]), 1)
+            connection = duckdb.connect()
+            self.assertEqual(
+                connection.execute(
+                    f"SELECT tournament_id FROM read_parquet('{tournament}')"
+                ).fetchone()[0],
+                "established",
+            )
+            self.assertEqual(
+                connection.execute(
+                    f"SELECT tournament_id FROM read_parquet('{fixture}')"
+                ).fetchone()[0],
+                "established",
+            )
+            self.assertEqual(
+                connection.execute(
+                    f"SELECT {source_columns} FROM read_parquet('{new_sources}')"
+                ).fetchone()[2],
+                "established",
+            )
+            connection.close()
+
+    def test_match_ingestion_quarantines_each_bad_source_row_once(self) -> None:
+        columns = [
+            "tourney_id",
+            "tourney_name",
+            "surface",
+            "draw_size",
+            "tourney_level",
+            "tourney_date",
+            "match_num",
+            "winner_id",
+            "winner_seed",
+            "winner_entry",
+            "winner_name",
+            "winner_ioc",
+            "loser_id",
+            "loser_seed",
+            "loser_entry",
+            "loser_name",
+            "loser_ioc",
+            "score",
+            "best_of",
+            "round",
+            "minutes",
+            "winner_rank",
+            "winner_rank_points",
+            "loser_rank",
+            "loser_rank_points",
+            "w_ace",
+            "w_df",
+            "w_svpt",
+            "w_1stIn",
+            "w_1stWon",
+            "w_2ndWon",
+            "w_SvGms",
+            "w_bpSaved",
+            "w_bpFaced",
+            "l_ace",
+            "l_df",
+            "l_svpt",
+            "l_1stIn",
+            "l_1stWon",
+            "l_2ndWon",
+            "l_SvGms",
+            "l_bpSaved",
+            "l_bpFaced",
+        ]
+        valid = {
+            "tourney_id": "2026-001",
+            "tourney_name": "Test Open",
+            "surface": "Hard",
+            "draw_size": "32",
+            "tourney_level": "A",
+            "tourney_date": "20260712",
+            "match_num": "1",
+            "winner_id": "1",
+            "winner_name": "Winner",
+            "loser_id": "2",
+            "loser_name": "Loser",
+            "score": "6-4 6-4",
+            "best_of": "3",
+            "round": "R32",
+            "w_svpt": "50",
+            "w_1stIn": "30",
+            "w_1stWon": "20",
+            "w_bpSaved": "2",
+            "w_bpFaced": "3",
+            "l_svpt": "50",
+            "l_1stIn": "30",
+            "l_1stWon": "20",
+            "l_bpSaved": "2",
+            "l_bpFaced": "3",
+        }
+        self_match = {**valid, "match_num": "2", "loser_id": "1", "loser_name": "Winner"}
+        negative = {**valid, "match_num": "3", "l_bpSaved": "-1"}
+        impossible = {**valid, "match_num": "4", "w_1stWon": "31"}
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "matches.csv"
+            with path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=columns)
+                writer.writeheader()
+                writer.writerows([valid, valid, self_match, negative, impossible])
+            source = SourceFile(
+                kind="matches",
+                tour="atp",
+                year=2026,
+                label="tour",
+                source_path="atp/atp_matches_2026.csv",
+                local_path=path.resolve(),
+                url="https://example.org/matches.csv",
+                revision="a" * 40,
+                sha256="b" * 64,
+            )
+            connection = duckdb.connect()
+            _create_source_file_table(connection, [source])
+            _create_match_tables(connection, [source], date(2026, 7, 12))
+            self.assertEqual(connection.execute("SELECT count(*) FROM matches").fetchone()[0], 1)
+            self.assertEqual(
+                dict(
+                    connection.execute(
+                        "SELECT reason, count(*) FROM quarantine GROUP BY reason"
+                    ).fetchall()
+                ),
+                {
+                    "duplicate_source_row": 1,
+                    "invalid_participants": 1,
+                    "invalid_statistics": 2,
+                },
+            )
+            connection.close()
+
     def test_repository_dataset_validates(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
             self.skipTest("generated dataset is not present")
         self.assertEqual(validate_dataset(DATA), [])
+
+    def test_validator_labels_corrupt_rows_by_tour_and_year(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data"
+            shutil.copytree(DATA, root, copy_function=os.link)
+            matches = root / "matches/tour=atp/year=1969/matches.parquet"
+            statistics = root / "match_stats/tour=atp/year=1991/match-stats.parquet"
+            coverage = root / "coverage/coverage.parquet"
+            self.replace_test_parquet(
+                matches,
+                f"SELECT * REPLACE (player1_id AS player2_id) FROM read_parquet('{matches}')",
+            )
+            self.replace_test_parquet(
+                statistics,
+                f"SELECT * REPLACE (-1 AS player1_aces) FROM read_parquet('{statistics}')",
+            )
+            self.replace_test_parquet(
+                coverage,
+                f"SELECT * REPLACE (CASE WHEN tour='atp' AND year=1969 "
+                f"THEN row_count+1 ELSE row_count END AS row_count) "
+                f"FROM read_parquet('{coverage}')",
+            )
+            self.rebuild_test_catalog(root)
+            errors = validate_dataset(root)
+            self.assertTrue(
+                any(error.startswith("matches invalid participants atp/1969:") for error in errors)
+            )
+            self.assertTrue(
+                any(error.startswith("statistics invalid values atp/1991:") for error in errors)
+            )
+            self.assertTrue(
+                any(error.startswith("coverage does not match canonical tables:") for error in errors)
+            )
+
+    def test_validator_detects_catalog_accounting_corruption(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data"
+            shutil.copytree(DATA, root, copy_function=os.link)
+            catalog = root / "catalog/catalog.parquet"
+            self.replace_test_parquet(
+                catalog,
+                f"SELECT * REPLACE (CASE WHEN path="
+                f"'matches/tour=atp/year=1968/matches.parquet' THEN row_count+1 "
+                f"ELSE row_count END AS row_count) FROM read_parquet('{catalog}')",
+            )
+            errors = validate_dataset(root)
+            self.assertIn(
+                "catalog row count mismatch: matches/tour=atp/year=1968/matches.parquet",
+                errors,
+            )
+
+    def test_validator_rejects_changes_before_incremental_cutoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data"
+            shutil.copytree(DATA, root, copy_function=os.link)
+            baseline = Path(temporary) / "baseline.parquet"
+            shutil.copy2(root / "catalog/catalog.parquet", baseline)
+            matches = root / "matches/tour=atp/year=2024/matches.parquet"
+            self.replace_test_parquet(
+                matches,
+                f"SELECT * REPLACE ('migration-test' AS score) "
+                f"FROM read_parquet('{matches}')",
+            )
+            self.rebuild_test_catalog(root)
+            errors = validate_dataset(
+                root, baseline_catalog=baseline, immutable_before_year=2026
+            )
+            self.assertIn(
+                "immutable historical partition changed: "
+                "matches/tour=atp/year=2024/matches.parquet",
+                errors,
+            )
 
     def test_query_prunes_tour_and_year(self) -> None:
         if not (DATA / "catalog" / "catalog.parquet").exists():
@@ -51,9 +331,9 @@ class DatasetTests(unittest.TestCase):
         _, rows = query_dataset(
             DATA,
             """
-            SELECT count(DISTINCT event_id)
-            FROM events
-            WHERE tour='atp' AND year=2023 AND lower(event_name)='m15 monastir'
+            SELECT count(DISTINCT tournament_id)
+            FROM tournaments
+            WHERE tour='atp' AND year=2023 AND lower(tournament_name)='m15 monastir'
             """,
             tours=["atp"],
             years=[2023],
@@ -66,7 +346,7 @@ class DatasetTests(unittest.TestCase):
         _, rows = query_dataset(
             DATA,
             "SELECT (SELECT count(*) FROM match_stats), "
-            "(SELECT count(*) FROM matches WHERE played_on IS NULL AND played_on_precision='day')",
+            "(SELECT count(*) FROM tournaments WHERE end_date < start_date)",
         )
         self.assertGreater(rows[0][0], 300_000)
         self.assertEqual(rows[0][1], 0)
@@ -95,19 +375,40 @@ class DatasetTests(unittest.TestCase):
             output = Path(temporary) / "downloads"
             future_output = Path(temporary) / "future-downloads"
             connection = duckdb.connect()
+            as_of = connection.execute(
+                f"SELECT as_of FROM read_parquet('{DATA / 'catalog/catalog.parquet'}') LIMIT 1"
+            ).fetchone()[0]
+            past = (as_of - timedelta(days=1)).isoformat()
+            future = (as_of + timedelta(days=1)).isoformat()
             for tour in ("atp", "wta"):
                 match_output = root / "matches" / f"tour={tour}" / "year=2026" / "matches.parquet"
                 fixture_output = root / "fixtures" / f"tour={tour}" / "current.parquet"
+                tournament_output = (
+                    root
+                    / "tournaments"
+                    / f"tour={tour}"
+                    / "year=2026"
+                    / "tournaments.parquet"
+                )
                 match_output.parent.mkdir(parents=True, exist_ok=True)
                 fixture_output.parent.mkdir(parents=True, exist_ok=True)
+                tournament_output.parent.mkdir(parents=True, exist_ok=True)
                 connection.execute(
                     f"COPY (SELECT * FROM read_parquet('{DATA / 'matches' / f'tour={tour}' / 'year=2026' / 'matches.parquet'}') LIMIT 10) "
                     f"TO '{match_output}' (FORMAT PARQUET)"
                 )
                 connection.execute(
-                    f"COPY (SELECT * REPLACE (NULL::DATE AS scheduled_on, NULL::TIMESTAMP AS scheduled_at) "
-                    f"FROM read_parquet('{DATA / 'fixtures' / f'tour={tour}' / 'current.parquet'}') LIMIT 2) "
+                    f"COPY (WITH numbered AS (SELECT *, row_number() OVER (ORDER BY fixture_id) AS rn "
+                    f"FROM read_parquet('{DATA / 'fixtures' / f'tour={tour}' / 'current.parquet'}') LIMIT 4) "
+                    f"SELECT * EXCLUDE (rn) REPLACE (CASE rn WHEN 1 THEN DATE '{past}' "
+                    f"WHEN 2 THEN DATE '{as_of}' WHEN 3 THEN DATE '{future}' "
+                    f"ELSE NULL END AS scheduled_on) FROM numbered) "
                     f"TO '{fixture_output}' (FORMAT PARQUET)"
+                )
+                connection.execute(
+                    f"COPY (SELECT * FROM read_parquet("
+                    f"'{DATA / 'tournaments' / f'tour={tour}' / 'year=2026' / 'tournaments.parquet'}')) "
+                    f"TO '{tournament_output}' (FORMAT PARQUET)"
                 )
             (root / "catalog").mkdir(parents=True)
             shutil.copy2(DATA / "catalog" / "catalog.parquet", root / "catalog/catalog.parquet")
@@ -121,6 +422,7 @@ class DatasetTests(unittest.TestCase):
                     "atp.parquet",
                     "wta.parquet",
                     "all-matches.parquet",
+                    "tournaments.parquet",
                 },
             )
             self.assertEqual(
@@ -131,12 +433,11 @@ class DatasetTests(unittest.TestCase):
                 (output / "wta.parquet").read_bytes(),
                 (output / "womens.parquet").read_bytes(),
             )
-            rows, fixtures, tours = connection.execute(
-                f"SELECT count(*), count(*) FILTER (WHERE record_type='fixture'), "
-                f"count(DISTINCT tour) FROM read_parquet('{output / 'all-matches.parquet'}')"
+            rows, tours = connection.execute(
+                f"SELECT count(*), count(DISTINCT tour) "
+                f"FROM read_parquet('{output / 'all-matches.parquet'}')"
             ).fetchone()
-            self.assertEqual(rows, 24)
-            self.assertEqual(fixtures, 4)
+            self.assertEqual(rows, 20)
             self.assertEqual(tours, 2)
             metadata = dict(
                 (key.decode(), value.decode())
@@ -148,15 +449,16 @@ class DatasetTests(unittest.TestCase):
 
             future_summary = create_direct_downloads(root, future_output, future_only=True)
             self.assertEqual(set(future_summary), set(summary))
-            future_rows, future_fixtures, future_tours, completed = connection.execute(
-                f"SELECT count(*), count(*) FILTER (WHERE record_type='fixture'), "
-                f"count(DISTINCT tour), count(*) FILTER (WHERE record_type='completed') "
+            future_rows, future_tours, past_dates, undated = connection.execute(
+                f"SELECT count(*), count(DISTINCT tour), "
+                f"count(*) FILTER (WHERE scheduled_on < DATE '{as_of}'), "
+                f"count(*) FILTER (WHERE scheduled_on IS NULL) "
                 f"FROM read_parquet('{future_output / 'all-matches.parquet'}')"
             ).fetchone()
-            self.assertEqual(future_rows, 4)
-            self.assertEqual(future_fixtures, 4)
+            self.assertEqual(future_rows, 6)
             self.assertEqual(future_tours, 2)
-            self.assertEqual(completed, 0)
+            self.assertEqual(past_dates, 0)
+            self.assertEqual(undated, 2)
 
     def test_correction_is_deterministic_parquet(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -186,6 +488,75 @@ class DatasetTests(unittest.TestCase):
                 .fetchone()[0],
                 1,
             )
+
+    def test_retroactive_audit_no_change_writes_artifacts_without_mutation(self) -> None:
+        catalog = DATA / "catalog/catalog.parquet"
+        before = catalog.read_bytes()
+        with tempfile.TemporaryDirectory() as temporary, patch(
+            "open_tennis_data.dataset._remote_audit_revisions",
+            return_value=(False, []),
+        ):
+            output = Path(temporary)
+            report = audit_retroactive_dataset(
+                DATA, output, as_of=date(2026, 7, 16), workers=1
+            )
+            self.assertEqual(report["status"], "no_change")
+            self.assertEqual(report["changed_files"], 0)
+            self.assertTrue((output / "retroactive-audit.json").exists())
+            self.assertTrue((output / "retroactive-audit.md").exists())
+        self.assertEqual(catalog.read_bytes(), before)
+
+    def test_retroactive_revision_probe_detects_changed_sources(self) -> None:
+        def pages(year: int, tour: str) -> list[str]:
+            return [f"{year} Test Open – Singles"] if year == 2026 else []
+
+        with patch(
+            "open_tennis_data.dataset.resolve_archive_revision", return_value="f" * 40
+        ), patch(
+            "open_tennis_data.sources.wikimedia.discover_pages", side_effect=pages
+        ), patch(
+            "open_tennis_data.sources.wikimedia.fetch_page_revisions",
+            return_value={
+                "2026 Test Open – Singles": "999",
+                "2026 Test Open": "998",
+            },
+        ):
+            changed, sources = _remote_audit_revisions(
+                DATA, [2025, 2026], [2026, 2027]
+            )
+        self.assertTrue(changed)
+        self.assertTrue(any(item["kind"] == "archive" for item in sources))
+        self.assertTrue(any(item["kind"] == "fixtures" for item in sources))
+        self.assertTrue(any(item["kind"] == "tournaments" for item in sources))
+
+    def test_failed_audit_report_includes_source_revision_details(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            _write_audit_report(
+                output,
+                {
+                    "as_of": "2026-07-16",
+                    "status": "failed",
+                    "result_years": [2025, 2026],
+                    "fixture_years": [2026, 2027],
+                    "source_changes": [
+                        {
+                            "source": "test-page",
+                            "old_revision": "1",
+                            "new_revision": "2",
+                            "old_checksum": "a",
+                            "new_checksum": "b",
+                        }
+                    ],
+                    "changed_files": 0,
+                    "older_partitions_unchanged": False,
+                    "error": "invalid staged input",
+                },
+            )
+            markdown = (output / "retroactive-audit.md").read_text(encoding="utf-8")
+            self.assertIn("invalid staged input", markdown)
+            self.assertIn("test-page", markdown)
+            self.assertTrue((output / "retroactive-audit.json").exists())
 
 
 if __name__ == "__main__":

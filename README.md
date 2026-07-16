@@ -1,10 +1,9 @@
 # tennis-match-data
 
 A self-updating, provenance-first collection of men's and women's singles data,
-from tour level through Challenger, WTA 125, ITF, and Futures. Every published
-structured data artifact is Parquet. Files carry no repository-wide identity
-marker; relevant tables expose ordinary as-of, source, retrieval, and
-observation dates instead.
+from tour level through Challenger, WTA 125, ITF, and Futures. Completed
+matches, future fixtures, and annual tournament editions are separate Parquet
+contracts so match rows stay lean and historical partitions stay immutable.
 
 Repository: https://github.com/ryantjx/tennis-match-data
 
@@ -14,18 +13,19 @@ Query data: [https://ryantjx.github.io/tennis-match-data/](https://ryantjx.githu
 
 ## Direct Parquet downloads
 
-These rolling files contain completed singles matches **and** the current
-best-effort future fixtures. They are regenerated after validated data updates.
+These rolling files contain completed singles matches only. They are
+regenerated after validated data updates.
 `mens.parquet` is an alias of `atp.parquet`; `womens.parquet` is an alias of
 `wta.parquet`.
 
 | Dataset | Download URL | Contents |
 | --- | --- | --- |
-| Men's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/mens.parquet> | All ATP completed matches and future fixtures |
-| Women's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/womens.parquet> | All WTA completed matches and future fixtures |
-| ATP | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/atp.parquet> | All ATP completed matches and future fixtures |
-| WTA | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet> | All WTA completed matches and future fixtures |
-| All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Combined ATP and WTA completed matches and future fixtures |
+| Men's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/mens.parquet> | All ATP completed matches |
+| Women's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/womens.parquet> | All WTA completed matches |
+| ATP | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/atp.parquet> | All ATP completed matches |
+| WTA | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet> | All WTA completed matches |
+| All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Combined ATP and WTA completed matches |
+| Tournaments | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/tournaments.parquet> | Annual ATP/WTA tournament editions |
 
 ### Future-only downloads
 
@@ -39,40 +39,34 @@ The future-only release uses the same filenames. Change `data-latest` to
 | [ATP future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/atp.parquet) | ATP fixtures only |
 | [WTA future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/wta.parquet) | WTA fixtures only |
 | [All future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet) | Combined ATP and WTA fixtures |
+| [Tournaments](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/tournaments.parquet) | Annual editions referenced by fixtures |
 
-Every future-only row has `record_type = 'fixture'`. Dated fixtures are on or
-after the catalog's `as_of` date; undated future draw slots are retained until
-their source publishes an exact schedule or completed result.
-
-Completed rows have `record_type = 'completed'`; scheduled rows have
-`record_type = 'fixture'`. Query known future matches while retaining undated
-future draw slots:
+`scheduled_on` is nullable. Dated rows before the catalog's `as_of` date are
+excluded; undated tentative draw slots are retained. Query fixtures with their
+tournament metadata:
 
 ```sql
 SELECT
-  tour, event_name, round, player1_name, player2_name,
-  scheduled_on, scheduled_at, schedule_date_source
+  f.tour, t.tournament_name, f.round, f.player1_name, f.player2_name,
+  f.scheduled_on, f.source_url
 FROM read_parquet(
-  'https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet'
-)
-WHERE record_type = 'fixture'
-  AND (
-    coalesce(CAST(scheduled_at AS DATE), scheduled_on) >= current_date
-    OR (scheduled_at IS NULL AND scheduled_on IS NULL)
-  )
-ORDER BY scheduled_on NULLS LAST, scheduled_at NULLS LAST, tour, event_name;
+  'https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet'
+) AS f
+LEFT JOIN read_parquet(
+  'https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/tournaments.parquet'
+) AS t USING (tournament_id)
+ORDER BY f.scheduled_on NULLS LAST, f.tour, t.tournament_name;
 ```
 
 ## Quick start
 
 ### Data you can query
 
-- Rolling downloads: completed matches plus current fixtures for ATP, WTA, or
-  both tours. Use `atp.parquet`, `wta.parquet`, or `all-matches.parquet`.
+- Rolling `data-latest` downloads: completed matches for ATP, WTA, or both.
 - Equivalent aliases: `mens.parquet` is ATP and `womens.parquet` is WTA.
 - Future-only downloads: the same filenames under the `future-latest` release.
-- Repository tables: matches, fixtures, events, players, rankings, statistics,
-  observations, identity mappings, coverage, and health data.
+- Repository tables: matches, fixtures, tournaments, players, rankings,
+  statistics, compact provenance, coverage, and health data.
 
 ### Ways to query
 
@@ -96,8 +90,7 @@ url = "https://github.com/ryantjx/tennis-match-data/releases/download/data-lates
 
 matches = (
     pl.scan_parquet(url)
-    .filter(pl.col("record_type") == "completed")
-    .select("tour", "event_name", "round", "player1_name", "player2_name", "score")
+    .select("tour", "tournament_id", "round", "player1_name", "player2_name", "score")
     .head(10)
     .collect()
 )
@@ -109,12 +102,14 @@ print(matches)
 Query the same rolling download directly with SQL:
 
 ```sql
-SELECT tour, level, count(*) AS matches
+SELECT m.tour, t.level, count(*) AS matches
 FROM read_parquet(
   'https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet'
-)
-WHERE record_type = 'completed'
-GROUP BY tour, level
+) AS m
+JOIN read_parquet(
+  'https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/tournaments.parquet'
+) AS t USING (tournament_id)
+GROUP BY m.tour, t.level
 ORDER BY matches DESC;
 ```
 
@@ -132,8 +127,9 @@ Query selected local partitions without loading the entire corpus:
 
 ```bash
 open-tennis-data query --tour atp --years 2020:2025 --sql \
-  "SELECT level, surface, count(*) AS matches
-   FROM matches GROUP BY level, surface ORDER BY matches DESC"
+  "SELECT t.level, t.surface, count(*) AS matches
+   FROM matches m JOIN tournaments t USING (tournament_id, tour, year)
+   GROUP BY t.level, t.surface ORDER BY matches DESC"
 ```
 
 Open an interactive DuckDB session with all tables registered as views:
@@ -167,13 +163,13 @@ data/
   coverage/{coverage,source-audit}.parquet
   health/health.parquet
   matches/tour=atp/year=2025/matches.parquet
-  events/tour=atp/year=2025/events.parquet
+  tournaments/tour=atp/year=2025/tournaments.parquet
   match_stats/tour=atp/year=2025/match-stats.parquet
   observations/tour=atp/year=2025/observations.parquet
   rankings/tour=atp/year=2025/rankings.parquet
   players/tour=atp/players.parquet
   fixtures/tour=atp/current.parquet
-  identity/{events,players,matches}/...
+  identity/tournament-sources.parquet
   conflicts/conflicts.parquet
   quarantine/quarantine.parquet
 contributions/corrections.parquet
@@ -183,10 +179,11 @@ contributions/corrections.parquet
 tour/year partition, row count, byte size, SHA-256 checksum, dataset as-of date,
 and pinned source revision.
 
-The `matches` fact table repeats commonly queried event and player attributes.
-Parquet dictionary encoding keeps this compact while avoiding joins for routine
-analysis. Dimension, statistics, ranking, identity, and observation tables are
-available when deeper provenance or biographical detail is needed.
+The `matches` fact table contains result and participant facts. Tournament
+name, classification, surface, location, and date range live once in the
+`tournaments` table. `observations` is a compact match-to-source crosswalk;
+file-level revision, URL, checksum, licence, and reconciliation totals live in
+`source-audit.parquet`.
 
 ## Coverage and semantics
 
@@ -195,10 +192,9 @@ available when deeper provenance or biographical detail is needed.
   and every ITF/Futures file available from approved sources.
 - Historical ATP rankings from 1973 and WTA rankings from 1984.
 - Match statistics where the source publishes them.
-- Reusable Wikimedia completed results and best-effort future draw slots.
-- `event_start_date` is never presented as an exact match date. `played_on` is
-  null unless a source provides the day, and `played_on_precision` explains the
-  distinction.
+- Reusable Wikimedia completed results and best-effort fixture draw slots.
+- Tournament `start_date` and `end_date` provide edition context; the lean
+  match contract intentionally does not infer an exact match date from them.
 
 Coverage means complete ingestion of the approved available source files, not
 proof that every tennis match ever played is represented. Inspect
@@ -208,10 +204,19 @@ proof that every tennis match ever played is represented. Inspect
 ## Rebuild and verify
 
 ```bash
-open-tennis-data build --years 1968:$(date -u +%Y) --as-of "$(date -u +%F)"
+# Empty checkout only: one-time complete historical download.
+open-tennis-data bootstrap --as-of "$(date -u +%F)"
+
+# Routine updates never rebuild older history.
+open-tennis-data refresh-current --as-of "$(date -u +%F)"
+open-tennis-data refresh-fixtures --as-of "$(date -u +%F)"
+open-tennis-data audit-retroactive --as-of "$(date -u +%F)"
+
 open-tennis-data validate
 python -m unittest discover -s tests -v
 ```
+
+`build` remains a deprecated full-build alias for one release cycle.
 
 Builds download source-native CSV only into a temporary directory. No CSV,
 JSON, JSONL, gzip dataset, or alternate master export is stored in the
@@ -221,7 +226,7 @@ repository.
 
 Code is MIT. Sackmann/Tennis Abstract-derived observations are CC BY-NC-SA 4.0
 and therefore non-commercial. Wikimedia observations are CC BY-SA 4.0.
-Community corrections are CC0. Licences remain attached at observation level;
+Community corrections are CC0. Licences remain attached at source-file level;
 read [DATA_LICENSE.md](DATA_LICENSE.md) and [docs/SOURCES.md](docs/SOURCES.md).
 
 ## Contributing

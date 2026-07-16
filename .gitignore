@@ -12,3 +12,6 @@ build/
 *.tmp.parquet
 .coverage
 htmlcov/
+node_modules/
+playwright-report/
+test-results/
