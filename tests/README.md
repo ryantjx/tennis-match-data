@@ -68,7 +68,7 @@ perform a live source rebuild.
 | `test_data_quality.py` | The checked-in or `OPEN_TENNIS_DATA_ROOT` dataset. It requires every ATP and WTA year from 1968 through catalog `as_of`, checks required match, tournament, and observation partitions, enforces match cleanliness, verifies documented ranking coverage, and restricts quarantine reasons. These tests never skip when the repository dataset is missing. |
 | `test_cli.py` | Successful and failing CLI behavior for `build`, `bootstrap`, `validate`, `query`, `extract`, `add-correction`, `refresh-wikimedia`, `refresh-current`, `refresh-fixtures`, `audit-retroactive`, `promote`, both `downloads` modes, and the interactive `shell`. Network-heavy handlers are mocked here and exercised live in CI. |
 | `test_audit_workflow.py` | Revision-gated weekly audit orchestration: upstream changes with no semantic delta, match/fixture/tournament field corrections, multiple source changes, isolated staging, promotion exactly once after validation, JSON/Markdown artifacts, and failed rebuilds that never promote. |
-| `test_scripts.py` | Release-asset preconditions, GitHub upload arguments through a stubbed `gh`, no-change data commits, direct routine pushes to `main`, and review-only weekly audit PRs. |
+| `test_scripts.py` | Release-asset preconditions, GitHub upload arguments through a stubbed `gh`, no-change data commits, auto-merged routine data PRs, and review-only weekly audit PRs. |
 | `browser/site.spec.js` | Chromium smoke coverage for DuckDB-Wasm initialization, guided search, filters, pagination, tab navigation, table/schema loading, read-only SQL execution, and rejection of mutating SQL. |
 
 ## Dataset cleanliness contract
@@ -113,11 +113,11 @@ release verification, and a no-change promotion. Coverage from that sequence is 
 to the deterministic tests and must remain at or above 90%.
 
 Daily and hourly workflows rebuild only the current result year and fixture horizon in
-isolation, prove older checksums unchanged, and commit validated changes directly to
-`main` using the workflow's scoped `contents: write` permission. The weekly audit
-validates all local history, checks upstream revisions for the previous and current
-result years plus current/next fixtures, and opens a review-only PR only for validated
-semantic changes.
+isolation, prove older checksums unchanged, and commit validated changes through an
+automatically squash-merged data PR using scoped `contents`, `pull-requests`, and
+`statuses` permissions. The weekly audit validates all local history, checks upstream
+revisions for the previous and current result years plus current/next fixtures, and
+opens a review-only PR only for validated semantic changes.
 
 ## Adding tests
 
