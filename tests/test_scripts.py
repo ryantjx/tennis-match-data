@@ -82,6 +82,56 @@ class ScriptTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertIn("No semantic data changes", completed.stdout)
 
+    def test_commit_script_pushes_validated_data_directly_to_main(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            origin = root / "origin.git"
+            repository = root / "repository"
+            subprocess.run(["git", "init", "--bare", "-q", str(origin)], check=True)
+            repository.mkdir()
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repository, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "tests@example.org"],
+                cwd=repository,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Tests"], cwd=repository, check=True
+            )
+            (repository / "data").mkdir()
+            (repository / "contributions").mkdir()
+            data_file = repository / "data/example.parquet"
+            data_file.write_bytes(b"old")
+            subprocess.run(["git", "add", "."], cwd=repository, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repository, check=True)
+            subprocess.run(
+                ["git", "remote", "add", "origin", str(origin)], cwd=repository, check=True
+            )
+            subprocess.run(["git", "push", "-q", "-u", "origin", "main"], cwd=repository, check=True)
+            data_file.write_bytes(b"new")
+
+            completed = subprocess.run(
+                ["bash", str(ROOT / "scripts/commit-data.sh"), "data: test update"],
+                cwd=repository,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            remote_contents = subprocess.run(
+                ["git", "--git-dir", str(origin), "show", "main:data/example.parquet"],
+                capture_output=True,
+                check=True,
+            ).stdout
+            self.assertEqual(remote_contents, b"new")
+            subject = subprocess.run(
+                ["git", "--git-dir", str(origin), "log", "-1", "--format=%s", "main"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            self.assertEqual(subject, "data: test update")
+
     def test_audit_script_opens_review_pr_without_auto_merge(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
