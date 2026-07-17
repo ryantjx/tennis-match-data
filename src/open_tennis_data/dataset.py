@@ -673,6 +673,7 @@ def _ingest_wikimedia(
     as_of: date,
     workers: int,
     fixture_years: Sequence[int] | None = None,
+    source_audit: Path | None = None,
 ) -> dict[str, int]:
     """Merge current reusable Wikimedia results without using intermediate JSON files."""
     from open_tennis_data.fixtures import parse_wikimedia_fixture_page
@@ -680,6 +681,7 @@ def _ingest_wikimedia(
     from open_tennis_data.sources.wikimedia import (
         discover_pages,
         fetch_page,
+        fetch_page_revision,
         fetch_pages_optional,
         parse_page,
         parse_tournament_page,
@@ -708,19 +710,37 @@ def _ingest_wikimedia(
         }
 
     fixture_years = tuple(sorted(set(fixture_years or (year,))))
-    tasks: list[tuple[str, int, str]] = []
-    for tour in TOURS:
-        for fixture_year in fixture_years:
-            tasks.extend(
-                (tour, fixture_year, title)
-                for title in discover_pages(fixture_year, tour)
-            )
+    tasks: list[tuple[str, int, str, str | None]] = []
+    snapshot_tournaments: dict[tuple[str, int, str], str] | None = None
+    if source_audit is None:
+        for tour in TOURS:
+            for fixture_year in fixture_years:
+                tasks.extend(
+                    (tour, fixture_year, title, None)
+                    for title in discover_pages(fixture_year, tour)
+                )
+    else:
+        snapshot_rows = connection.execute(
+            f"SELECT kind, tour, year, source_path, revision FROM read_parquet({_quoted(source_audit)}) "
+            "WHERE source_label='wikimedia' ORDER BY kind, tour, year, source_path"
+        ).fetchall()
+        snapshot_tournaments = {}
+        for kind, tour, page_year, title, revision in snapshot_rows:
+            key = (str(tour), int(page_year), str(title))
+            if str(kind) == "fixtures":
+                tasks.append((*key, str(revision)))
+            elif str(kind) == "tournaments":
+                snapshot_tournaments[key] = str(revision)
 
     pages: list[tuple[str, int, dict[str, Any]]] = []
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
-            executor.submit(fetch_page, title): (tour, page_year)
-            for tour, page_year, title in tasks
+            executor.submit(
+                fetch_page if revision is None else fetch_page_revision,
+                title,
+                *(() if revision is None else (revision,)),
+            ): (tour, page_year)
+            for tour, page_year, title, revision in tasks
         }
         for future in as_completed(futures):
             tour, page_year = futures[future]
@@ -734,7 +754,14 @@ def _ingest_wikimedia(
         event_name = title_match.group(2).strip()
         tournament_tasks[(tour, page_year, event_name)] = f"{page_year} {event_name}"
     tournament_metadata: list[dict[str, Any]] = []
-    tournament_pages = fetch_pages_optional(sorted(set(tournament_tasks.values())))
+    if snapshot_tournaments is None:
+        tournament_pages = fetch_pages_optional(sorted(set(tournament_tasks.values())))
+    else:
+        tournament_pages = {}
+        for (tour, page_year, _), title in sorted(tournament_tasks.items()):
+            revision = snapshot_tournaments.get((tour, page_year, title))
+            if revision is not None:
+                tournament_pages[title] = fetch_page_revision(title, revision)
     tasks_by_title: dict[str, list[tuple[str, int, str]]] = {}
     for key, title in tournament_tasks.items():
         tasks_by_title.setdefault(title, []).append(key)
@@ -2074,6 +2101,7 @@ def build_dataset(
     workers: int = 12,
     current_rankings_only: bool = False,
     source_revision: str | None = None,
+    wikimedia_source_audit: Path | None = None,
 ) -> dict[str, Any]:
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -2100,6 +2128,7 @@ def build_dataset(
             as_of=as_of,
             workers=min(workers, 12),
             fixture_years=(max(years), max(years) + 1),
+            source_audit=wikimedia_source_audit,
         )
         print(
             "Wikimedia: "

@@ -6,6 +6,7 @@ from unittest.mock import patch
 from open_tennis_data.fixtures import parse_wikimedia_fixture_page
 from open_tennis_data.sources.wikimedia import (
     discover_pages,
+    fetch_page_revision,
     parse_page,
     parse_tournament_page,
 )
@@ -25,6 +26,34 @@ def page(title, fixture, revision=123):
 
 
 class WikimediaTests(unittest.TestCase):
+    @patch("open_tennis_data.sources.wikimedia.api")
+    def test_fetch_page_revision_requires_the_recorded_revision(self, request):
+        request.return_value = {
+            "query": {
+                "pages": [
+                    {
+                        "title": "Renamed page",
+                        "pageid": 10,
+                        "pageprops": {"wikibase_item": "Q10"},
+                        "revisions": [
+                            {
+                                "revid": 123,
+                                "timestamp": "2026-07-10T12:00:00Z",
+                                "slots": {"main": {"content": "draw"}},
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        result = fetch_page_revision("Recorded page", "123")
+        self.assertEqual(result["title"], "Recorded page")
+        self.assertEqual(request.call_args.args[0]["revids"], "123")
+
+        request.return_value["query"]["pages"][0]["revisions"][0]["revid"] = 124
+        with self.assertRaisesRegex(RuntimeError, "revision drift"):
+            fetch_page_revision("Recorded page", "123")
+
     def test_tournament_page_extracts_annual_date_window(self):
         tournament_page = {
             "title": "2026 Iași Open",

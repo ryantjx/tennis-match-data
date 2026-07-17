@@ -125,6 +125,38 @@ def fetch_page(title: str) -> dict[str, Any]:
     }
 
 
+def fetch_page_revision(title: str, revision_id: str) -> dict[str, Any]:
+    """Fetch one immutable page revision recorded by a previous build."""
+    data = api(
+        {
+            "action": "query",
+            "prop": "revisions|pageprops",
+            "revids": revision_id,
+            "rvprop": "ids|timestamp|content",
+            "rvslots": "main",
+        }
+    )
+    page = data.get("query", {}).get("pages", [{}])[0]
+    revisions = page.get("revisions", [])
+    if page.get("missing") or not revisions:
+        raise RuntimeError(f"Wikimedia revision {revision_id} for {title!r} is unavailable")
+    revision = revisions[0]
+    if str(revision.get("revid")) != str(revision_id):
+        raise RuntimeError(
+            f"Wikimedia revision drift for {title!r}: "
+            f"{revision.get('revid')} != {revision_id}"
+        )
+    return {
+        # Keep the recorded title stable even if the live page is subsequently moved.
+        "title": title,
+        "page_id": page["pageid"],
+        "wikidata_id": page.get("pageprops", {}).get("wikibase_item"),
+        "revision_id": revision["revid"],
+        "revision_timestamp": revision["timestamp"],
+        "content": revision["slots"]["main"]["content"],
+    }
+
+
 def fetch_page_optional(title: str) -> dict[str, Any] | None:
     data = api(
         {

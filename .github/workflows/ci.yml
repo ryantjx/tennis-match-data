@@ -156,6 +156,7 @@ jobs:
           open-tennis-data build \
             --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
             --source-revision "$SOURCE_REVISION" \
+            --wikimedia-source-audit "$RUNNER_TEMP/tennis-data/coverage/source-audit.parquet" \
             --output "$RUNNER_TEMP/tennis-data-repeat"
           python - "$RUNNER_TEMP/tennis-data" "$RUNNER_TEMP/tennis-data-repeat" <<'PY'
           import hashlib
