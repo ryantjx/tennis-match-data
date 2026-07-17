@@ -2,7 +2,7 @@
 
 The v3.2 suite treats completed results and future fixtures as lifecycle views
 of one 19-column match contract. Repository history is validated locally on
-every pull request and every weekly audit. Hourly and daily refreshes may only
+every pull request and every weekly audit. Daily refreshes may only
 replace the current result year and current/next fixture horizon.
 
 ## Required commands
@@ -78,7 +78,7 @@ gate. Once the base is v3.2, normal historical immutability is mandatory.
 
 ## Incremental and retroactive workflow tests
 
-- Hourly fixture and daily current-year refreshes cannot change any earlier
+- Daily current-year refreshes cannot change any earlier
   year. Rollover initializes the new year and freezes the preceding one.
 - Weekly audit first validates every local partition, probes revisions for the
   previous/current result years and current/next fixture/tournament sources,

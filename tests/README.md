@@ -123,8 +123,9 @@ The required `schema-contract` job switches on the base match metadata. A v3.1
 base requires the checked migration-equivalence report; a v3.2 base activates
 the normal historical byte-immutability gate.
 
-Daily and hourly workflows rebuild only the current result year and fixture horizon in
-isolation, prove older checksums unchanged, and commit validated changes through an
+The daily workflow rebuilds only the current result year and fixture horizon in isolation,
+including Wikimedia results/fixtures, source audit rows, rankings, and affected partitions.
+It proves older checksums unchanged and commits validated changes through an
 automatically squash-merged data PR using scoped `contents`, `pull-requests`, and
 `statuses` permissions. The weekly audit validates all local history, checks upstream
 revisions for the previous and current result years plus current/next fixtures, and
