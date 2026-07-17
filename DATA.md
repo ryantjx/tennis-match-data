@@ -152,8 +152,8 @@ ORDER BY tour, year, level, draw;
 
 ## Update cadence
 
-- Hourly: current reusable Wikimedia results and fixtures.
-- Daily: current source files, rankings, and affected partitions.
+- Daily: current reusable Wikimedia results and fixtures, current source files,
+  rankings, health/catalog metadata, and affected current-year partitions.
 - Weekly: exhaustive local validation of all history, plus upstream revision
   review for the previous/current result years and current/next-year fixtures.
 - After validated updates: replace the rolling `data-latest` and

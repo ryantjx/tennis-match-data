@@ -1,13 +1,12 @@
-name: Refresh current results and fixtures
+name: Daily refresh of current tennis data
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "0 0 * * *"
 
 permissions:
   contents: write
-  issues: write
   pull-requests: write
   statuses: write
 
@@ -29,12 +28,13 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install .
-      - run: open-tennis-data refresh-fixtures --as-of "$(date -u +%F)"
+      - name: Refresh Wikimedia results and fixtures, source files, rankings, and affected partitions
+        run: open-tennis-data refresh-current --as-of "$(date -u +%F)"
       - run: open-tennis-data validate
       - name: Test every checked-in year
         run: python -m unittest tests.test_data_quality -v
       - run: |
-          bash scripts/commit-data.sh "data: refresh current Wikimedia results and fixtures"
+          bash scripts/commit-data.sh "data: refresh current results, fixtures, sources, and rankings"
       - name: Build rolling direct downloads
         run: open-tennis-data downloads --output "$RUNNER_TEMP/downloads"
       - run: bash scripts/verify-downloads.sh "$RUNNER_TEMP/downloads"

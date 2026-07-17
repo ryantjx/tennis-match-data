@@ -348,7 +348,7 @@ Winner, Score, Best of, Status, Level, Surface, Source
   not change established IDs.
 - Weekly audits report provenance and canonical-name changes even though URLs
   are no longer stored in match rows.
-- Hourly and daily workflows cannot modify frozen historical partitions.
+- Daily workflows cannot modify frozen historical partitions.
 - A reviewed player merge or tournament-name correction may change older
   partitions only through the staged weekly retroactive path.
 - Failed validation leaves published data and checksum baselines untouched.

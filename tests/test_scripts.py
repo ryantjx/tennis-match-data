@@ -12,6 +12,23 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ScriptTests(unittest.TestCase):
+    def test_daily_refresh_workflow_consolidates_current_data_updates(self) -> None:
+        workflow = (ROOT / ".github/workflows/live-results.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertFalse((ROOT / ".github/workflows/daily-current.yml").exists())
+        self.assertIn('cron: "0 0 * * *"', workflow)
+        self.assertNotIn('cron: "17 * * * *"', workflow)
+        self.assertIn(
+            "Refresh Wikimedia results and fixtures, source files, rankings, and "
+            "affected partitions",
+            workflow,
+        )
+        self.assertIn("open-tennis-data refresh-current", workflow)
+        self.assertIn(
+            "data: refresh current results, fixtures, sources, and rankings", workflow
+        )
+
     def test_release_manifest_matches_the_python_contract(self) -> None:
         manifest = tuple(
             (ROOT / "scripts/release-assets.txt").read_text(encoding="utf-8").splitlines()
