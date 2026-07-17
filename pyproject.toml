@@ -50,4 +50,4 @@ source = ["open_tennis_data"]
 
 [tool.coverage.report]
 show_missing = true
-omit = ["src/open_tennis_data/migration.py"]
+omit = ["*/open_tennis_data/migration.py"]

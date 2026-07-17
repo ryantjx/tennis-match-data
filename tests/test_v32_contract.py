@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -21,6 +22,15 @@ DATA = ROOT / "data"
 
 
 class V32ContractTests(unittest.TestCase):
+    def test_coverage_omits_one_time_migration_from_source_and_wheel_paths(self) -> None:
+        configuration = tomllib.loads(
+            (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+        self.assertIn(
+            "*/open_tennis_data/migration.py",
+            configuration["tool"]["coverage"]["report"]["omit"],
+        )
+
     def test_completed_and_future_have_the_exact_shared_schema(self) -> None:
         connection = duckdb.connect()
         match = DATA / "matches/tour=atp/year=2026/matches.parquet"
