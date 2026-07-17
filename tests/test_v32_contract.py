@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tempfile
-import tomllib
 import unittest
 from pathlib import Path
+from typing import Any
 
 import duckdb
 
@@ -22,14 +23,63 @@ DATA = ROOT / "data"
 
 
 class V32ContractTests(unittest.TestCase):
-    def test_coverage_omits_one_time_migration_from_source_and_wheel_paths(self) -> None:
-        configuration = tomllib.loads(
-            (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    @staticmethod
+    def migration_report() -> dict[str, Any]:
+        return json.loads(
+            (ROOT / "reports/v3.2/migration-v3.2.json").read_text(encoding="utf-8")
         )
-        self.assertIn(
-            "*/open_tennis_data/migration.py",
-            configuration["tool"]["coverage"]["report"]["omit"],
+
+    def test_migration_backfills_null_best_of_without_dropping_rows(self) -> None:
+        report = self.migration_report()
+        self.assertGreater(report["backfilled_best_of"], 0)
+        self.assertEqual(report["old_match_rows"], report["new_match_rows"])
+        self.assertEqual(
+            sum(item["output_rows"] for item in report["partitions"]),
+            report["new_match_rows"],
         )
+        connection = duckdb.connect()
+        actual_rows, null_best_of = connection.execute(
+            f"SELECT count(*),count(*) FILTER(WHERE best_of IS NULL) FROM read_parquet("
+            f"'{DATA / 'matches/tour=*/year=*/matches.parquet'}', hive_partitioning=false)"
+        ).fetchone()
+        self.assertEqual(actual_rows, report["new_match_rows"])
+        self.assertEqual(null_best_of, 0)
+
+    def test_migration_preserves_ambiguous_provenance_in_quarantine(self) -> None:
+        report = self.migration_report()
+        connection = duckdb.connect()
+        rows, invalid = connection.execute(
+            f"SELECT count(*),count(*) FILTER(WHERE source_file_id IS NULL "
+            "OR candidate_match_ids IS NULL OR len(candidate_match_ids)<2) "
+            f"FROM read_parquet("
+            f"'{DATA / 'quarantine/quarantine.parquet'}') "
+            "WHERE reason='ambiguous_source_mapping'"
+        ).fetchone()
+        nonexistent = connection.execute(
+            f"WITH matches AS (SELECT match_id FROM read_parquet("
+            f"'{DATA / 'matches/tour=*/year=*/matches.parquet'}', hive_partitioning=false)), "
+            f"candidates AS (SELECT unnest(candidate_match_ids) match_id FROM read_parquet("
+            f"'{DATA / 'quarantine/quarantine.parquet'}') "
+            "WHERE reason='ambiguous_source_mapping') "
+            "SELECT count(*) FROM candidates ANTI JOIN matches USING(match_id)"
+        ).fetchone()[0]
+        self.assertEqual(rows, report["quarantined_ambiguous_source_rows"])
+        self.assertEqual(invalid, 0)
+        self.assertEqual(nonexistent, 0)
+
+    def test_migration_fixture_ids_and_report_counts_match_outputs(self) -> None:
+        report = self.migration_report()
+        connection = duckdb.connect()
+        fixture_ids = {
+            row[0]
+            for row in connection.execute(
+                f"SELECT match_id FROM read_parquet("
+                f"'{DATA / 'fixtures/tour=*/current.parquet'}', hive_partitioning=false)"
+            ).fetchall()
+        }
+        reported_ids = {item["match_id"] for item in report["fixture_id_mappings"]}
+        self.assertEqual(fixture_ids, reported_ids)
+        self.assertEqual(len(fixture_ids), report["fixture_rows"])
 
     def test_completed_and_future_have_the_exact_shared_schema(self) -> None:
         connection = duckdb.connect()
@@ -169,9 +219,7 @@ class V32ContractTests(unittest.TestCase):
             )
 
     def test_migration_report_records_equivalence_and_backfill(self) -> None:
-        report = __import__("json").loads(
-            (ROOT / "reports/v3.2/migration-v3.2.json").read_text(encoding="utf-8")
-        )
+        report = self.migration_report()
         self.assertEqual(report["status"], "passed")
         self.assertEqual(report["schema_version"], SCHEMA_VERSION)
         self.assertEqual(report["match_columns"], list(MATCH_COLUMNS))

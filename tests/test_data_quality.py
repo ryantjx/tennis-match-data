@@ -115,7 +115,12 @@ class YearlyDataQualityTests(unittest.TestCase):
         }
         self.assertLessEqual(
             reasons,
-            {"duplicate_source_row", "invalid_participants", "invalid_statistics"},
+            {
+                "duplicate_source_row",
+                "invalid_participants",
+                "invalid_statistics",
+                "ambiguous_source_mapping",
+            },
         )
 
 

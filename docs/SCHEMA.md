@@ -66,6 +66,17 @@ match_id, tour, year, source_file_id, source_match_id
 checksums, licences, and reconciliation totals once per referenced source file.
 Match-shaped rows never contain `source_url`.
 
+`quarantine.parquet` contains:
+
+```text
+tour, year, source_label, source_path, source_file_id, source_match_id,
+row_fingerprint, candidate_match_ids, reason
+```
+
+`candidate_match_ids` is nullable and is populated only for
+`ambiguous_source_mapping` evidence. Those rows preserve every ambiguous source
+observation without selecting a canonical identity that the source does not prove.
+
 Players, rankings, match statistics, tournament/player source crosswalks,
 coverage, health, conflicts, quarantine, and corrections keep entity-specific
 schemas. Rankings remain available as an auxiliary archive even though public

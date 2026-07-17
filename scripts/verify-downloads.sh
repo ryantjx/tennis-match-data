@@ -4,7 +4,10 @@ set -euo pipefail
 directory=${1:?download directory required}
 mode=${2:-all}
 
-files=(mens.parquet womens.parquet atp.parquet wta.parquet all-matches.parquet tournaments.parquet provenance.parquet sources.parquet)
+manifest="$(cd "$(dirname "$0")" && pwd)/release-assets.txt"
+files=()
+while IFS= read -r filename; do files+=("$filename"); done < "$manifest"
+test "${#files[@]}" -eq 8
 for filename in "${files[@]}"; do
   test -f "$directory/$filename"
 done
@@ -89,5 +92,35 @@ source_columns = [row[0] for row in connection.execute(
 for required in ("source_file_id", "source_url", "revision", "sha256", "license"):
     if required not in source_columns:
         raise SystemExit(f"sources.parquet is missing {required}")
+records = directory / "all-matches.parquet"
+provenance = directory / "provenance.parquet"
+sources = directory / "sources.parquet"
+missing_matches = connection.execute(
+    f"SELECT count(*) FROM read_parquet('{provenance}') p ANTI JOIN "
+    f"read_parquet('{records}') m USING(match_id,tour,year)"
+).fetchone()[0]
+if missing_matches:
+    raise SystemExit(f"provenance references {missing_matches} missing matches")
+missing_sources = connection.execute(
+    f"SELECT count(*) FROM read_parquet('{provenance}') p ANTI JOIN "
+    f"read_parquet('{sources}') s USING(source_file_id)"
+).fetchone()[0]
+if missing_sources:
+    raise SystemExit(f"provenance references {missing_sources} missing sources")
+unused_sources = connection.execute(
+    f"SELECT count(*) FROM read_parquet('{sources}') s ANTI JOIN "
+    f"(SELECT DISTINCT source_file_id FROM read_parquet('{provenance}')) p "
+    "USING(source_file_id)"
+).fetchone()[0]
+if unused_sources:
+    raise SystemExit(f"sources contains {unused_sources} unreferenced rows")
+tournament_mismatch = connection.execute(
+    f"WITH referenced AS (SELECT DISTINCT tournament_id,tour,year FROM read_parquet('{records}')), "
+    f"released AS (SELECT tournament_id,tour,year FROM read_parquet('{tournaments}')) "
+    "SELECT (SELECT count(*) FROM (TABLE referenced EXCEPT TABLE released)) + "
+    "(SELECT count(*) FROM (TABLE released EXCEPT TABLE referenced))"
+).fetchone()[0]
+if tournament_mismatch:
+    raise SystemExit(f"tournaments asset differs from referenced editions: {tournament_mismatch}")
 connection.close()
 PY

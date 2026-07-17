@@ -451,6 +451,65 @@ class DatasetTests(unittest.TestCase):
                 errors,
             )
 
+    def test_validator_rejects_health_provenance_and_quarantine_corruption(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+
+            health_root = base / "health-data"
+            shutil.copytree(DATA, health_root, copy_function=os.link)
+            health = health_root / "health/health.parquet"
+            self.replace_test_parquet(
+                health,
+                f"SELECT * REPLACE (as_of + INTERVAL 1 DAY AS as_of) "
+                f"FROM read_parquet('{health}')",
+            )
+            self.rebuild_test_catalog(health_root)
+            self.assertTrue(
+                any(
+                    "health does not match catalog and canonical tables" in error
+                    for error in validate_dataset(health_root)
+                )
+            )
+
+            provenance_root = base / "provenance-data"
+            shutil.copytree(DATA, provenance_root, copy_function=os.link)
+            observations = (
+                provenance_root
+                / "observations/tour=atp/year=1968/observations.parquet"
+            )
+            self.replace_test_parquet(
+                observations,
+                f"SELECT * FROM read_parquet('{observations}', hive_partitioning=false) "
+                "QUALIFY row_number() OVER (ORDER BY match_id)>1",
+            )
+            self.rebuild_test_catalog(provenance_root)
+            self.assertTrue(
+                any(
+                    "canonical matches without provenance evidence" in error
+                    for error in validate_dataset(provenance_root)
+                )
+            )
+
+            quarantine_root = base / "quarantine-data"
+            shutil.copytree(DATA, quarantine_root, copy_function=os.link)
+            quarantine = quarantine_root / "quarantine/quarantine.parquet"
+            self.replace_test_parquet(
+                quarantine,
+                f"WITH numbered AS (SELECT *,row_number() OVER (ORDER BY tour,year,"
+                f"source_match_id) rn FROM read_parquet('{quarantine}')) "
+                "SELECT * EXCLUDE(rn) REPLACE(CASE WHEN reason='ambiguous_source_mapping' "
+                "AND rn=(SELECT min(rn) FROM numbered WHERE reason='ambiguous_source_mapping') "
+                "THEN ['missing-match-id']::VARCHAR[] ELSE candidate_match_ids END "
+                "AS candidate_match_ids) FROM numbered",
+            )
+            self.rebuild_test_catalog(quarantine_root)
+            self.assertTrue(
+                any(
+                    "invalid quarantine candidate IDs" in error
+                    for error in validate_dataset(quarantine_root)
+                )
+            )
+
     def test_validator_rejects_changes_before_incremental_cutoff(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "data"

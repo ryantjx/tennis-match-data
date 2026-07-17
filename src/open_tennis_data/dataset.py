@@ -45,7 +45,7 @@ DOWNLOAD_COMPRESSION_LEVEL = 19
 MATCH_COMPRESSION_LEVEL = 19
 STRING_DICTIONARY_PAGE_SIZE_LIMIT = 1_048_576
 
-DOWNLOAD_FILENAMES = (
+MATCH_DOWNLOAD_FILENAMES = (
     "mens.parquet",
     "womens.parquet",
     "atp.parquet",
@@ -55,6 +55,12 @@ DOWNLOAD_FILENAMES = (
 TOURNAMENT_DOWNLOAD_FILENAME = "tournaments.parquet"
 PROVENANCE_DOWNLOAD_FILENAME = "provenance.parquet"
 SOURCES_DOWNLOAD_FILENAME = "sources.parquet"
+RELEASE_FILENAMES = (
+    *MATCH_DOWNLOAD_FILENAMES,
+    TOURNAMENT_DOWNLOAD_FILENAME,
+    PROVENANCE_DOWNLOAD_FILENAME,
+    SOURCES_DOWNLOAD_FILENAME,
+)
 FIXTURE_COLUMNS = MATCH_COLUMNS
 
 TOURNAMENT_COLUMNS = (
@@ -358,7 +364,9 @@ def _create_match_tables(
         f"""
         CREATE TABLE raw_matches AS
         SELECT csv.*, files.tour, files.year AS source_year, files.source_label,
-               files.source_path, files.source_url, files.revision, files.sha256 AS source_sha256
+               files.source_path, files.source_url, files.revision, files.sha256 AS source_sha256,
+               'source_file_' || substr(sha256(concat_ws('|', 'sackmann', files.source_url,
+                 files.revision, files.sha256)), 1, 20) AS source_file_id
         FROM read_csv({_sql_list(item.local_path for item in match_sources)},
                       header=true, all_varchar=true, union_by_name=true,
                       filename=true, null_padding=true) csv
@@ -580,7 +588,8 @@ def _create_match_tables(
         """
         CREATE TABLE quarantine AS
         SELECT tour, source_year::SMALLINT AS year, source_label, source_path,
-          source_match_id, row_fingerprint, rejection_reason::VARCHAR AS reason
+          source_file_id, source_match_id, row_fingerprint,
+          NULL::VARCHAR[] AS candidate_match_ids, rejection_reason::VARCHAR AS reason
         FROM normalized_base WHERE rejection_reason IS NOT NULL
         ORDER BY tour, year, source_label, source_match_id
         """
@@ -1777,10 +1786,7 @@ def create_direct_downloads(
     order = "date NULLS LAST, tournament_id, draw, round, match_id"
     output.mkdir(parents=True, exist_ok=True)
     for filename in (
-        *DOWNLOAD_FILENAMES,
-        TOURNAMENT_DOWNLOAD_FILENAME,
-        PROVENANCE_DOWNLOAD_FILENAME,
-        SOURCES_DOWNLOAD_FILENAME,
+        *RELEASE_FILENAMES,
     ):
         path = output / filename
         if path.exists():
@@ -1809,7 +1815,11 @@ def create_direct_downloads(
     )
     _copy_parquet(
         connection,
-        f"SELECT * FROM read_parquet({_sql_list(tournament_files)}, union_by_name=true) "
+        f"WITH records AS ({records_query}), tournaments AS ("
+        f"SELECT * FROM read_parquet({_sql_list(tournament_files)}, union_by_name=true)) "
+        "SELECT t.* FROM tournaments t SEMI JOIN "
+        "(SELECT DISTINCT tournament_id,tour,year FROM records) r "
+        "USING(tournament_id,tour,year) "
         "ORDER BY tour, year, start_date, tournament_id",
         output / TOURNAMENT_DOWNLOAD_FILENAME,
         row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
@@ -1839,7 +1849,7 @@ def create_direct_downloads(
 
     expected_schema: list[tuple[str, str]] | None = None
     summary: dict[str, dict[str, int]] = {}
-    for filename in DOWNLOAD_FILENAMES:
+    for filename in MATCH_DOWNLOAD_FILENAMES:
         path = output / filename
         if path.stat().st_size > MAX_PARQUET_BYTES:
             raise RuntimeError(f"direct download exceeds 75 MB: {filename}")
@@ -3928,6 +3938,10 @@ def validate_dataset(
         connection.close()
         return [f"invalid catalog: {exc}"]
     paths = [str(row[0]) for row in rows]
+    catalog_dates = {row[7] for row in rows}
+    if len(catalog_dates) != 1:
+        errors.append(f"catalog contains inconsistent as_of values: {sorted(map(str, catalog_dates))}")
+    catalog_as_of = next(iter(catalog_dates), None)
     if len(paths) != len(set(paths)):
         errors.append("catalog contains duplicate paths")
     actual_paths = {
@@ -4040,6 +4054,10 @@ def validate_dataset(
         "fixtures": list(FIXTURE_COLUMNS),
         "tournaments": list(TOURNAMENT_COLUMNS),
         "observations": ["match_id", "tour", "year", "source_file_id", "source_match_id"],
+        "quarantine": [
+            "tour", "year", "source_label", "source_path", "source_file_id",
+            "source_match_id", "row_fingerprint", "candidate_match_ids", "reason",
+        ],
     }
     for table, names in expected_names.items():
         actual = [name for name, _ in schemas.get(table, [])]
@@ -4056,6 +4074,10 @@ def validate_dataset(
 
     try:
         register_views(connection, root)
+        connection.execute(
+            f"CREATE VIEW quarantine AS SELECT * FROM read_parquet("
+            f"{_quoted(root / 'quarantine/quarantine.parquet')})"
+        )
     except (duckdb.Error, ValueError) as exc:
         connection.close()
         return [*errors, f"could not register dataset views: {exc}"]
@@ -4122,6 +4144,29 @@ def validate_dataset(
         "ambiguous source mappings": (
             "SELECT count(*) FROM (SELECT source_file_id,source_match_id "
             "FROM observations GROUP BY ALL HAVING count(DISTINCT match_id)>1)"
+        ),
+        "canonical matches without provenance evidence": (
+            "SELECT count(*) FROM matches m WHERE NOT EXISTS (SELECT 1 FROM observations o "
+            "WHERE (o.match_id,o.tour,o.year)=(m.match_id,m.tour,m.year)) AND NOT EXISTS ("
+            "SELECT 1 FROM quarantine q WHERE q.reason='ambiguous_source_mapping' "
+            "AND list_contains(q.candidate_match_ids,m.match_id))"
+        ),
+        "ambiguous quarantine rows without candidates": (
+            "SELECT count(*) FROM quarantine WHERE reason='ambiguous_source_mapping' "
+            "AND (candidate_match_ids IS NULL OR len(candidate_match_ids)=0)"
+        ),
+        "candidates on non-ambiguous quarantine rows": (
+            "SELECT count(*) FROM quarantine WHERE reason<>'ambiguous_source_mapping' "
+            "AND candidate_match_ids IS NOT NULL"
+        ),
+        "invalid quarantine candidate IDs": (
+            "SELECT count(*) FROM (SELECT unnest(candidate_match_ids) match_id FROM quarantine "
+            "WHERE candidate_match_ids IS NOT NULL) c ANTI JOIN matches m USING(match_id)"
+        ),
+        "quarantine rows without sources": (
+            "SELECT count(*) FROM quarantine q LEFT JOIN read_parquet("
+            + _quoted(root / "coverage/source-audit.parquet")
+            + ") s USING(source_file_id) WHERE s.source_file_id IS NULL"
         ),
         "orphan observation sources": (
             "SELECT count(*) FROM observations o LEFT JOIN read_parquet("
@@ -4278,6 +4323,37 @@ def validate_dataset(
                     f"source reconciliation failed for {source_path}: "
                     f"{source_rows} != {normalized_rows}+{quarantined_rows}"
                 )
+
+    health_path = root / "health" / "health.parquet"
+    if health_path.exists() and catalog_as_of is not None:
+        health_mismatches = int(
+            _required_row(
+                connection.execute(
+                    f"""
+                    WITH expected AS (
+                      SELECT m.tour, DATE {_quoted(catalog_as_of.isoformat())} AS as_of,
+                        count(*)::BIGINT AS match_count,
+                        count(DISTINCT m.tournament_id)::BIGINT AS tournament_count,
+                        min(t.start_date) AS earliest_tournament_date,
+                        max(coalesce(t.end_date,t.start_date)) AS latest_tournament_date,
+                        (SELECT max(ranking_date) FROM rankings r WHERE r.tour=m.tour) AS latest_ranking_date,
+                        (SELECT count(*) FROM rankings r WHERE r.tour=m.tour)::BIGINT AS ranking_row_count,
+                        (SELECT count(*) FROM quarantine q WHERE q.tour=m.tour)::BIGINT AS quarantined_rows,
+                        CASE WHEN (SELECT count(*) FROM rankings r WHERE r.tour=m.tour)=0 THEN 'unhealthy'
+                          WHEN date_diff('day',(SELECT max(ranking_date) FROM rankings r WHERE r.tour=m.tour),
+                            DATE {_quoted(catalog_as_of.isoformat())})>14 THEN 'stale'
+                          ELSE 'healthy' END AS status
+                      FROM matches m JOIN tournaments t USING(tournament_id,tour,year)
+                      GROUP BY m.tour
+                    ), published AS (SELECT * FROM read_parquet({_quoted(health_path)}))
+                    SELECT count(*) FROM ((TABLE expected EXCEPT TABLE published)
+                      UNION ALL (TABLE published EXCEPT TABLE expected)) differences
+                    """
+                )
+            )[0]
+        )
+        if health_mismatches:
+            errors.append(f"health does not match catalog and canonical tables: {health_mismatches}")
 
     if baseline_catalog is not None:
         if not baseline_catalog.exists():

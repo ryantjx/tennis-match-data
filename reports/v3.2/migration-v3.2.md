@@ -2,15 +2,15 @@
 
 - Status: passed
 - As of: 2026-07-17
-- Match rows retained: 1742440
-- Fixture rows migrated: 21
-- Missing `best_of` values backfilled: 4534
+- Match rows retained: 1742444
+- Fixture rows migrated: 22
+- Missing `best_of` values backfilled: 4538
 - Ambiguous provenance rows quarantined: 120
 - Retained-field differences: 0
-- Completed match IDs preserved: 1742440
+- Completed match IDs preserved: 1742444
 - Rewritten match partitions: 118
-- Old catalog checksum: `4a42a15a00a38f190bfd7477f898ffbbf443648aeb8f201b46f525a2cf478909`
-- New catalog checksum: `87891ae42889739cf8a10b64a82e06c222fda0e29c29b85f54b9e341a47dc6ff`
+- Old catalog checksum: `1659f659b9948ee19cdc176be8d818cc9345ed7e8a228069bab3411dba46194d`
+- New catalog checksum: `d6dfc35555a9d0bb58b65292c5c50b0e857da098c553ae5d3b74483049365cab`
 
 ## Schemas
 

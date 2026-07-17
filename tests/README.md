@@ -91,7 +91,8 @@ The validation and yearly tests jointly enforce these rules:
 - Published statistics cannot be negative or internally impossible, such as first serves
   won exceeding first serves in or break points saved exceeding break points faced.
 - Every source match row is classified exactly once. Rejected rows use
-  `duplicate_source_row`, `invalid_participants`, or `invalid_statistics`, and source
+  `duplicate_source_row`, `invalid_participants`, `invalid_statistics`, or
+  `ambiguous_source_mapping`, and source
   reconciliation must satisfy `source_rows = normalized_rows + quarantined_rows`.
 - Match and tournament dates may be null. Optional statistics, fixture
   participants, and player biography values may remain null. The 303 completed

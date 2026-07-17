@@ -1,10 +1,10 @@
 {
   "as_of": "2026-07-17",
-  "backfilled_best_of": 4534,
+  "backfilled_best_of": 4538,
   "fixture_id_mappings": [
     {
-      "fixture_id": "fixture-99b9dc16dd94360d65fe70fd",
-      "match_id": "match_99b9dc16dd94360d65fe70fd"
+      "fixture_id": "fixture-9a418e2b5a36cc609774cf9e",
+      "match_id": "match_9a418e2b5a36cc609774cf9e"
     },
     {
       "fixture_id": "fixture-ad1503bce86f29c9553243a7",
@@ -15,12 +15,12 @@
       "match_id": "match_d26edac5a471c041f9151e73"
     },
     {
-      "fixture_id": "fixture-d0dcc9d067200acd7aacf909",
-      "match_id": "match_d0dcc9d067200acd7aacf909"
+      "fixture_id": "fixture-2e42bb0daa311cc83c4dcdd5",
+      "match_id": "match_2e42bb0daa311cc83c4dcdd5"
     },
     {
-      "fixture_id": "fixture-da68498069bdacde3b0159ea",
-      "match_id": "match_da68498069bdacde3b0159ea"
+      "fixture_id": "fixture-c57d5f3699a617912e11bc97",
+      "match_id": "match_c57d5f3699a617912e11bc97"
     },
     {
       "fixture_id": "fixture-2ba4bf1766b4c14b1aa131e1",
@@ -35,8 +35,12 @@
       "match_id": "match_9709ad8cd8fb421ceb8d95f8"
     },
     {
-      "fixture_id": "fixture-e9fc1287163d904c50f1b185",
-      "match_id": "match_e9fc1287163d904c50f1b185"
+      "fixture_id": "fixture-85b2c4a5489840038f41fdd2",
+      "match_id": "match_85b2c4a5489840038f41fdd2"
+    },
+    {
+      "fixture_id": "fixture-cb0a53986f141321985c22b8",
+      "match_id": "match_cb0a53986f141321985c22b8"
     },
     {
       "fixture_id": "fixture-33251ee673a2bdbbf25310c1",
@@ -87,7 +91,7 @@
       "match_id": "match_aaa173a9245353dc784ac58c"
     }
   ],
-  "fixture_rows": 21,
+  "fixture_rows": 22,
   "match_columns": [
     "date",
     "match_id",
@@ -109,7 +113,7 @@
     "score",
     "best_of"
   ],
-  "new_catalog_sha256": "87891ae42889739cf8a10b64a82e06c222fda0e29c29b85f54b9e341a47dc6ff",
+  "new_catalog_sha256": "d6dfc35555a9d0bb58b65292c5c50b0e857da098c553ae5d3b74483049365cab",
   "new_fixture_schema": [
     [
       "date",
@@ -188,7 +192,7 @@
       "TINYINT"
     ]
   ],
-  "new_match_rows": 1742440,
+  "new_match_rows": 1742444,
   "new_match_schema": [
     [
       "date",
@@ -267,7 +271,7 @@
       "TINYINT"
     ]
   ],
-  "old_catalog_sha256": "4a42a15a00a38f190bfd7477f898ffbbf443648aeb8f201b46f525a2cf478909",
+  "old_catalog_sha256": "1659f659b9948ee19cdc176be8d818cc9345ed7e8a228069bab3411dba46194d",
   "old_fixture_schema": [
     [
       "fixture_id",
@@ -318,7 +322,7 @@
       "VARCHAR"
     ]
   ],
-  "old_match_rows": 1742440,
+  "old_match_rows": 1742444,
   "old_match_schema": [
     [
       "match_id",
@@ -425,6 +429,7 @@
     {
       "new_sha256": "1f52716b6b186741fd6b22da77d8fb65a5e1632ade7718c91700ef0403e2caff",
       "old_sha256": "a7443d0edcf5a6365d7d10c508b88b0f6923d1291ff41241c73406604788a452",
+      "output_rows": 4377,
       "path": "matches/tour=atp/year=1968/matches.parquet",
       "retained_differences": 0,
       "rows": 4377
@@ -432,6 +437,7 @@
     {
       "new_sha256": "6abf060337368565da3053284ca99cab8d40b596826f270049fa667f631b50a9",
       "old_sha256": "30ccfd704b2ad95739ccc9fd8608fb3dcbb5a3d4a3a73ae6350ef36fa33228a2",
+      "output_rows": 3163,
       "path": "matches/tour=atp/year=1969/matches.parquet",
       "retained_differences": 0,
       "rows": 3163
@@ -439,6 +445,7 @@
     {
       "new_sha256": "27c5120cb0c48cbcdb43dd5b44c4b522d57ce4a80d8c39d0f633f19a8bbda5f6",
       "old_sha256": "802374810a76f41a3174a9ae05f214ece3a1f8c349639e9204585c1d3be626e2",
+      "output_rows": 3287,
       "path": "matches/tour=atp/year=1970/matches.parquet",
       "retained_differences": 0,
       "rows": 3287
@@ -446,6 +453,7 @@
     {
       "new_sha256": "7075540f5841caeae58126902c7a65076dc6a22cfe9894c84f3aa771a430124d",
       "old_sha256": "3310f6d7b2ca7a3dd0094c1b7c2ee0792ce920397ced02057406c8dcdc57e2a8",
+      "output_rows": 3640,
       "path": "matches/tour=atp/year=1971/matches.parquet",
       "retained_differences": 0,
       "rows": 3640
@@ -453,6 +461,7 @@
     {
       "new_sha256": "6d2817f1e20d7fd6dbb5c54845e020098bfff5f851cd99191b41145d7da8aed1",
       "old_sha256": "c5afdb36c4b2f9fa2479214ba7b223f76f1ded62dd16f2e6565e6174a71f5208",
+      "output_rows": 3617,
       "path": "matches/tour=atp/year=1972/matches.parquet",
       "retained_differences": 0,
       "rows": 3617
@@ -460,6 +469,7 @@
     {
       "new_sha256": "8a44d9307eafa7bd5bd1ca4af2fc167f2d5f85fed3e1667827e6c17ad2fd3536",
       "old_sha256": "94a685e348c263c590454d88c943e34e88d187e18cc948c712643dddf4f4ac60",
+      "output_rows": 4327,
       "path": "matches/tour=atp/year=1973/matches.parquet",
       "retained_differences": 0,
       "rows": 4327
@@ -467,6 +477,7 @@
     {
       "new_sha256": "53ebf0be0c364e3935856777a615f381389ccc19fcc235a4de46e9253adbd071",
       "old_sha256": "9a6b46e268a3b3c3e89b23fd6c52f2c8c2ac38c01737cf8205cc78cc1cee633b",
+      "output_rows": 4199,
       "path": "matches/tour=atp/year=1974/matches.parquet",
       "retained_differences": 0,
       "rows": 4199
@@ -474,6 +485,7 @@
     {
       "new_sha256": "375af20495f151211cb2ac1d26fe4ed5deeb692f8f5a80c33d326964e79343aa",
       "old_sha256": "268a755f061d2bb31fe6cb397a01e899c83939c2f2b92f30ce925532fe065626",
+      "output_rows": 4164,
       "path": "matches/tour=atp/year=1975/matches.parquet",
       "retained_differences": 0,
       "rows": 4164
@@ -481,6 +493,7 @@
     {
       "new_sha256": "4edc3dd738c0e164218bd2ae5b4e9de1c9afc0bf0d56b24c919d4139b02029b1",
       "old_sha256": "0b5afe960431be35799796f903015ff98e8c04b11b5cca97c007612be3185d4a",
+      "output_rows": 3979,
       "path": "matches/tour=atp/year=1976/matches.parquet",
       "retained_differences": 0,
       "rows": 3979
@@ -488,6 +501,7 @@
     {
       "new_sha256": "2cedc5618137e3f269c646219beace7f61422d3049dd45b89f43ed016fb4164a",
       "old_sha256": "d977965f134ae93dcd9b07775aca60b6e6519d349a5f2d7542f79d076c307036",
+      "output_rows": 4140,
       "path": "matches/tour=atp/year=1977/matches.parquet",
       "retained_differences": 0,
       "rows": 4140
@@ -495,6 +509,7 @@
     {
       "new_sha256": "079948b7875eeef6a8e67ff5e4118f8ed6210221eb79f4a4eb84bac61da9ebf8",
       "old_sha256": "d78488742d1f2a2fc2b0a6da3f3b9bff5568b7fa0599ad057ae1fc077a8e5c23",
+      "output_rows": 4860,
       "path": "matches/tour=atp/year=1978/matches.parquet",
       "retained_differences": 0,
       "rows": 4860
@@ -502,6 +517,7 @@
     {
       "new_sha256": "60f1bd423145221afb4f6b67f47df2ff9632c46e6c187a194b530d3c0cd31f0e",
       "old_sha256": "6adfcfd606e215ce2e027a15e1fb64db5246ab2f1e849157507ccdf35ee08558",
+      "output_rows": 4994,
       "path": "matches/tour=atp/year=1979/matches.parquet",
       "retained_differences": 0,
       "rows": 4994
@@ -509,6 +525,7 @@
     {
       "new_sha256": "1ec1cef2c6e1e28b3cc8a89a734aca2c0e0370ed46f7a1d25c5156298059b599",
       "old_sha256": "5f61c284f1949a9269c8b6e461ede298bb8c883b5c76ba82774c5eb8bf8aece6",
+      "output_rows": 4853,
       "path": "matches/tour=atp/year=1980/matches.parquet",
       "retained_differences": 0,
       "rows": 4853
@@ -516,6 +533,7 @@
     {
       "new_sha256": "83c71ecc32c63a25c56735f9531680777f25bce1091ed714d1f55c36c885369c",
       "old_sha256": "418f927fa4932faa732ac45d2bf97ced5b32c58805d349dd7173a4d90f80b70f",
+      "output_rows": 5476,
       "path": "matches/tour=atp/year=1981/matches.parquet",
       "retained_differences": 0,
       "rows": 5476
@@ -523,6 +541,7 @@
     {
       "new_sha256": "9d06ddb960a7e2e44b646afa922ac04144f7a8b0e930b3ec2a625fd60a847488",
       "old_sha256": "1b84cc9c3db5a1a5b2e06cf3ad13375ec6dab227b6b331af6366b7ce1aed35b7",
+      "output_rows": 5561,
       "path": "matches/tour=atp/year=1982/matches.parquet",
       "retained_differences": 0,
       "rows": 5561
@@ -530,6 +549,7 @@
     {
       "new_sha256": "cb453e854da45df0dc412d8fa7af16242df92f46bcb9078eac7acef1d775a41d",
       "old_sha256": "b41132ca88d77f019b5e1a2d307f903f61b9bc671d3b43101f9eb38e0d86ba9e",
+      "output_rows": 4745,
       "path": "matches/tour=atp/year=1983/matches.parquet",
       "retained_differences": 0,
       "rows": 4745
@@ -537,6 +557,7 @@
     {
       "new_sha256": "eebc4ea2688450772be9f46c4da3f679cd47d39673f2f11aed3cc75bfece6023",
       "old_sha256": "f90b93a310dd0cec84d28511c0e1327a4b0b980848d901610b5f11969b8d2fa8",
+      "output_rows": 4322,
       "path": "matches/tour=atp/year=1984/matches.parquet",
       "retained_differences": 0,
       "rows": 4322
@@ -544,6 +565,7 @@
     {
       "new_sha256": "0a6abe9c5ff1a370a82bd33686b23a7226f5f5c0492c3b0f0e52f330fc991792",
       "old_sha256": "6b536ee3d4316e03ce8f86c26057eeba9639609d721030186d858a28831e8475",
+      "output_rows": 4694,
       "path": "matches/tour=atp/year=1985/matches.parquet",
       "retained_differences": 0,
       "rows": 4694
@@ -551,6 +573,7 @@
     {
       "new_sha256": "1f8a313ef87779b8251ba548d86cd13ba493b5370e2c17b9afd98c92b76a1372",
       "old_sha256": "b1000aae20cfff160adf259d52ded1c21f1baf4ae749064eb16601ddf2e4fb1b",
+      "output_rows": 4997,
       "path": "matches/tour=atp/year=1986/matches.parquet",
       "retained_differences": 0,
       "rows": 4997
@@ -558,6 +581,7 @@
     {
       "new_sha256": "e1753e74644fc96fbba1609eb2b0d39f60f4aece72395e8859b49005a88161d4",
       "old_sha256": "bb52e790ccc9a8ea1996d668b306f861cbea94c6b934214c6126979e152a41a6",
+      "output_rows": 5584,
       "path": "matches/tour=atp/year=1987/matches.parquet",
       "retained_differences": 0,
       "rows": 5584
@@ -565,6 +589,7 @@
     {
       "new_sha256": "869ab7ac07a99ad116848b33be96a1c4fd7ae1454fa31c5b020bbe44543bd3e4",
       "old_sha256": "f9886fa2fe15a1ca2e9397afd3fbab4b1f9593c2cb2df9cfc468c53d9ea23e60",
+      "output_rows": 6598,
       "path": "matches/tour=atp/year=1988/matches.parquet",
       "retained_differences": 0,
       "rows": 6598
@@ -572,6 +597,7 @@
     {
       "new_sha256": "94e0ec9e3580f5dfab443056d3f9ea24ef98ddd366ffc263ac8e1dc41aa752d2",
       "old_sha256": "aedd2597f88c5a09e66acb1a6979a77bfd7a1ca8dfce96d40b1cb4ec89b36810",
+      "output_rows": 6527,
       "path": "matches/tour=atp/year=1989/matches.parquet",
       "retained_differences": 0,
       "rows": 6527
@@ -579,6 +605,7 @@
     {
       "new_sha256": "692fa1307cf1cf1d74ddbed1317360aac0cdb4355c8e03dd3d085a9832e48c5a",
       "old_sha256": "4fd6ed4df13c13a7cb2ec89f270cec8ffd2fe1c752248006ce04712200c4f033",
+      "output_rows": 5914,
       "path": "matches/tour=atp/year=1990/matches.parquet",
       "retained_differences": 0,
       "rows": 5914
@@ -586,6 +613,7 @@
     {
       "new_sha256": "2e4814dd4c553502098c49b5b48f9fa9808a59fe58031515c4bd03ddfbc15a80",
       "old_sha256": "009b840f23673c8af65e6974ed2444f20b1e91ac55b76bdecbafbf4f79ec820a",
+      "output_rows": 15698,
       "path": "matches/tour=atp/year=1991/matches.parquet",
       "retained_differences": 0,
       "rows": 15698
@@ -593,6 +621,7 @@
     {
       "new_sha256": "0c28953bc64d31d12fbcfe50b37d923cc9acb3442fc4458b29737c84a651a83c",
       "old_sha256": "1cfc36b78e32923ffdbd6f2254ce6718b6c3c7d1b5fabaf75c61c91df1aa9683",
+      "output_rows": 15271,
       "path": "matches/tour=atp/year=1992/matches.parquet",
       "retained_differences": 0,
       "rows": 15271
@@ -600,6 +629,7 @@
     {
       "new_sha256": "bb1ddea5aa5b875d7c8f956b2cee04aaf8c855dc0a3dacb939194d81e8ef18f3",
       "old_sha256": "20057861f4f3a3e9ef7fe2127defe5f7db064716a2b673bcfc567fdfe2df2773",
+      "output_rows": 16878,
       "path": "matches/tour=atp/year=1993/matches.parquet",
       "retained_differences": 0,
       "rows": 16878
@@ -607,6 +637,7 @@
     {
       "new_sha256": "342d0c4e0c9ee825a3a32c0cb678769287dbf9e15a8bd5ca207531cde0adc3b2",
       "old_sha256": "f90cbbf07141ccafc39c711b25674d004e84b2e1405d47f7d50fdec8a637cd46",
+      "output_rows": 17284,
       "path": "matches/tour=atp/year=1994/matches.parquet",
       "retained_differences": 0,
       "rows": 17284
@@ -614,6 +645,7 @@
     {
       "new_sha256": "6c4770873dbb07bf86d93ed043802a0a81556e4dfa29d0fbc19cd76b50e089ed",
       "old_sha256": "7c8cd4a23310c7022dc43c07e00849c308113f0745003476fa3cd062718b68a5",
+      "output_rows": 18288,
       "path": "matches/tour=atp/year=1995/matches.parquet",
       "retained_differences": 0,
       "rows": 18288
@@ -621,6 +653,7 @@
     {
       "new_sha256": "af66e642803ce22befc86b26ef62249c679488833908295f3d25524ddf0a8ea2",
       "old_sha256": "e868274e05328e824d60dbfaf5364e08cb289f0af7fdfb669759e0b5e087cf8d",
+      "output_rows": 19361,
       "path": "matches/tour=atp/year=1996/matches.parquet",
       "retained_differences": 0,
       "rows": 19361
@@ -628,6 +661,7 @@
     {
       "new_sha256": "bf35aaefd09b50fd06380b73acbe76a2ae1c3708f72cec666f2cabff3fa65e90",
       "old_sha256": "a6aa849f2035e7c503ff93269769b475b4a32535bd5ebca520a854f65991d79a",
+      "output_rows": 20538,
       "path": "matches/tour=atp/year=1997/matches.parquet",
       "retained_differences": 0,
       "rows": 20538
@@ -635,6 +669,7 @@
     {
       "new_sha256": "00d00d00239269191bc678d306bccec6b57427b48e200cad4f5e8912f208a7ef",
       "old_sha256": "0cb3ab769f7d2eceb88732c436a16d9f80e63c2bba189e78f5fd18ee70c52471",
+      "output_rows": 20264,
       "path": "matches/tour=atp/year=1998/matches.parquet",
       "retained_differences": 0,
       "rows": 20264
@@ -642,6 +677,7 @@
     {
       "new_sha256": "581ea56dadeb2dc7c9079a190e239889bfb13646e0ff579b608ebc263db78bc6",
       "old_sha256": "b0da8fbc9d76eb9ff7b533e8f152c4d3745eff05902a4cb70b9d9daca69a7a7d",
+      "output_rows": 20053,
       "path": "matches/tour=atp/year=1999/matches.parquet",
       "retained_differences": 0,
       "rows": 20053
@@ -649,6 +685,7 @@
     {
       "new_sha256": "09f774b80cc842449a86e4ec6bb298d773261940dd4346ff70dab53ff6eeafba",
       "old_sha256": "1122e01a33cd3f0fcd56c7c852e1539f8c1578f9f80cb74d0dd6d889435d90f8",
+      "output_rows": 19797,
       "path": "matches/tour=atp/year=2000/matches.parquet",
       "retained_differences": 0,
       "rows": 19797
@@ -656,6 +693,7 @@
     {
       "new_sha256": "2b477b6543429f7f250b839e5b99fe447ffd4900d606b3346eb92befd36b7f48",
       "old_sha256": "a7d88d54f5fbd339e303b371048efe87878be83fc18be10970f4c72d1be8e1bd",
+      "output_rows": 20756,
       "path": "matches/tour=atp/year=2001/matches.parquet",
       "retained_differences": 0,
       "rows": 20756
@@ -663,6 +701,7 @@
     {
       "new_sha256": "3305cea1374664d6b15968cc2394f516b5e56d94f457688f2a7369c29a6d67be",
       "old_sha256": "341ab12a988c156bfd51b26dd306ea3cfd63e2524286501cee06eb7e3765fd5b",
+      "output_rows": 20028,
       "path": "matches/tour=atp/year=2002/matches.parquet",
       "retained_differences": 0,
       "rows": 20028
@@ -670,6 +709,7 @@
     {
       "new_sha256": "dad766e257712d02536b2db98a2bf7d9ad53e9b9ad53c0a3ee8225489d698694",
       "old_sha256": "6a85db373650fb82229307864fbba59f0cf3e3e0e1dd96521dcbfe616443e165",
+      "output_rows": 21360,
       "path": "matches/tour=atp/year=2003/matches.parquet",
       "retained_differences": 0,
       "rows": 21360
@@ -677,6 +717,7 @@
     {
       "new_sha256": "a33f7e743e822b270314b53d91c66c395c1b217056ae658d0b64119e8f0502e2",
       "old_sha256": "90aa8ccf53b03a5a6c78117862fa1594f447e3546bbb86a423155e2cd3024e5c",
+      "output_rows": 22429,
       "path": "matches/tour=atp/year=2004/matches.parquet",
       "retained_differences": 0,
       "rows": 22429
@@ -684,6 +725,7 @@
     {
       "new_sha256": "5ff73b924a9ad7caaef323c0086e04724bbec34b37776d58ee62c60a1440e3d4",
       "old_sha256": "fb96185ad111cb6560bbec665182235a2ef8d873b14b64b8913b249f0e52987d",
+      "output_rows": 23438,
       "path": "matches/tour=atp/year=2005/matches.parquet",
       "retained_differences": 0,
       "rows": 23438
@@ -691,6 +733,7 @@
     {
       "new_sha256": "3a45506c7936e6fda70977d5a050753c8e9949950dec285079d7e558bbf6e96d",
       "old_sha256": "9a711759db241edbd4511a86ea2197c0ff574b363103bfc8ada2585436fc67b1",
+      "output_rows": 24319,
       "path": "matches/tour=atp/year=2006/matches.parquet",
       "retained_differences": 0,
       "rows": 24319
@@ -698,6 +741,7 @@
     {
       "new_sha256": "5562383efd77de31649c5e4dfbee70699a6530df4096455a6ec4733091543827",
       "old_sha256": "ad6a3300b251dc7eb3db26aa7edc61b250e1903eb370eec56c3c2fb18786c7ee",
+      "output_rows": 25753,
       "path": "matches/tour=atp/year=2007/matches.parquet",
       "retained_differences": 0,
       "rows": 25753
@@ -705,6 +749,7 @@
     {
       "new_sha256": "ccb63ac13674699751c5870dc36a8223c9fba4acccb536c1f3f5e6bd5d892741",
       "old_sha256": "04b08f3ba4cd404d149dd524ed74b49334f170eb28ef1a014080a6b5fcef8b81",
+      "output_rows": 26872,
       "path": "matches/tour=atp/year=2008/matches.parquet",
       "retained_differences": 0,
       "rows": 26872
@@ -712,6 +757,7 @@
     {
       "new_sha256": "bc07fb53e18d8d3edd11219113f78d28f8017d0e2b70d8b2e19b24fd2165319b",
       "old_sha256": "dab20f8b8b0f0496f15312cabea20fe8b52e58f4bd34b467840ff0b629acf564",
+      "output_rows": 25115,
       "path": "matches/tour=atp/year=2009/matches.parquet",
       "retained_differences": 0,
       "rows": 25115
@@ -719,6 +765,7 @@
     {
       "new_sha256": "b4b739cb916c42d1fb3abda0cb6a7dcfee013e6e7fd1986e31129d763e05d9bb",
       "old_sha256": "b02139d90e93d4cd90b31048c0eb33f7e39386e281dd55e58c7c207b2db68205",
+      "output_rows": 24701,
       "path": "matches/tour=atp/year=2010/matches.parquet",
       "retained_differences": 0,
       "rows": 24701
@@ -726,6 +773,7 @@
     {
       "new_sha256": "e62db0b2e73be9a9dac20de2776757cdc01995a2d4fa5f8f6b9ea9bea6321889",
       "old_sha256": "37a9e6288e90a82e0cbaa362184053965f2b7190b2f89ce34351442be7ffeb3a",
+      "output_rows": 26021,
       "path": "matches/tour=atp/year=2011/matches.parquet",
       "retained_differences": 0,
       "rows": 26021
@@ -733,6 +781,7 @@
     {
       "new_sha256": "c65cb5f2d953393f737d2b31d85fc4ccf06e046a3a42369bd56ab935cae22f22",
       "old_sha256": "053c9c6996e1928b2e36e302eee25ab4c00867c46d36c1058129fcedd3b7d89e",
+      "output_rows": 27748,
       "path": "matches/tour=atp/year=2012/matches.parquet",
       "retained_differences": 0,
       "rows": 27748
@@ -740,6 +789,7 @@
     {
       "new_sha256": "d2481bacd626e02045dd3f54b3ea31bbe7f465bd77412d88706ed272e8a9c819",
       "old_sha256": "6ab82466ee22514e359499890a4c9e07f36ccb6fc526e391711f6364fd428bec",
+      "output_rows": 29359,
       "path": "matches/tour=atp/year=2013/matches.parquet",
       "retained_differences": 0,
       "rows": 29359
@@ -747,6 +797,7 @@
     {
       "new_sha256": "57e08bf910bb15aafe4ddd05ad4cda02e46c3e9712cf52a89d08042142055d57",
       "old_sha256": "49afa8ee008515b89abc549c56d7fd16ec0a35084ce752d5a89ca894b3e758d0",
+      "output_rows": 30187,
       "path": "matches/tour=atp/year=2014/matches.parquet",
       "retained_differences": 0,
       "rows": 30187
@@ -754,6 +805,7 @@
     {
       "new_sha256": "394861fce29d0511d6402c29de22f09681939a77c196a8271c3ffb234997ee54",
       "old_sha256": "f12d2988716ef8d46f8900ae6d4267cf7ae302a40a73901f2e8adb06c8479200",
+      "output_rows": 31132,
       "path": "matches/tour=atp/year=2015/matches.parquet",
       "retained_differences": 0,
       "rows": 31132
@@ -761,6 +813,7 @@
     {
       "new_sha256": "57250784c4695af9bfbf3c7f7923b0392c36190d0ec5ba633ce56a1955b37767",
       "old_sha256": "244dbcc8405434bac8473146af045a495da8d905798abaa98c1b3dc457a040c2",
+      "output_rows": 32637,
       "path": "matches/tour=atp/year=2016/matches.parquet",
       "retained_differences": 0,
       "rows": 32637
@@ -768,6 +821,7 @@
     {
       "new_sha256": "25b7b5049d3a21de3e3bebb9445b26aacd98283fd574adbac8bd7aee5135269b",
       "old_sha256": "932f0bc3d363da5a29a97a3a2a3b243681cf687dcfbe45fdff060826d1ddd1ab",
+      "output_rows": 30555,
       "path": "matches/tour=atp/year=2017/matches.parquet",
       "retained_differences": 0,
       "rows": 30555
@@ -775,6 +829,7 @@
     {
       "new_sha256": "a69fea7ce300599c0d7689ee311c5e3d54579dd8c52947359b06fe3ff9f34324",
       "old_sha256": "9f9766d83596b7881ea856174396aa0a78bb47463920d3f8fe4464bb7d329f14",
+      "output_rows": 29803,
       "path": "matches/tour=atp/year=2018/matches.parquet",
       "retained_differences": 0,
       "rows": 29803
@@ -782,6 +837,7 @@
     {
       "new_sha256": "6e29b11911e577d35d5cfdf7962894e3cf9d1a3684154ce150761df081210513",
       "old_sha256": "c516752bd72f393c6a581eeb4aadf29edf578ad3d347077d5bdbf191a50e8daa",
+      "output_rows": 28374,
       "path": "matches/tour=atp/year=2019/matches.parquet",
       "retained_differences": 0,
       "rows": 28374
@@ -789,6 +845,7 @@
     {
       "new_sha256": "27e9eaa288ff112829efb892e90cbef78a5c0fe9bf9b2ffb61f8250ce3fcf384",
       "old_sha256": "1eafd5f76491a28d6eb10a41559fffb395424e39a45a39af1c3d3b09f2d4cc8c",
+      "output_rows": 9336,
       "path": "matches/tour=atp/year=2020/matches.parquet",
       "retained_differences": 0,
       "rows": 9336
@@ -796,6 +853,7 @@
     {
       "new_sha256": "ed016cf0b5b366cbc9637539df09fa4c0a936e213c7916db0d2bc0386e8dd54b",
       "old_sha256": "1adc0affcdbce1f07931c8605e4da0cc1141f0fcc7bc8ae387abad7501d0b1b8",
+      "output_rows": 22063,
       "path": "matches/tour=atp/year=2021/matches.parquet",
       "retained_differences": 0,
       "rows": 22063
@@ -803,6 +861,7 @@
     {
       "new_sha256": "cda422714ed4215469ed927ec82a54132b88b9b2f3d5550c15fefe0a7b219fba",
       "old_sha256": "1068d198e18a25e879687050000c32aa9227dba7976cc3a9389d0bcfdb145966",
+      "output_rows": 29239,
       "path": "matches/tour=atp/year=2022/matches.parquet",
       "retained_differences": 0,
       "rows": 29239
@@ -810,6 +869,7 @@
     {
       "new_sha256": "982ab2279eaa78095a619ec928f0859fe2cc73bbbc6d36bb73876d1014f460d8",
       "old_sha256": "c6c2843f998d1b946bc50933f832f66b558bee138faa1f6d229583d7c8dd6430",
+      "output_rows": 31275,
       "path": "matches/tour=atp/year=2023/matches.parquet",
       "retained_differences": 0,
       "rows": 31275
@@ -817,6 +877,7 @@
     {
       "new_sha256": "32cb6406c8a38338c9d3e08d76efda9ef5a688340681e4af0d5ab73725514d13",
       "old_sha256": "1310255e8febf2439192c62c8a46179609b0dc9a924ba0dc97ae827c69393147",
+      "output_rows": 32689,
       "path": "matches/tour=atp/year=2024/matches.parquet",
       "retained_differences": 0,
       "rows": 32689
@@ -824,20 +885,23 @@
     {
       "new_sha256": "4d2fc20e8e7085b5fe51e856c27842459b8912b4ba5bb219777805d190e13dff",
       "old_sha256": "8c5c83fa9eff61664e7660f2e4300e9cf634375e5ad5f80a691b18e24b4d7fe8",
+      "output_rows": 32479,
       "path": "matches/tour=atp/year=2025/matches.parquet",
       "retained_differences": 0,
       "rows": 32479
     },
     {
-      "new_sha256": "fed7198a5b35d172a56efa294c5c281ea249d283e6d875ec5bec956b3663e2c1",
-      "old_sha256": "09666c3abdb11488a0863ee33be6fe2c68c4d7eee0791bff9a16c8139c9a682f",
+      "new_sha256": "147baca5cda1a412ca493be035b14d8f15e5bb9f24287f4e75d4b1d37f6cd7b9",
+      "old_sha256": "51f2f52076770ceaaa1c6168151c7eff200e12450c93da385a75e0c9af87f7db",
+      "output_rows": 16370,
       "path": "matches/tour=atp/year=2026/matches.parquet",
       "retained_differences": 0,
-      "rows": 16366
+      "rows": 16370
     },
     {
       "new_sha256": "3bcc0cfbe9c0b6e9bcbcd73b42d247b7b4cdd748312d47d77bc939c2abfab023",
       "old_sha256": "d4fd6a1d82d5b581055cd11451a4c6d483a52468d7d0906b076c87f452175374",
+      "output_rows": 3174,
       "path": "matches/tour=wta/year=1968/matches.parquet",
       "retained_differences": 0,
       "rows": 3174
@@ -845,6 +909,7 @@
     {
       "new_sha256": "624ffee7b05b517593c3eca24210cedbeae012e5a5461f25af98a6b3fa8470fb",
       "old_sha256": "71e9ed51c5eccb61a7f8b56cadac0cdd1a03c43fe84ee02469895557ea455ba1",
+      "output_rows": 3204,
       "path": "matches/tour=wta/year=1969/matches.parquet",
       "retained_differences": 0,
       "rows": 3204
@@ -852,6 +917,7 @@
     {
       "new_sha256": "208586972ca7f486ab9e6d9878914f677791967daf2781ec3ed2e5bbe7a35a96",
       "old_sha256": "a4e17f17400b67546e94761e57100c21bc434040a57a27308a810cba24cd67ea",
+      "output_rows": 3240,
       "path": "matches/tour=wta/year=1970/matches.parquet",
       "retained_differences": 0,
       "rows": 3240
@@ -859,6 +925,7 @@
     {
       "new_sha256": "9e1f015cd75e4f346ab5bd343e6cde793387fc105e3759d9d4f4db9122d0f7df",
       "old_sha256": "68558a47a45b3962f62e3b20e613919759bcfbbd7e9f2bd51c562eade6010d0f",
+      "output_rows": 2750,
       "path": "matches/tour=wta/year=1971/matches.parquet",
       "retained_differences": 0,
       "rows": 2750
@@ -866,6 +933,7 @@
     {
       "new_sha256": "83332bad0e04613a4c4ec0b785c8dd70cd1af7ed43a1c83765ff322857cc5521",
       "old_sha256": "0c8a1d318cd9ab6a196439378917d7626867ae18b1212d3db79143c1800a1d1a",
+      "output_rows": 3666,
       "path": "matches/tour=wta/year=1972/matches.parquet",
       "retained_differences": 0,
       "rows": 3666
@@ -873,6 +941,7 @@
     {
       "new_sha256": "4b3cb4888fafce3ff61433d1007e575fd5014bec5303c4504b46b65e78cd8bda",
       "old_sha256": "2af1ada62ab23c84a4005ba9068a13e4e04e25a0692f4faba9ff833c688b3010",
+      "output_rows": 3726,
       "path": "matches/tour=wta/year=1973/matches.parquet",
       "retained_differences": 0,
       "rows": 3726
@@ -880,6 +949,7 @@
     {
       "new_sha256": "d355b6625b9b6b48ff0bf26ad39ee110dd2b169e0c32f401e2fc99e93c0b24e2",
       "old_sha256": "6e2939403ff4d72ca9929edd8e9d32f2a4657518b699e69b3d13e4f5d8aa33a0",
+      "output_rows": 3229,
       "path": "matches/tour=wta/year=1974/matches.parquet",
       "retained_differences": 0,
       "rows": 3229
@@ -887,6 +957,7 @@
     {
       "new_sha256": "567275c0683f2176c4718bd37ca6f76039ba1efce006c86c11fca4dbad11d7b5",
       "old_sha256": "ca85ff23ce32864b8ace557d680d9399cbdf22492b7ce02d942a2f2235b95f94",
+      "output_rows": 3097,
       "path": "matches/tour=wta/year=1975/matches.parquet",
       "retained_differences": 0,
       "rows": 3097
@@ -894,6 +965,7 @@
     {
       "new_sha256": "9ce777576586cffffae23b1a8ad002e6e4574d1ca4ca229c2cc0c3f1a55ec691",
       "old_sha256": "ff083b81a7af33e1e74b9c5756cc683d84ded251d6f545ee225dd28f36f45813",
+      "output_rows": 2460,
       "path": "matches/tour=wta/year=1976/matches.parquet",
       "retained_differences": 0,
       "rows": 2460
@@ -901,6 +973,7 @@
     {
       "new_sha256": "90341cc55b7db0e0391140daad7ce247dd0e77ea204b6bbd01495d716213de87",
       "old_sha256": "4a715908171c0f3223bf63db72bbd25049079f9023968d90358f5ad02bc265a9",
+      "output_rows": 2741,
       "path": "matches/tour=wta/year=1977/matches.parquet",
       "retained_differences": 0,
       "rows": 2741
@@ -908,6 +981,7 @@
     {
       "new_sha256": "f63153b53ceff4f4a94d1fc2ef09751cdfc9899f530604be91ea91ce8a11799e",
       "old_sha256": "af1b7c7e3fb5fe0e48ae5430d02e0b28cbc2b4547f9fdaef5d19045185e0bb90",
+      "output_rows": 3040,
       "path": "matches/tour=wta/year=1978/matches.parquet",
       "retained_differences": 0,
       "rows": 3040
@@ -915,6 +989,7 @@
     {
       "new_sha256": "0985e6b1942b38ec18890f6c397398af35361984882468b87ab0f0670133ca49",
       "old_sha256": "886f65d2c2188e2b492dd2020b378333625acf48edc401bce80d27f329aa1246",
+      "output_rows": 3154,
       "path": "matches/tour=wta/year=1979/matches.parquet",
       "retained_differences": 0,
       "rows": 3154
@@ -922,6 +997,7 @@
     {
       "new_sha256": "0e88360cd51b34cc96769232e41090191b0ee32b95d5b8214b60c1571741f17d",
       "old_sha256": "9f71f023b1a37d3c19a248cac4a1ed0589f3accc30a0343cd52edff877baabaf",
+      "output_rows": 6134,
       "path": "matches/tour=wta/year=1980/matches.parquet",
       "retained_differences": 0,
       "rows": 6134
@@ -929,6 +1005,7 @@
     {
       "new_sha256": "14db547bc518579ab0fa450314158364fca977dc54e79d66b6208e35681ff34d",
       "old_sha256": "39d332e2e3f992034d6cbbe0a9115c50ee10ff4e4d69540ed853abc3b7b09e60",
+      "output_rows": 4985,
       "path": "matches/tour=wta/year=1981/matches.parquet",
       "retained_differences": 0,
       "rows": 4985
@@ -936,6 +1013,7 @@
     {
       "new_sha256": "5d270df3984c50dd83c1b334c08cd3826084a9a7f2356a5d56fe84bc3635a6ff",
       "old_sha256": "d2a3c91d776c8fb23e76a07240e43553f6d5d71584bc9bb368a7e269824b9b43",
+      "output_rows": 4490,
       "path": "matches/tour=wta/year=1982/matches.parquet",
       "retained_differences": 0,
       "rows": 4490
@@ -943,6 +1021,7 @@
     {
       "new_sha256": "fef3c7c63c869418f1bf86468e4e740bdaefbad1a68ab25f81fc88f9d7f1ca51",
       "old_sha256": "13bc6cebdd384d734388438b87394b624800ccb5ca8dff627dfa663042b3115d",
+      "output_rows": 4852,
       "path": "matches/tour=wta/year=1983/matches.parquet",
       "retained_differences": 0,
       "rows": 4852
@@ -950,6 +1029,7 @@
     {
       "new_sha256": "98ac2e41cc6bd555fd33afe84045af2ece9cfb777ca94bccbbeb8c39118223cc",
       "old_sha256": "2430355c85f5c04edbc295a311ec971acaddaffd447eec39206d1269be0a63ad",
+      "output_rows": 4870,
       "path": "matches/tour=wta/year=1984/matches.parquet",
       "retained_differences": 0,
       "rows": 4870
@@ -957,6 +1037,7 @@
     {
       "new_sha256": "c6c2dffd6f58abafbf79c094cc706761f3b71cc9d0bf38224ed4d2179c283510",
       "old_sha256": "7bb4b2dbf651a9f22ba8959f794fc715552c4c5b5766e95d4cd9bf9e7b15c378",
+      "output_rows": 5813,
       "path": "matches/tour=wta/year=1985/matches.parquet",
       "retained_differences": 0,
       "rows": 5813
@@ -964,6 +1045,7 @@
     {
       "new_sha256": "cb01e1453f66a0338f199f8a73143cabb553f3876d7e7cbed1ba7b0a699c467d",
       "old_sha256": "e983a6a48158a6778a3e65e1c98ff84fa3c442aa4d3d460ee586bbbdd1b23f0d",
+      "output_rows": 5881,
       "path": "matches/tour=wta/year=1986/matches.parquet",
       "retained_differences": 0,
       "rows": 5881
@@ -971,6 +1053,7 @@
     {
       "new_sha256": "7954e80f5455992606f3628fbaa7929180501a3981ce88197d12ed9f2265a7c5",
       "old_sha256": "64b256085e6e9eff2796dfeb5db899196096fc955ce5289a54a63760513754e3",
+      "output_rows": 6334,
       "path": "matches/tour=wta/year=1987/matches.parquet",
       "retained_differences": 0,
       "rows": 6334
@@ -978,6 +1061,7 @@
     {
       "new_sha256": "7adafe2a8eb2a6ffdc7029c23a60da41dfba2af4bf2be858b0d7fb8dd3e9f721",
       "old_sha256": "309aa45a6ba84b2868a6031438e0144bf7e89d485674cf556f4cf7db96411df4",
+      "output_rows": 8224,
       "path": "matches/tour=wta/year=1988/matches.parquet",
       "retained_differences": 0,
       "rows": 8224
@@ -985,6 +1069,7 @@
     {
       "new_sha256": "97cbf718263ad767a6b77cb7d2b6259e9c61defa1a3cc6d78741fc8d1a54b951",
       "old_sha256": "55d3473c756d4632d00dfe18a149e76550f7b2cf34e31b13e437439051f37e07",
+      "output_rows": 8700,
       "path": "matches/tour=wta/year=1989/matches.parquet",
       "retained_differences": 0,
       "rows": 8700
@@ -992,6 +1077,7 @@
     {
       "new_sha256": "bcc0daa0a2796138725648a7c3a6ac435dc0f5b01eb109bd52bc24927a53a46a",
       "old_sha256": "e69839d019016e44ce012324034b8057eccdeb6872202451d20680f2e0d639b7",
+      "output_rows": 9446,
       "path": "matches/tour=wta/year=1990/matches.parquet",
       "retained_differences": 0,
       "rows": 9446
@@ -999,6 +1085,7 @@
     {
       "new_sha256": "fe57b2ac1c7168166a657a3ee88b71a21766411011e7f41fb2f2253defadd3e0",
       "old_sha256": "18eaa6da9868d9866dfb077465952ffbe3295cc4d26a57f4e3900cc913cec30d",
+      "output_rows": 10701,
       "path": "matches/tour=wta/year=1991/matches.parquet",
       "retained_differences": 0,
       "rows": 10701
@@ -1006,6 +1093,7 @@
     {
       "new_sha256": "865893c781d9fbd3ae782387f36c5f844d0ac42d48e9f7ee5908793626402687",
       "old_sha256": "a9f97ac9e2a912da58b346274b084adb38f96aad09754a3b1f334432b4e68d6d",
+      "output_rows": 10587,
       "path": "matches/tour=wta/year=1992/matches.parquet",
       "retained_differences": 0,
       "rows": 10587
@@ -1013,6 +1101,7 @@
     {
       "new_sha256": "aa240880cdef3bc9835e101e1cb76e9c197d3a95b03e349fb7f11cb8a7d8ee64",
       "old_sha256": "a766a4f626aa26eaa454b37c0de15553bc0af77b3b570a6c3ccc475192275236",
+      "output_rows": 11498,
       "path": "matches/tour=wta/year=1993/matches.parquet",
       "retained_differences": 0,
       "rows": 11498
@@ -1020,6 +1109,7 @@
     {
       "new_sha256": "0939e3b36efae3f53bba5cc80f5e2cdb98bd5efe7b96c07b0f51b1677b14c239",
       "old_sha256": "4e59609caa13c6c00a3492ed6d59755e797e8fe410c320b7fccf21e88fe26f51",
+      "output_rows": 11338,
       "path": "matches/tour=wta/year=1994/matches.parquet",
       "retained_differences": 0,
       "rows": 11338
@@ -1027,6 +1117,7 @@
     {
       "new_sha256": "b84cc9b2e6af9c6af0bf60111ec959194435ec73e2eee8678f69dd4aebb81d5f",
       "old_sha256": "308de38e1ac624b094be1f7bdce11b97b78c5548882c5c82d8d79eb3bf95e20b",
+      "output_rows": 11685,
       "path": "matches/tour=wta/year=1995/matches.parquet",
       "retained_differences": 0,
       "rows": 11685
@@ -1034,6 +1125,7 @@
     {
       "new_sha256": "19e5dcb51a32089039b4047ed114517ea5f283babc36fc44445a1ff0a6cf9afb",
       "old_sha256": "028f54b44514a7f8d52267d42728c081d950ec7662e4fbc1b7edd4e605734fff",
+      "output_rows": 10731,
       "path": "matches/tour=wta/year=1996/matches.parquet",
       "retained_differences": 0,
       "rows": 10731
@@ -1041,6 +1133,7 @@
     {
       "new_sha256": "31c5cc351f0bc9f8e048bc587f267e424efb83d9e945c9e098f92108036700bc",
       "old_sha256": "5ee8d843a6f314ec0e9f70d3ffcaf83661a33cb28e29d10825dd9d7f549ee4ca",
+      "output_rows": 12132,
       "path": "matches/tour=wta/year=1997/matches.parquet",
       "retained_differences": 0,
       "rows": 12132
@@ -1048,6 +1141,7 @@
     {
       "new_sha256": "d90381e05e0f452f426085460024e78a4bbf82f849d74a54fedbe88173cce853",
       "old_sha256": "64754f32feec0d8d58657079a169b51b7e36a37f5fb2fabfbf8d333b5c4f59da",
+      "output_rows": 12565,
       "path": "matches/tour=wta/year=1998/matches.parquet",
       "retained_differences": 0,
       "rows": 12565
@@ -1055,6 +1149,7 @@
     {
       "new_sha256": "b57733fc6899b021bfb087f26005d0d4e7e61d00bdf908bea57c8dbe8e47c2f5",
       "old_sha256": "100983ebf933400a579110a0a2e71483cdd3f21ed7d45b8a297d8ad78a2459a2",
+      "output_rows": 12072,
       "path": "matches/tour=wta/year=1999/matches.parquet",
       "retained_differences": 0,
       "rows": 12072
@@ -1062,6 +1157,7 @@
     {
       "new_sha256": "b25541b794966b85b881e67d697366699bad9fdf3a24f714fa9b0634d377a17b",
       "old_sha256": "1c027f43456898d17dac981916e536f6eb0a066d6deeb2124653fc2424414c27",
+      "output_rows": 13970,
       "path": "matches/tour=wta/year=2000/matches.parquet",
       "retained_differences": 0,
       "rows": 13970
@@ -1069,6 +1165,7 @@
     {
       "new_sha256": "bab27668951044a7a3f7060e5dfc108c9b16c1f8d94c182bcfffe6cef55c9221",
       "old_sha256": "1c2fde9d23f5cea211a013c2d68a3679f6b4217d649b606adadede2de0cc3f21",
+      "output_rows": 13737,
       "path": "matches/tour=wta/year=2001/matches.parquet",
       "retained_differences": 0,
       "rows": 13737
@@ -1076,6 +1173,7 @@
     {
       "new_sha256": "b31cc48a385c5d6aad244e09500ca3df3d28ed05abe2632269460b2ff5c8c2fe",
       "old_sha256": "fc9f05906a5c3a04595e6b7595766d5660b4a7458a6559b6a146b810fad7d3f0",
+      "output_rows": 14150,
       "path": "matches/tour=wta/year=2002/matches.parquet",
       "retained_differences": 0,
       "rows": 14150
@@ -1083,6 +1181,7 @@
     {
       "new_sha256": "449c32f445796073105f05d05fd5c94d9e98aada89e5d0da2734872c028a805f",
       "old_sha256": "9c181eabd249f005938854e9301bfbf9b1ff4cee727d13a4b014255761b501e9",
+      "output_rows": 14262,
       "path": "matches/tour=wta/year=2003/matches.parquet",
       "retained_differences": 0,
       "rows": 14262
@@ -1090,6 +1189,7 @@
     {
       "new_sha256": "a8fc6c13c616c1ca60a630392e14a26bbcec4c0f46ea5724c18394fdda533de0",
       "old_sha256": "0595845703ddcdd4614499f975f2a3b555e44842594c19d4bf412f4555b27f2e",
+      "output_rows": 15396,
       "path": "matches/tour=wta/year=2004/matches.parquet",
       "retained_differences": 0,
       "rows": 15396
@@ -1097,6 +1197,7 @@
     {
       "new_sha256": "df1f4ca8fc033a4b81b5a9f4314d0eb95a5dbdf33583fa9bf93d411806934012",
       "old_sha256": "aaadf2045c4d7d1723177d69d9737c7679a1b22c4904b4655e9f95ea76131c35",
+      "output_rows": 16247,
       "path": "matches/tour=wta/year=2005/matches.parquet",
       "retained_differences": 0,
       "rows": 16247
@@ -1104,6 +1205,7 @@
     {
       "new_sha256": "82a71c7082308a54c2952b0d8b741ddb30f3e2b127470834eff189de20a031cf",
       "old_sha256": "07b9260f8e6a44e4733bfe696509a449f21b2ac8101c0d94f630baaab655e78a",
+      "output_rows": 17162,
       "path": "matches/tour=wta/year=2006/matches.parquet",
       "retained_differences": 0,
       "rows": 17162
@@ -1111,6 +1213,7 @@
     {
       "new_sha256": "262689a456f8f9682e7d59aaafb4a8068aecc15561ebff08a485a2c2069d0f2c",
       "old_sha256": "71eaf3bf26585957a8f1c53d6ce4a432ed484b20a3feef9f9584e962158c2b58",
+      "output_rows": 17448,
       "path": "matches/tour=wta/year=2007/matches.parquet",
       "retained_differences": 0,
       "rows": 17448
@@ -1118,6 +1221,7 @@
     {
       "new_sha256": "81a02fe9005fa9feccec4c006ed18525e62684c76542d13a3da4ed0d0f13b2b7",
       "old_sha256": "766bf9627c2b8e66f080dfe9817aa3e40e6a47631e7f729dba9391b6a9fa8674",
+      "output_rows": 17971,
       "path": "matches/tour=wta/year=2008/matches.parquet",
       "retained_differences": 0,
       "rows": 17971
@@ -1125,6 +1229,7 @@
     {
       "new_sha256": "f3e51b121088a65299efa032a50129843ad3baa81b4cd80bc03ec0916a4d6476",
       "old_sha256": "09dba310e9d812797e514591d06f501c2ad8ae693e39647954810921a2344ae3",
+      "output_rows": 18105,
       "path": "matches/tour=wta/year=2009/matches.parquet",
       "retained_differences": 0,
       "rows": 18105
@@ -1132,6 +1237,7 @@
     {
       "new_sha256": "4a4d21f11477b1b4a2d1c6d8eb6b7fad96773c41c7fba4c3916a85d7619af676",
       "old_sha256": "e2e516cf390b7ce5b2dc1505a9621760428185d13d792d65e05158ad833a4e5a",
+      "output_rows": 18756,
       "path": "matches/tour=wta/year=2010/matches.parquet",
       "retained_differences": 0,
       "rows": 18756
@@ -1139,6 +1245,7 @@
     {
       "new_sha256": "5acf84d33aad44cdb31ff48400cae0c6d0524533ff4d46ff621591b97e72122a",
       "old_sha256": "83be56bbfa440460e04532569ce4b0d963525d874fd2617686ce2b8ddac5f30c",
+      "output_rows": 19963,
       "path": "matches/tour=wta/year=2011/matches.parquet",
       "retained_differences": 0,
       "rows": 19963
@@ -1146,6 +1253,7 @@
     {
       "new_sha256": "8aaa9e2923104e924f59523089bbcebe68494b79ebbd7e75cf8c8cae63c61cf2",
       "old_sha256": "537dce412a073e554d9791115fb491d08290fab3ea6edef1317e06d1fd2ef123",
+      "output_rows": 19454,
       "path": "matches/tour=wta/year=2012/matches.parquet",
       "retained_differences": 0,
       "rows": 19454
@@ -1153,6 +1261,7 @@
     {
       "new_sha256": "cc5dd106b040a129019e3401d93383444d551b20c4ee59596ca902948dc2834f",
       "old_sha256": "1a974042812b651ee2f25f6b434063610f24c1b091bb302dda9c07fa8f6e435c",
+      "output_rows": 21410,
       "path": "matches/tour=wta/year=2013/matches.parquet",
       "retained_differences": 0,
       "rows": 21410
@@ -1160,6 +1269,7 @@
     {
       "new_sha256": "c83f4167fb7bc17854b966a762296d9b62ba49fb5d40f8f579b5181f8d0db954",
       "old_sha256": "4b348b8848b6666e7063d2e8e33b7c5d67e2aafbfd1bac584087e632af2aaf22",
+      "output_rows": 21559,
       "path": "matches/tour=wta/year=2014/matches.parquet",
       "retained_differences": 0,
       "rows": 21559
@@ -1167,6 +1277,7 @@
     {
       "new_sha256": "2508b9f4d2f6145a1906258ac27c7ada2762afe78f1685460843346abab8daca",
       "old_sha256": "4ce83cfa04c51794a901df0f9cc28d7646173d2878c2881bc16d572829d799f6",
+      "output_rows": 22332,
       "path": "matches/tour=wta/year=2015/matches.parquet",
       "retained_differences": 0,
       "rows": 22332
@@ -1174,6 +1285,7 @@
     {
       "new_sha256": "494c8585bbda58bd227d647b64adbbb528b51210e6a491d464d8442df8a03c61",
       "old_sha256": "23ca9848e0d3647523e4b274900c5c566c40ea24217969833cac788f4762bae7",
+      "output_rows": 22266,
       "path": "matches/tour=wta/year=2016/matches.parquet",
       "retained_differences": 0,
       "rows": 22266
@@ -1181,6 +1293,7 @@
     {
       "new_sha256": "4aad3f6ace103ae5359cdcddafa3a68bb64e7bcf240856be6eb4ba885c142117",
       "old_sha256": "60cea5cc44fcc9650dfec82bbf87ffff169f8e28cfd0ada334b3c76ec5b032ab",
+      "output_rows": 21695,
       "path": "matches/tour=wta/year=2017/matches.parquet",
       "retained_differences": 0,
       "rows": 21695
@@ -1188,6 +1301,7 @@
     {
       "new_sha256": "4f982ae33f734825a9b960cdea016b58fa2bd75495fa215d07114fdcccc34eea",
       "old_sha256": "26e4e5f21542a0ddd442f5814e65fe16c17f1dcd6440a6ea842ba5f9e52d962f",
+      "output_rows": 21196,
       "path": "matches/tour=wta/year=2018/matches.parquet",
       "retained_differences": 0,
       "rows": 21196
@@ -1195,6 +1309,7 @@
     {
       "new_sha256": "4430af53ec238e70305363a5cc0cc26ee9ef98347d90bc300141f598c8996d42",
       "old_sha256": "14f779934a3d8209d9544dd26b9946d6cfbcc34b71a12b27e7deb9a6815734b4",
+      "output_rows": 32121,
       "path": "matches/tour=wta/year=2019/matches.parquet",
       "retained_differences": 0,
       "rows": 32121
@@ -1202,6 +1317,7 @@
     {
       "new_sha256": "8012ae43f763fc4f20dffbab87097092c8f0b01320aa62cbb0ffee16d2de37b5",
       "old_sha256": "b88e9c4c25bccddba8a32fa36ec8c363d4ce723d65589f8bf7c622c1349db9bb",
+      "output_rows": 10698,
       "path": "matches/tour=wta/year=2020/matches.parquet",
       "retained_differences": 0,
       "rows": 10698
@@ -1209,6 +1325,7 @@
     {
       "new_sha256": "4b88ae7bf8211876ea142bbc1abeca22c3c151cf5da949436f86897562301ac5",
       "old_sha256": "db16f19575188e85c0c9fa3ed3739183abac12396bfd6426ee0157afa17bea1a",
+      "output_rows": 26731,
       "path": "matches/tour=wta/year=2021/matches.parquet",
       "retained_differences": 0,
       "rows": 26731
@@ -1216,6 +1333,7 @@
     {
       "new_sha256": "fe83e78593d17bc1243907cff74eebe99c537da213965ff94ab8a131fddde8c6",
       "old_sha256": "8da31640c74d26944d4cfcfe50e46cb1b8c6d8875cdf022f2ea7d1d69b956a79",
+      "output_rows": 35598,
       "path": "matches/tour=wta/year=2022/matches.parquet",
       "retained_differences": 0,
       "rows": 35598
@@ -1223,6 +1341,7 @@
     {
       "new_sha256": "86630862b4e31069234804943cd10171a826946cd31a1e949fd57b842ffd61c1",
       "old_sha256": "3aa2b6c4221373b2ef72293b80f96622b69ef37a2a3ffca1a360f0d7ac7acad1",
+      "output_rows": 37027,
       "path": "matches/tour=wta/year=2023/matches.parquet",
       "retained_differences": 0,
       "rows": 37027
@@ -1230,6 +1349,7 @@
     {
       "new_sha256": "f676c80b69d0b93a70642951d854d1405ba340da5add0948fb7f8b462b5c8dbd",
       "old_sha256": "3059e62dc575611b76b41e39c985fb775d09d6c75118065c6983a19a4f25d3db",
+      "output_rows": 40801,
       "path": "matches/tour=wta/year=2024/matches.parquet",
       "retained_differences": 0,
       "rows": 40801
@@ -1237,6 +1357,7 @@
     {
       "new_sha256": "8ac7b79a70960573444a9bfecb15bd1196948645ba411f3b8c83c6da690c676d",
       "old_sha256": "a90b601e9c993892f5653ac7d9e2532532565d0b9c4ad1210a6a11046477ef55",
+      "output_rows": 24072,
       "path": "matches/tour=wta/year=2025/matches.parquet",
       "retained_differences": 0,
       "rows": 24072
@@ -1244,12 +1365,13 @@
     {
       "new_sha256": "ba6929801517b85ef4ad58b0bc3fb8cc9eab976e40762ddf44e8f489a36ffce5",
       "old_sha256": "34580325435ec1e31cdec8806cc1490f10bca66fcdbe1290b123414f46396354",
+      "output_rows": 12310,
       "path": "matches/tour=wta/year=2026/matches.parquet",
       "retained_differences": 0,
       "rows": 12310
     }
   ],
-  "preserved_completed_match_ids": 1742440,
+  "preserved_completed_match_ids": 1742444,
   "quarantined_ambiguous_source_rows": 120,
   "retained_differences": 0,
   "schema_version": "3.2",

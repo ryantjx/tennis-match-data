@@ -16,6 +16,8 @@ from open_tennis_data.dataset import (
     _copy_parquet,
     _create_catalog,
     _quoted,
+    _rebuild_health,
+    _replace_parquet,
     _required_row,
     _sql_list,
     sha256_file,
@@ -93,6 +95,7 @@ def migrate_v31_to_v32(source: Path, output: Path, report_dir: Path) -> dict[str
     retained_differences = 0
     backfilled_best_of = 0
     old_match_rows = 0
+    new_match_rows = 0
     old_match_schema: list[tuple[str, str]] = []
     new_match_schema: list[tuple[str, str]] = []
     for old_path in sorted(source.glob("matches/tour=*/year=*/matches.parquet")):
@@ -125,6 +128,15 @@ def migrate_v31_to_v32(source: Path, output: Path, report_dir: Path) -> dict[str
             row_group_size=MATCH_ROW_GROUP_SIZE,
             match_shaped=True,
         )
+        new_rows = int(
+            _required_row(
+                connection.execute(
+                    f"SELECT count(*) FROM read_parquet({_quoted(destination)}, "
+                    "hive_partitioning=false)"
+                )
+            )[0]
+        )
+        new_match_rows += new_rows
         if not new_match_schema:
             new_match_schema = [
                 (row[0], row[1])
@@ -137,25 +149,15 @@ def migrate_v31_to_v32(source: Path, output: Path, report_dir: Path) -> dict[str
             _required_row(
                 connection.execute(
                     f"""
-                    WITH old_rows AS (
-                      SELECT match_id,tournament_id,tour,year::SMALLINT AS year,draw,round,
-                        player1_id,player1_name,player1_seed,player2_id,player2_name,
-                        player2_seed,winner_id,status,score,best_of
-                      FROM read_parquet({_quoted(old_path)}, hive_partitioning=false)
-                    ), new_rows AS (
-                      SELECT match_id,tournament_id,tour,year,draw,round,
-                        player1_id[1] player1_id,player1_name[1] player1_name,player1_seed,
-                        player2_id[1] player2_id,player2_name[1] player2_name,player2_seed,
-                        winner_id[1] winner_id,status,score,best_of
-                      FROM read_parquet({_quoted(destination)}, hive_partitioning=false)
+                    WITH expected AS (
+                      {_match_projection(old_path, tournament_path)}
+                    ), actual AS (
+                      SELECT * FROM read_parquet({_quoted(destination)}, hive_partitioning=false)
                     )
                     SELECT count(*) FROM (
-                      (SELECT * FROM old_rows WHERE best_of IS NOT NULL
-                       EXCEPT SELECT * FROM new_rows)
+                      (SELECT * FROM expected EXCEPT SELECT * FROM actual)
                       UNION ALL
-                      (SELECT * FROM new_rows WHERE match_id IN
-                        (SELECT match_id FROM old_rows WHERE best_of IS NOT NULL)
-                       EXCEPT SELECT * FROM old_rows)
+                      (SELECT * FROM actual EXCEPT SELECT * FROM expected)
                     ) differences
                     """
                 )
@@ -166,6 +168,7 @@ def migrate_v31_to_v32(source: Path, output: Path, report_dir: Path) -> dict[str
             {
                 "path": relative.as_posix(),
                 "rows": int(old_rows),
+                "output_rows": new_rows,
                 "old_sha256": old_checksum,
                 "new_sha256": sha256_file(destination),
                 "retained_differences": difference,
@@ -234,19 +237,28 @@ def migrate_v31_to_v32(source: Path, output: Path, report_dir: Path) -> dict[str
         f"CREATE TABLE migrated_observations AS SELECT * FROM read_parquet("
         f"{_sql_list(observation_paths)}, union_by_name=true, hive_partitioning=false)"
     )
+    connection.execute(
+        "CREATE TABLE ambiguous_groups AS SELECT source_file_id,source_match_id, "
+        "list(DISTINCT match_id ORDER BY match_id) AS candidate_match_ids "
+        "FROM migrated_observations GROUP BY ALL HAVING count(DISTINCT match_id)>1"
+    )
+    connection.execute(
+        "CREATE TABLE ambiguous_observations AS SELECT o.*,g.candidate_match_ids "
+        "FROM migrated_observations o JOIN ambiguous_groups g "
+        "USING(source_file_id,source_match_id)"
+    )
     ambiguous_source_rows = int(
         _required_row(
             connection.execute(
                 "SELECT count(*) FROM migrated_observations WHERE "
                 "(source_file_id,source_match_id) IN (SELECT source_file_id,source_match_id "
-                "FROM migrated_observations GROUP BY ALL HAVING count(DISTINCT match_id)>1)"
+                "FROM ambiguous_groups)"
             )
         )[0]
     )
     connection.execute(
         "DELETE FROM migrated_observations WHERE (source_file_id,source_match_id) IN "
-        "(SELECT source_file_id,source_match_id FROM migrated_observations "
-        "GROUP BY ALL HAVING count(DISTINCT match_id)>1)"
+        "(SELECT source_file_id,source_match_id FROM ambiguous_groups)"
     )
     fixture_observations: list[tuple[str, str, int, str, str]] = []
     for fixture_id, tour, year, source_url, _ in old_fixtures:
@@ -314,6 +326,50 @@ def migrate_v31_to_v32(source: Path, output: Path, report_dir: Path) -> dict[str
             row_group_size=OBSERVATION_ROW_GROUP_SIZE,
         )
 
+    quarantine_path = output / "quarantine/quarantine.parquet"
+    connection.execute(
+        f"""
+        CREATE TABLE migrated_quarantine AS
+        SELECT q.tour,q.year,q.source_label,q.source_path,s.source_file_id,
+          q.source_match_id,q.row_fingerprint,NULL::VARCHAR[] AS candidate_match_ids,q.reason
+        FROM read_parquet({_quoted(source / 'quarantine/quarantine.parquet')}) q
+        LEFT JOIN read_parquet({_quoted(source_audit)}) s
+          ON s.kind='matches' AND s.source_path=q.source_path
+        UNION ALL
+        SELECT a.tour,a.year,s.source_label,s.source_path,a.source_file_id,
+          a.source_match_id,NULL::VARCHAR AS row_fingerprint,a.candidate_match_ids,
+          'ambiguous_source_mapping'::VARCHAR AS reason
+        FROM ambiguous_observations a
+        JOIN read_parquet({_quoted(source_audit)}) s USING(source_file_id)
+        """
+    )
+    _replace_parquet(
+        connection,
+        "SELECT * FROM migrated_quarantine ORDER BY tour,year,source_label,"
+        "source_match_id,row_fingerprint NULLS LAST",
+        quarantine_path,
+        row_group_size=OBSERVATION_ROW_GROUP_SIZE,
+    )
+
+    migrated_source_audit = output / "coverage/source-audit.parquet"
+    connection.execute(
+        f"CREATE TABLE rebuilt_source_audit AS SELECT s.* REPLACE ("
+        "CASE WHEN s.kind='matches' THEN (SELECT count(*) FROM migrated_observations o "
+        "WHERE o.source_file_id=s.source_file_id AND o.source_match_id NOT LIKE 'fixture-%') "
+        "ELSE s.normalized_rows END AS normalized_rows, "
+        "CASE WHEN s.kind='matches' THEN (SELECT count(*) FROM migrated_quarantine q "
+        "WHERE q.source_file_id=s.source_file_id) ELSE s.quarantined_rows END AS quarantined_rows) "
+        f"FROM read_parquet({_quoted(source_audit)}) s"
+    )
+    _replace_parquet(
+        connection,
+        "SELECT * FROM rebuilt_source_audit ORDER BY kind,tour,year,source_label,source_file_id",
+        migrated_source_audit,
+        row_group_size=OBSERVATION_ROW_GROUP_SIZE,
+    )
+
+    _rebuild_health(output, as_of)
+
     catalog_path = output / "catalog/catalog.parquet"
     catalog_path.unlink()
     _create_catalog(connection, output, as_of, str(revision))
@@ -325,7 +381,7 @@ def migrate_v31_to_v32(source: Path, output: Path, report_dir: Path) -> dict[str
         "as_of": as_of.isoformat(),
         "status": "passed" if not errors else "failed",
         "old_match_rows": old_match_rows,
-        "new_match_rows": sum(item["rows"] for item in partition_reports),
+        "new_match_rows": new_match_rows,
         "fixture_rows": fixture_rows,
         "backfilled_best_of": backfilled_best_of,
         "quarantined_ambiguous_source_rows": ambiguous_source_rows,

@@ -111,7 +111,7 @@ detailed provenance, rankings, statistics, or quality analysis.
 | `data/coverage/source-audit.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/coverage/source-audit.parquet> | Input file URL, revision, checksum, and row reconciliation. |
 | `data/health/health.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/health/health.parquet> | Current ATP/WTA freshness and high-level counts. Query this instead of relying on a copied status. |
 | `data/conflicts/conflicts.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/conflicts/conflicts.parquet> | Unresolved cross-source ambiguities; may be empty. |
-| `data/quarantine/quarantine.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/quarantine/quarantine.parquet> | Rejected source records and reasons; non-empty quarantine is visible rather than silently dropped. |
+| `data/quarantine/quarantine.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/quarantine/quarantine.parquet> | Rejected source records and reasons. Ambiguous mappings retain their source-file ID and candidate canonical match IDs instead of being silently dropped. |
 | `contributions/corrections.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/contributions/corrections.parquet> | Sourced CC0 community correction proposals and their status. |
 
 ## Query live health
