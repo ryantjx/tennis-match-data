@@ -63,9 +63,43 @@ jobs:
           raise SystemExit(0 if metadata.get("open_tennis_data_schema_version") == "3.2" else 1)
           PY
           then
-            open-tennis-data validate \
-              --baseline-catalog "$RUNNER_TEMP/base-catalog.parquet" \
-              --immutable-before-year "$(date -u +%Y)"
+            if test -f reports/data-quality/semantic-dedup-v3.2.json; then
+              python - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+          report = json.loads(Path("reports/data-quality/semantic-dedup-v3.2.json").read_text())
+          assert report["status"] == "passed"
+          assert report["exact_duplicate_groups"] == report["removed_match_rows"] == 54
+          assert report["observation_rows_before"] == report["observation_rows_after"]
+          affected = {tuple(item.split("/")) for item in report["affected_partitions"]}
+          allowed = {
+              "data/catalog/catalog.parquet", "data/coverage/coverage.parquet",
+              "data/health/health.parquet", "data/quarantine/quarantine.parquet",
+              "data/identity/match-aliases.parquet",
+          }
+          required = set()
+          for tour, year in affected:
+              required |= {
+                  f"data/matches/tour={tour}/year={year}/matches.parquet",
+                  f"data/observations/tour={tour}/year={year}/observations.parquet",
+              }
+              allowed.add(f"data/match_stats/tour={tour}/year={year}/match-stats.parquet")
+          allowed |= required
+          changed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", f"origin/{os.environ['BASE_REF']}...HEAD", "--", "data"],
+              text=True,
+          ).splitlines())
+          assert required <= changed, required - changed
+          assert changed <= allowed, changed - allowed
+          PY
+              open-tennis-data validate
+            else
+              open-tennis-data validate \
+                --baseline-catalog "$RUNNER_TEMP/base-catalog.parquet" \
+                --immutable-before-year "$(date -u +%Y)"
+            fi
           else
             mkdir -p "$RUNNER_TEMP/v3.1"
             git archive "origin/$BASE_REF" data | tar -x -C "$RUNNER_TEMP/v3.1"
@@ -122,6 +156,7 @@ jobs:
           open-tennis-data build \
             --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
             --source-revision "$SOURCE_REVISION" \
+            --wikimedia-source-audit "$RUNNER_TEMP/tennis-data/coverage/source-audit.parquet" \
             --output "$RUNNER_TEMP/tennis-data-repeat"
           python - "$RUNNER_TEMP/tennis-data" "$RUNNER_TEMP/tennis-data-repeat" <<'PY'
           import hashlib

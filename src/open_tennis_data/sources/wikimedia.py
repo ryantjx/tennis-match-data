@@ -125,6 +125,52 @@ def fetch_page(title: str) -> dict[str, Any]:
     }
 
 
+def fetch_pages_at_revisions(
+    revisions_by_title: Mapping[str, str], batch_size: int = 20
+) -> dict[str, dict[str, Any]]:
+    """Fetch immutable page revisions in batches and retain their recorded titles."""
+    found: dict[str, dict[str, Any]] = {}
+    items = sorted((title, str(revision)) for title, revision in revisions_by_title.items())
+    for offset in range(0, len(items), batch_size):
+        batch = items[offset : offset + batch_size]
+        titles_by_revision = {revision: title for title, revision in batch}
+        data = api(
+            {
+                "action": "query",
+                "prop": "revisions|pageprops",
+                "revids": "|".join(titles_by_revision),
+                "rvprop": "ids|timestamp|content",
+                "rvslots": "main",
+            }
+        )
+        for page in data.get("query", {}).get("pages", []):
+            for revision in page.get("revisions", []):
+                revision_id = str(revision.get("revid"))
+                title = titles_by_revision.pop(revision_id, None)
+                if title is None:
+                    continue
+                found[title] = {
+                    # Keep the recorded title stable if the live page is subsequently moved.
+                    "title": title,
+                    "page_id": page["pageid"],
+                    "wikidata_id": page.get("pageprops", {}).get("wikibase_item"),
+                    "revision_id": revision["revid"],
+                    "revision_timestamp": revision["timestamp"],
+                    "content": revision["slots"]["main"]["content"],
+                }
+        if titles_by_revision:
+            missing = ", ".join(
+                f"{title!r} ({revision})" for revision, title in titles_by_revision.items()
+            )
+            raise RuntimeError(f"Wikimedia revisions are unavailable: {missing}")
+    return found
+
+
+def fetch_page_revision(title: str, revision_id: str) -> dict[str, Any]:
+    """Fetch one immutable page revision recorded by a previous build."""
+    return fetch_pages_at_revisions({title: revision_id})[title]
+
+
 def fetch_page_optional(title: str) -> dict[str, Any] | None:
     data = api(
         {

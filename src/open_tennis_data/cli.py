@@ -54,6 +54,9 @@ def command_build(args: argparse.Namespace) -> int:
         as_of=date.fromisoformat(args.as_of),
         workers=args.workers,
         source_revision=args.source_revision,
+        wikimedia_source_audit=(
+            Path(args.wikimedia_source_audit) if args.wikimedia_source_audit else None
+        ),
     )
     print(
         f"built dataset as of {summary['as_of']}: {summary['catalog_rows']} files, "
@@ -221,6 +224,10 @@ def parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--source-revision",
         help="immutable 40-character archive Git SHA (resolved automatically when omitted)",
+    )
+    build.add_argument(
+        "--wikimedia-source-audit",
+        help="reuse exact Wikimedia page revisions from a prior source-audit.parquet",
     )
     build.set_defaults(handler=command_build)
 

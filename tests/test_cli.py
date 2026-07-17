@@ -123,11 +123,16 @@ class CliTests(unittest.TestCase):
                 "2",
                 "--source-revision",
                 "a" * 40,
+                "--wikimedia-source-audit",
+                "snapshot.parquet",
             )
             self.assertEqual((result, error), (0, ""))
             self.assertIn("built dataset", output)
             build.assert_called_once()
             self.assertEqual(build.call_args.kwargs["source_revision"], "a" * 40)
+            self.assertEqual(
+                build.call_args.kwargs["wikimedia_source_audit"], Path("snapshot.parquet")
+            )
 
         with patch("open_tennis_data.cli.refresh_wikimedia_dataset") as refresh:
             refresh.return_value = {

@@ -466,7 +466,7 @@ def _create_match_tables(
     )
     connection.execute(
         """
-        CREATE TABLE normalized AS
+        CREATE TABLE normalized_ranked AS
         SELECT *, row_number() OVER (
           PARTITION BY canonical_match_key ORDER BY source_match_id, row_fingerprint
         ) AS match_ordinal
@@ -474,10 +474,24 @@ def _create_match_tables(
         """
     )
     connection.execute(
+        """
+        CREATE TABLE normalized AS
+        SELECT *, min(match_ordinal) OVER (PARTITION BY canonical_match_key,
+          tourney_name,surface,draw_size,tourney_level,tourney_date,
+          winner_player_id,winner_name,winner_ioc,winner_seed,winner_entry,
+          loser_player_id,loser_name,loser_ioc,loser_seed,loser_entry,
+          score,best_of,minutes,winner_rank,winner_rank_points,loser_rank,loser_rank_points,
+          w_ace,w_df,w_svpt,w_1stIn,w_1stWon,w_2ndWon,w_SvGms,w_bpSaved,w_bpFaced,
+          l_ace,l_df,l_svpt,l_1stIn,l_1stWon,l_2ndWon,l_SvGms,l_bpSaved,l_bpFaced
+        ) AS canonical_match_ordinal
+        FROM normalized_ranked
+        """
+    )
+    connection.execute(
         f"""
         CREATE TABLE matches AS
         SELECT
-          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || match_ordinal), 1, 20) AS match_id,
+          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || canonical_match_ordinal), 1, 20) AS match_id,
           event_id, tour, source_year::SMALLINT AS year, 'singles'::VARCHAR AS discipline,
           trim(coalesce(tourney_name, 'Unknown event')) AS event_name,
           canonical_level AS level, level_detail, nullif(trim(coalesce(tourney_level, '')), '') AS source_level,
@@ -517,6 +531,8 @@ def _create_match_tables(
           DATE {_quoted(as_of.isoformat())} AS last_updated_on,
           'sackmann'::VARCHAR AS preferred_source, 1::SMALLINT AS source_count
         FROM normalized
+        QUALIFY row_number() OVER (PARTITION BY canonical_match_key,canonical_match_ordinal
+          ORDER BY source_match_id,row_fingerprint)=1
         ORDER BY tour, source_year, canonical_level, event_date, event_id, round_order, match_id
         """
     )
@@ -543,7 +559,7 @@ def _create_match_tables(
         """
         CREATE TABLE match_stats AS
         SELECT
-          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || match_ordinal), 1, 20) AS match_id,
+          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || canonical_match_ordinal), 1, 20) AS match_id,
           tour, source_year::SMALLINT AS year,
           try_cast(minutes AS INTEGER) AS duration_minutes,
           try_cast(w_ace AS INTEGER) AS player1_aces,
@@ -568,6 +584,8 @@ def _create_match_tables(
         WHERE coalesce(minutes, w_ace, w_df, w_svpt, w_1stIn, w_1stWon, w_2ndWon,
                        w_SvGms, w_bpSaved, w_bpFaced, l_ace, l_df, l_svpt, l_1stIn,
                        l_1stWon, l_2ndWon, l_SvGms, l_bpSaved, l_bpFaced) IS NOT NULL
+        QUALIFY row_number() OVER (PARTITION BY canonical_match_key,canonical_match_ordinal
+          ORDER BY source_match_id,row_fingerprint)=1
         ORDER BY tour, year, match_id
         """
     )
@@ -575,7 +593,7 @@ def _create_match_tables(
         f"""
         CREATE TABLE observations AS
         SELECT
-          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || match_ordinal), 1, 20) AS match_id,
+          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || canonical_match_ordinal), 1, 20) AS match_id,
           event_id, tour, source_year::SMALLINT AS year, 'sackmann'::VARCHAR AS source,
           source_label, coalesce(tourney_id, '') AS source_event_id, source_match_id,
           row_fingerprint, source_url, revision, source_sha256,
@@ -655,6 +673,7 @@ def _ingest_wikimedia(
     as_of: date,
     workers: int,
     fixture_years: Sequence[int] | None = None,
+    source_audit: Path | None = None,
 ) -> dict[str, int]:
     """Merge current reusable Wikimedia results without using intermediate JSON files."""
     from open_tennis_data.fixtures import parse_wikimedia_fixture_page
@@ -662,6 +681,7 @@ def _ingest_wikimedia(
     from open_tennis_data.sources.wikimedia import (
         discover_pages,
         fetch_page,
+        fetch_pages_at_revisions,
         fetch_pages_optional,
         parse_page,
         parse_tournament_page,
@@ -690,23 +710,45 @@ def _ingest_wikimedia(
         }
 
     fixture_years = tuple(sorted(set(fixture_years or (year,))))
-    tasks: list[tuple[str, int, str]] = []
-    for tour in TOURS:
-        for fixture_year in fixture_years:
-            tasks.extend(
-                (tour, fixture_year, title)
-                for title in discover_pages(fixture_year, tour)
-            )
+    tasks: list[tuple[str, int, str, str | None]] = []
+    snapshot_tournaments: dict[tuple[str, int, str], str] | None = None
+    if source_audit is None:
+        for tour in TOURS:
+            for fixture_year in fixture_years:
+                tasks.extend(
+                    (tour, fixture_year, title, None)
+                    for title in discover_pages(fixture_year, tour)
+                )
+    else:
+        snapshot_rows = connection.execute(
+            f"SELECT kind, tour, year, source_path, revision FROM read_parquet({_quoted(source_audit)}) "
+            "WHERE source_label='wikimedia' ORDER BY kind, tour, year, source_path"
+        ).fetchall()
+        snapshot_tournaments = {}
+        for kind, tour, page_year, title, revision in snapshot_rows:
+            key = (str(tour), int(page_year), str(title))
+            if str(kind) == "fixtures":
+                tasks.append((*key, str(revision)))
+            elif str(kind) == "tournaments":
+                snapshot_tournaments[key] = str(revision)
 
     pages: list[tuple[str, int, dict[str, Any]]] = []
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(fetch_page, title): (tour, page_year)
-            for tour, page_year, title in tasks
-        }
-        for future in as_completed(futures):
-            tour, page_year = futures[future]
-            pages.append((tour, page_year, future.result()))
+    if source_audit is None:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(fetch_page, title): (tour, page_year)
+                for tour, page_year, title, _ in tasks
+            }
+            for future in as_completed(futures):
+                tour, page_year = futures[future]
+                pages.append((tour, page_year, future.result()))
+    else:
+        revisions_by_title = {title: str(revision) for _, _, title, revision in tasks}
+        snapshot_pages = fetch_pages_at_revisions(revisions_by_title)
+        pages.extend(
+            (tour, page_year, snapshot_pages[title])
+            for tour, page_year, title, _ in tasks
+        )
 
     tournament_tasks: dict[tuple[str, int, str], str] = {}
     for tour, page_year, page in pages:
@@ -716,7 +758,15 @@ def _ingest_wikimedia(
         event_name = title_match.group(2).strip()
         tournament_tasks[(tour, page_year, event_name)] = f"{page_year} {event_name}"
     tournament_metadata: list[dict[str, Any]] = []
-    tournament_pages = fetch_pages_optional(sorted(set(tournament_tasks.values())))
+    if snapshot_tournaments is None:
+        tournament_pages = fetch_pages_optional(sorted(set(tournament_tasks.values())))
+    else:
+        tournament_revisions = {}
+        for (tour, page_year, _), title in sorted(tournament_tasks.items()):
+            revision = snapshot_tournaments.get((tour, page_year, title))
+            if revision is not None:
+                tournament_revisions[title] = revision
+        tournament_pages = fetch_pages_at_revisions(tournament_revisions)
     tasks_by_title: dict[str, list[tuple[str, int, str]]] = {}
     for key, title in tournament_tasks.items():
         tasks_by_title.setdefault(title, []).append(key)
@@ -1312,6 +1362,14 @@ def _create_identity_and_reports(
         CREATE TABLE match_links AS
         SELECT source, source_match_id, row_fingerprint, match_id, event_id, tour, year,
           false AS provisional FROM observations ORDER BY source, source_match_id, row_fingerprint
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE match_aliases (
+          retired_match_id VARCHAR, canonical_match_id VARCHAR,
+          reason VARCHAR, changed_on DATE
+        )
         """
     )
     connection.execute(
@@ -1973,6 +2031,7 @@ def _write_partitioned_tables(
             OBSERVATION_ROW_GROUP_SIZE,
         ),
         ("player_links", "identity/player-links.parquet", OBSERVATION_ROW_GROUP_SIZE),
+        ("match_aliases", "identity/match-aliases.parquet", OBSERVATION_ROW_GROUP_SIZE),
         ("conflicts", "conflicts/conflicts.parquet", MATCH_ROW_GROUP_SIZE),
         ("quarantine", "quarantine/quarantine.parquet", MATCH_ROW_GROUP_SIZE),
     ):
@@ -2047,6 +2106,7 @@ def build_dataset(
     workers: int = 12,
     current_rankings_only: bool = False,
     source_revision: str | None = None,
+    wikimedia_source_audit: Path | None = None,
 ) -> dict[str, Any]:
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -2073,6 +2133,7 @@ def build_dataset(
             as_of=as_of,
             workers=min(workers, 12),
             fixture_years=(max(years), max(years) + 1),
+            source_audit=wikimedia_source_audit,
         )
         print(
             "Wikimedia: "
@@ -4058,6 +4119,9 @@ def validate_dataset(
             "tour", "year", "source_label", "source_path", "source_file_id",
             "source_match_id", "row_fingerprint", "candidate_match_ids", "reason",
         ],
+        "match_aliases": [
+            "retired_match_id", "canonical_match_id", "reason", "changed_on"
+        ],
     }
     for table, names in expected_names.items():
         actual = [name for name, _ in schemas.get(table, [])]
@@ -4078,11 +4142,39 @@ def validate_dataset(
             f"CREATE VIEW quarantine AS SELECT * FROM read_parquet("
             f"{_quoted(root / 'quarantine/quarantine.parquet')})"
         )
+        connection.execute(
+            f"CREATE VIEW match_aliases AS SELECT * FROM read_parquet("
+            f"{_quoted(root / 'identity/match-aliases.parquet')})"
+        )
     except (duckdb.Error, ValueError) as exc:
         connection.close()
         return [*errors, f"could not register dataset views: {exc}"]
     checks = {
         "duplicate match IDs": "SELECT count(*)-count(DISTINCT match_id) FROM matches",
+        "exact semantic duplicate matches": (
+            "SELECT count(*) FROM (SELECT m.* EXCLUDE(match_id),"
+            "s.* EXCLUDE(match_id,tour,year),count(*) n FROM matches m "
+            "LEFT JOIN match_stats s USING(match_id,tour,year) GROUP BY ALL HAVING n>1)"
+        ),
+        "duplicate retired match aliases": (
+            "SELECT count(*)-count(DISTINCT retired_match_id) FROM match_aliases"
+        ),
+        "invalid match alias values": (
+            "SELECT count(*) FROM match_aliases WHERE retired_match_id=canonical_match_id "
+            "OR reason<>'semantic_duplicate' OR changed_on IS NULL"
+        ),
+        "match alias targets missing": (
+            "SELECT count(*) FROM match_aliases a ANTI JOIN matches m "
+            "ON a.canonical_match_id=m.match_id"
+        ),
+        "retired match aliases still canonical": (
+            "SELECT count(*) FROM match_aliases a JOIN matches m "
+            "ON a.retired_match_id=m.match_id"
+        ),
+        "cyclic or chained match aliases": (
+            "SELECT count(*) FROM match_aliases a JOIN match_aliases b "
+            "ON a.canonical_match_id=b.retired_match_id"
+        ),
         "duplicate tournament IDs": (
             "SELECT count(*)-count(DISTINCT tournament_id) FROM tournaments"
         ),

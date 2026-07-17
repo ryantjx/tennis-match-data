@@ -77,6 +77,15 @@ row_fingerprint, candidate_match_ids, reason
 `ambiguous_source_mapping` evidence. Those rows preserve every ambiguous source
 observation without selecting a canonical identity that the source does not prove.
 
+`identity/match-aliases.parquet` resolves retired exact-duplicate IDs through:
+
+```text
+retired_match_id, canonical_match_id, reason, changed_on
+```
+
+Alias targets are live canonical matches. Retired IDs are absent from match tables;
+aliases are unique and cannot form chains or cycles.
+
 Players, rankings, match statistics, tournament/player source crosswalks,
 coverage, health, conflicts, quarantine, and corrections keep entity-specific
 schemas. Rankings remain available as an auxiliary archive even though public
