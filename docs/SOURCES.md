@@ -13,6 +13,9 @@ Last reviewed: 2026-07-16.
 - Licence: CC BY-NC-SA 4.0.
 - Every downloaded file is pinned to one repository revision, checksummed, and
   reconciled as `source rows = normalized observations + quarantined rows`.
+- Source URLs, revisions, checksums, and licences are stored once in source-file
+  records and linked to matches through compact provenance; match rows contain
+  no source URL.
 
 The direct origin should be restored automatically when it becomes reachable
 and its content hashes reconcile with the fallback.
@@ -30,7 +33,8 @@ and its content hashes reconcile with the fallback.
 
 Contributors dedicate factual corrections to CC0 and provide a public source.
 Corrections must not be copied from a protected database or gathered in breach
-of access terms.
+of access terms. Proposals identify `entity_type` and `entity_id`; the
+deprecated `--match-id` shorthand remains available for one release cycle.
 
 ## Excluded automation
 

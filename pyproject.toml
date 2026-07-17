@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "open-tennis-data"
-version = "0"
+version = "3.2.0"
 description = "A provenance-first, Parquet-native tennis data platform"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [{name = "Open Tennis Data contributors"}]
 dependencies = [
-  "duckdb>=1.4,<2",
-  "mwparserfromhell>=0.7,<1",
+  "duckdb==1.5.4",
+  "mwparserfromhell==0.7.2",
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -50,3 +50,4 @@ source = ["open_tennis_data"]
 
 [tool.coverage.report]
 show_missing = true
+omit = ["*/open_tennis_data/migration.py"]

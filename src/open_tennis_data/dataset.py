@@ -22,20 +22,30 @@ from typing import Any
 
 import duckdb
 
-from open_tennis_data.schema import SOURCE_LICENSES, TOURS
+from open_tennis_data.model import source_slot_match_id
+from open_tennis_data.schema import (
+    MATCH_COLUMNS,
+    MATCH_SCHEMA,
+    SCHEMA_METADATA_KEY,
+    SCHEMA_VERSION,
+    SOURCE_LICENSES,
+    TOURS,
+)
 
 ARCHIVE_REPOSITORY = "Aneeshers/tennis-sackmann-archive"
 ARCHIVE_RESOLVE = f"https://huggingface.co/datasets/{ARCHIVE_REPOSITORY}/resolve"
 USER_AGENT = "open-tennis-data (https://github.com/ryantjx/tennis-match-data)"
 MAX_PARQUET_BYTES = 75 * 1024 * 1024
 NORMAL_COMMIT_BYTES = 25 * 1024 * 1024
-MATCH_ROW_GROUP_SIZE = 16_384
+MATCH_ROW_GROUP_SIZE = 65_536
 OBSERVATION_ROW_GROUP_SIZE = 32_768
 RANKING_ROW_GROUP_SIZE = 65_536
-DOWNLOAD_ROW_GROUP_SIZE = 65_536
+DOWNLOAD_ROW_GROUP_SIZE = MATCH_ROW_GROUP_SIZE
 DOWNLOAD_COMPRESSION_LEVEL = 19
+MATCH_COMPRESSION_LEVEL = 19
+STRING_DICTIONARY_PAGE_SIZE_LIMIT = 1_048_576
 
-DOWNLOAD_FILENAMES = (
+MATCH_DOWNLOAD_FILENAMES = (
     "mens.parquet",
     "womens.parquet",
     "atp.parquet",
@@ -43,49 +53,15 @@ DOWNLOAD_FILENAMES = (
     "all-matches.parquet",
 )
 TOURNAMENT_DOWNLOAD_FILENAME = "tournaments.parquet"
-
-MATCH_COLUMNS = (
-    "match_id",
-    "tournament_id",
-    "tour",
-    "year",
-    "draw",
-    "round",
-    "player1_id",
-    "player1_name",
-    "player1_country",
-    "player2_id",
-    "player2_name",
-    "player2_country",
-    "winner_id",
-    "loser_id",
-    "player1_seed",
-    "player2_seed",
-    "player1_entry",
-    "player2_entry",
-    "player1_rank",
-    "player2_rank",
-    "player1_rank_points",
-    "player2_rank_points",
-    "status",
-    "score",
-    "best_of",
+PROVENANCE_DOWNLOAD_FILENAME = "provenance.parquet"
+SOURCES_DOWNLOAD_FILENAME = "sources.parquet"
+RELEASE_FILENAMES = (
+    *MATCH_DOWNLOAD_FILENAMES,
+    TOURNAMENT_DOWNLOAD_FILENAME,
+    PROVENANCE_DOWNLOAD_FILENAME,
+    SOURCES_DOWNLOAD_FILENAME,
 )
-
-FIXTURE_COLUMNS = (
-    "fixture_id",
-    "tournament_id",
-    "tour",
-    "year",
-    "draw",
-    "round",
-    "player1_id",
-    "player1_name",
-    "player2_id",
-    "player2_name",
-    "scheduled_on",
-    "source_url",
-)
+FIXTURE_COLUMNS = MATCH_COLUMNS
 
 TOURNAMENT_COLUMNS = (
     "tournament_id",
@@ -219,8 +195,11 @@ def download_sources(
     include_rankings: bool = True,
     current_rankings_only: bool = False,
     workers: int = 12,
+    revision: str | None = None,
 ) -> tuple[list[SourceFile], str]:
-    revision = resolve_archive_revision()
+    revision = revision or resolve_archive_revision()
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ValueError("source revision must be a 40-character lowercase Git SHA")
     specs = _source_specs(years, include_rankings, current_rankings_only)
     temporary.mkdir(parents=True, exist_ok=True)
 
@@ -385,7 +364,9 @@ def _create_match_tables(
         f"""
         CREATE TABLE raw_matches AS
         SELECT csv.*, files.tour, files.year AS source_year, files.source_label,
-               files.source_path, files.source_url, files.revision, files.sha256 AS source_sha256
+               files.source_path, files.source_url, files.revision, files.sha256 AS source_sha256,
+               'source_file_' || substr(sha256(concat_ws('|', 'sackmann', files.source_url,
+                 files.revision, files.sha256)), 1, 20) AS source_file_id
         FROM read_csv({_sql_list(item.local_path for item in match_sources)},
                       header=true, all_varchar=true, union_by_name=true,
                       filename=true, null_padding=true) csv
@@ -607,7 +588,8 @@ def _create_match_tables(
         """
         CREATE TABLE quarantine AS
         SELECT tour, source_year::SMALLINT AS year, source_label, source_path,
-          source_match_id, row_fingerprint, rejection_reason::VARCHAR AS reason
+          source_file_id, source_match_id, row_fingerprint,
+          NULL::VARCHAR[] AS candidate_match_ids, rejection_reason::VARCHAR AS reason
         FROM normalized_base WHERE rejection_reason IS NOT NULL
         ORDER BY tour, year, source_label, source_match_id
         """
@@ -968,12 +950,8 @@ def _ingest_wikimedia(
                         )
                     )
             else:
-                canonical_key = "|".join(match_key)
-                canonical_match_id = (
-                    "match:"
-                    + metadata["tour"]
-                    + ":"
-                    + hashlib.sha256((canonical_key + "|1").encode()).hexdigest()[:20]
+                canonical_match_id = source_slot_match_id(
+                    "wikimedia", source_match_id
                 )
                 winner_id = match["winner_id"]
                 loser_id = player2["id"] if winner_id == player1["id"] else player1["id"]
@@ -1180,7 +1158,7 @@ def _ingest_wikimedia(
                     player.get("hand"),
                     player.get("height_cm"),
                     "wikimedia",
-                    player_id.split(":", 1)[-1],
+                    player.get("source_ids", {}).get("wikipedia") or player_id,
                 )
             )
     if new_player_rows:
@@ -1293,7 +1271,10 @@ def _create_ranking_tables(
             'sackmann'::VARCHAR AS source, source_path, source_url, revision, source_sha256,
             row_number() OVER (
               PARTITION BY tour, trim(ranking_date), trim(player)
-              ORDER BY CASE WHEN source_label = 'current' THEN 0 ELSE 1 END, source_path
+              ORDER BY CASE WHEN source_label = 'current' THEN 0 ELSE 1 END,
+                source_path, try_cast(rank AS INTEGER),
+                try_cast(points AS INTEGER) DESC NULLS LAST,
+                try_cast(tours AS INTEGER) DESC NULLS LAST
             ) AS dedupe
           FROM raw_rankings
           WHERE try_strptime(trim(coalesce(ranking_date, '')), '%Y%m%d') IS NOT NULL
@@ -1346,7 +1327,8 @@ def _create_identity_and_reports(
     connection.execute(
         """
         CREATE TABLE corrections (
-          correction_id VARCHAR, match_id VARCHAR, field VARCHAR, corrected_value VARCHAR,
+          correction_id VARCHAR, entity_type VARCHAR, entity_id VARCHAR,
+          field VARCHAR, corrected_value VARCHAR,
           source_url VARCHAR, contributor VARCHAR, contributed_on DATE,
           license VARCHAR, status VARCHAR
         )
@@ -1412,6 +1394,27 @@ def _create_lean_tables(connection: duckdb.DuckDBPyConnection, as_of: date) -> N
     """Normalize temporary ingestion tables into the published lean contract."""
     connection.execute(
         """
+        UPDATE players AS player SET name=correction.corrected_value
+        FROM corrections AS correction
+        WHERE correction.status='approved' AND correction.entity_type='player'
+          AND correction.field='name' AND correction.entity_id=player.player_id
+        """
+    )
+    for table in ("matches", "fixtures"):
+        connection.execute(
+            f"""
+            UPDATE {table} AS record SET player1_name=player.name
+            FROM players AS player WHERE record.player1_id=player.player_id
+            """
+        )
+        connection.execute(
+            f"""
+            UPDATE {table} AS record SET player2_name=player.name
+            FROM players AS player WHERE record.player2_id=player.player_id
+            """
+        )
+    connection.execute(
+        """
         CREATE TABLE event_tournaments AS
         SELECT e.event_id, e.tour, e.year, e.draw, e.source, e.source_label,
           e.source_event_id,
@@ -1434,6 +1437,38 @@ def _create_lean_tables(connection: duckdb.DuckDBPyConnection, as_of: date) -> N
           w.source_url AS tournament_source_url
         FROM events e
         LEFT JOIN wikimedia_tournament_event_metadata w USING(event_id)
+        """
+    )
+    for field in ("tournament_name", "level", "surface", "city", "country"):
+        connection.execute(
+            f"""
+            UPDATE event_tournaments AS tournament
+            SET {field}=correction.corrected_value
+            FROM corrections AS correction
+            WHERE correction.status='approved' AND correction.entity_type='tournament'
+              AND correction.field={_quoted(field)}
+              AND correction.entity_id=tournament.tournament_id
+            """
+        )
+    for field in ("start_date", "end_date"):
+        connection.execute(
+            f"""
+            UPDATE event_tournaments AS tournament
+            SET {field}=try_cast(correction.corrected_value AS DATE)
+            FROM corrections AS correction
+            WHERE correction.status='approved' AND correction.entity_type='tournament'
+              AND correction.field={_quoted(field)}
+              AND correction.entity_id=tournament.tournament_id
+            """
+        )
+    connection.execute(
+        """
+        UPDATE event_tournaments AS tournament
+        SET indoor=try_cast(correction.corrected_value AS BOOLEAN)
+        FROM corrections AS correction
+        WHERE correction.status='approved' AND correction.entity_type='tournament'
+          AND correction.field='indoor'
+          AND correction.entity_id=tournament.tournament_id
         """
     )
     connection.execute(
@@ -1473,34 +1508,115 @@ def _create_lean_tables(connection: duckdb.DuckDBPyConnection, as_of: date) -> N
     connection.execute(
         """
         CREATE TABLE matches_lean AS
-        SELECT m.match_id, et.tournament_id, m.tour, m.year, m.draw, m.round,
-          m.player1_id, m.player1_name, m.player1_country,
-          m.player2_id, m.player2_name, m.player2_country,
-          m.winner_id, m.loser_id, m.player1_seed, m.player2_seed,
-          m.player1_entry, m.player2_entry, m.player1_rank, m.player2_rank,
-          m.player1_rank_points, m.player2_rank_points, m.status, m.score, m.best_of
+        SELECT m.played_on AS date, m.match_id, et.tournament_id,
+          et.tournament_name, m.tour, m.year::SMALLINT AS year, m.draw, m.round,
+          m.discipline AS format,
+          [m.player1_id]::VARCHAR[] AS player1_id,
+          [m.player1_name]::VARCHAR[] AS player1_name, m.player1_seed,
+          [m.player2_id]::VARCHAR[] AS player2_id,
+          [m.player2_name]::VARCHAR[] AS player2_name, m.player2_seed,
+          [m.winner_id]::VARCHAR[] AS winner_id, m.status, m.score,
+          coalesce(m.best_of, CASE
+            WHEN m.tour='atp' AND et.level='grand_slam' AND m.draw='main' THEN 5
+            ELSE 3 END)::TINYINT AS best_of
         FROM matches m JOIN event_tournaments et USING(event_id, tour, year)
-        ORDER BY m.tour, m.year, et.tournament_id, m.draw, m.round, m.match_id
+        ORDER BY date NULLS LAST, et.tournament_id, m.draw,
+          m.round_order, m.match_id
         """
     )
     connection.execute(
         """
         CREATE TABLE fixtures_lean AS
-        SELECT f.fixture_id, et.tournament_id, f.tour, f.year, f.draw, f.round,
-          f.player1_id, f.player1_name, f.player2_id, f.player2_name,
-          f.scheduled_on, CASE WHEN starts_with(f.source, 'http') THEN f.source END AS source_url
+        SELECT f.scheduled_on AS date, f.fixture_id AS match_id, et.tournament_id,
+          et.tournament_name, f.tour, f.year::SMALLINT AS year, f.draw, f.round,
+          'singles'::VARCHAR AS format,
+          CASE WHEN f.player1_id IS NULL THEN NULL ELSE [f.player1_id]::VARCHAR[] END AS player1_id,
+          CASE WHEN f.player1_name IS NULL THEN NULL ELSE [f.player1_name]::VARCHAR[] END AS player1_name,
+          NULL::VARCHAR AS player1_seed,
+          CASE WHEN f.player2_id IS NULL THEN NULL ELSE [f.player2_id]::VARCHAR[] END AS player2_id,
+          CASE WHEN f.player2_name IS NULL THEN NULL ELSE [f.player2_name]::VARCHAR[] END AS player2_name,
+          NULL::VARCHAR AS player2_seed, NULL::VARCHAR[] AS winner_id,
+          'fixture'::VARCHAR AS status, NULL::VARCHAR AS score,
+          CASE WHEN f.tour='atp' AND et.level='grand_slam' AND f.draw='main'
+            THEN 5 ELSE 3 END::TINYINT AS best_of
         FROM fixtures f JOIN event_tournaments et USING(event_id, tour, year)
-        ORDER BY f.tour, f.year, et.tournament_id, f.draw, f.round, f.fixture_id
+        ORDER BY date NULLS LAST, et.tournament_id, f.draw, f.round, f.fixture_id
+        """
+    )
+    for field in ("round", "player1_seed", "player2_seed", "status", "score"):
+        connection.execute(
+            f"""
+            UPDATE matches_lean AS match SET {field}=correction.corrected_value
+            FROM corrections AS correction
+            WHERE correction.status='approved' AND correction.entity_type='match'
+              AND correction.field={_quoted(field)}
+              AND correction.entity_id=match.match_id
+            """
+        )
+    for field in ("round", "player1_seed", "player2_seed"):
+        connection.execute(
+            f"""
+            UPDATE fixtures_lean AS match SET {field}=correction.corrected_value
+            FROM corrections AS correction
+            WHERE correction.status='approved' AND correction.entity_type='match'
+              AND correction.field={_quoted(field)}
+              AND correction.entity_id=match.match_id
+            """
+        )
+    connection.execute(
+        """
+        UPDATE matches_lean AS match SET date=try_cast(correction.corrected_value AS DATE)
+        FROM corrections AS correction
+        WHERE correction.status='approved' AND correction.entity_type='match'
+          AND correction.field='date' AND correction.entity_id=match.match_id
+        """
+    )
+    connection.execute(
+        """
+        UPDATE fixtures_lean AS match SET date=try_cast(correction.corrected_value AS DATE)
+        FROM corrections AS correction
+        WHERE correction.status='approved' AND correction.entity_type='match'
+          AND correction.field='date' AND correction.entity_id=match.match_id
+        """
+    )
+    connection.execute(
+        """
+        UPDATE matches_lean AS match SET best_of=try_cast(correction.corrected_value AS TINYINT)
+        FROM corrections AS correction
+        WHERE correction.status='approved' AND correction.entity_type='match'
+          AND correction.field='best_of' AND correction.entity_id=match.match_id
+        """
+    )
+    connection.execute(
+        """
+        UPDATE fixtures_lean AS match
+        SET best_of=try_cast(correction.corrected_value AS TINYINT)
+        FROM corrections AS correction
+        WHERE correction.status='approved' AND correction.entity_type='match'
+          AND correction.field='best_of' AND correction.entity_id=match.match_id
         """
     )
     connection.execute(
         """
         CREATE TABLE observations_lean AS
-        SELECT match_id, tour, year,
-          'source_file_' || substr(sha256(concat_ws('|', source, source_url,
-            revision, source_sha256)), 1, 20) AS source_file_id,
-          source_match_id
-        FROM observations
+        WITH combined AS (
+          SELECT match_id, tour, year,
+            'source_file_' || substr(sha256(concat_ws('|', source, source_url,
+              revision, source_sha256)), 1, 20) AS source_file_id,
+            source_match_id
+          FROM observations
+          UNION ALL
+          SELECT f.fixture_id AS match_id, f.tour, f.year,
+            'source_file_' || substr(sha256(concat_ws('|', 'wikimedia', a.source_url,
+              a.revision, a.sha256)), 1, 20) AS source_file_id,
+            f.source_match_id
+          FROM fixtures f
+          JOIN wikimedia_page_audit a ON a.kind='fixtures' AND a.tour=f.tour
+            AND a.year=f.year AND a.source_url=f.source
+        )
+        SELECT * FROM combined
+        QUALIFY count(DISTINCT match_id) OVER (
+          PARTITION BY source_file_id,source_match_id)=1
         ORDER BY tour, year, source_file_id, source_match_id, match_id
         """
     )
@@ -1601,13 +1717,24 @@ def _copy_parquet(
     *,
     row_group_size: int,
     compression_level: int = 6,
+    match_shaped: bool = False,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if match_shaped:
+        row_group_size = MATCH_ROW_GROUP_SIZE
+        compression_level = MATCH_COMPRESSION_LEVEL
+        connection.execute("SET threads=1")
+    metadata = (
+        f", KV_METADATA {{{SCHEMA_METADATA_KEY}: {_quoted(SCHEMA_VERSION)}}}"
+        if match_shaped
+        else ""
+    )
     connection.execute(
         f"""
         COPY ({query}) TO {_quoted(path)} (
-          FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL {compression_level},
-          ROW_GROUP_SIZE {row_group_size}
+          FORMAT PARQUET, PARQUET_VERSION 'V2', COMPRESSION ZSTD,
+          COMPRESSION_LEVEL {compression_level}, ROW_GROUP_SIZE {row_group_size},
+          STRING_DICTIONARY_PAGE_SIZE_LIMIT {STRING_DICTIONARY_PAGE_SIZE_LIMIT}{metadata}
         )
         """
     )
@@ -1626,7 +1753,17 @@ def create_direct_downloads(
     tournament_files = sorted(
         (root / "tournaments").glob("tour=*/year=*/tournaments.parquet")
     )
-    if not match_files or not fixture_files or not tournament_files:
+    observation_files = sorted(
+        (root / "observations").glob("tour=*/year=*/observations.parquet")
+    )
+    source_audit = root / "coverage" / "source-audit.parquet"
+    if (
+        not match_files
+        or not fixture_files
+        or not tournament_files
+        or not observation_files
+        or not source_audit.exists()
+    ):
         raise ValueError("downloads require match, fixture, and tournament Parquet files")
 
     connection = duckdb.connect()
@@ -1638,18 +1775,19 @@ def create_direct_downloads(
     if not isinstance(as_of, date):
         raise ValueError(f"catalog as_of must be a DATE, got {as_of!r}")
     source_files = fixture_files if future_only else match_files
-    identifier = "fixture_id" if future_only else "match_id"
     records_query = (
-        f"SELECT * FROM read_parquet({_sql_list(source_files)}, union_by_name=true)"
+        f"SELECT * FROM read_parquet({_sql_list(source_files)}, "
+        "union_by_name=true, hive_partitioning=false)"
     )
     if future_only:
         records_query += (
-            f" WHERE scheduled_on IS NULL "
-            f"OR scheduled_on >= DATE {_quoted(as_of.isoformat())}"
+            f" WHERE date IS NULL OR date >= DATE {_quoted(as_of.isoformat())}"
         )
-    order = f"tour, year, tournament_id, draw, round, {identifier}"
+    order = "date NULLS LAST, tournament_id, draw, round, match_id"
     output.mkdir(parents=True, exist_ok=True)
-    for filename in (*DOWNLOAD_FILENAMES, TOURNAMENT_DOWNLOAD_FILENAME):
+    for filename in (
+        *RELEASE_FILENAMES,
+    ):
         path = output / filename
         if path.exists():
             path.unlink()
@@ -1663,6 +1801,7 @@ def create_direct_downloads(
             destination,
             row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
             compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+            match_shaped=True,
         )
     shutil.copy2(output / "atp.parquet", output / "mens.parquet")
     shutil.copy2(output / "wta.parquet", output / "womens.parquet")
@@ -1672,19 +1811,45 @@ def create_direct_downloads(
         output / "all-matches.parquet",
         row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
         compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        match_shaped=True,
     )
     _copy_parquet(
         connection,
-        f"SELECT * FROM read_parquet({_sql_list(tournament_files)}, union_by_name=true) "
+        f"WITH records AS ({records_query}), tournaments AS ("
+        f"SELECT * FROM read_parquet({_sql_list(tournament_files)}, union_by_name=true)) "
+        "SELECT t.* FROM tournaments t SEMI JOIN "
+        "(SELECT DISTINCT tournament_id,tour,year FROM records) r "
+        "USING(tournament_id,tour,year) "
         "ORDER BY tour, year, start_date, tournament_id",
         output / TOURNAMENT_DOWNLOAD_FILENAME,
         row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
         compression_level=DOWNLOAD_COMPRESSION_LEVEL,
     )
+    _copy_parquet(
+        connection,
+        f"WITH records AS ({records_query}), observations AS ("
+        f"SELECT * FROM read_parquet({_sql_list(observation_files)}, "
+        "union_by_name=true, hive_partitioning=false)) "
+        "SELECT DISTINCT o.* FROM observations o JOIN records r "
+        "USING(match_id,tour,year) ORDER BY tour,year,source_file_id,source_match_id,match_id",
+        output / PROVENANCE_DOWNLOAD_FILENAME,
+        row_group_size=OBSERVATION_ROW_GROUP_SIZE,
+        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+    )
+    _copy_parquet(
+        connection,
+        f"SELECT s.* FROM read_parquet({_quoted(source_audit)}) s "
+        f"JOIN (SELECT DISTINCT source_file_id FROM read_parquet("
+        f"{_quoted(output / PROVENANCE_DOWNLOAD_FILENAME)})) p USING(source_file_id) "
+        "ORDER BY kind,tour,year,source_label,source_file_id",
+        output / SOURCES_DOWNLOAD_FILENAME,
+        row_group_size=OBSERVATION_ROW_GROUP_SIZE,
+        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+    )
 
     expected_schema: list[tuple[str, str]] | None = None
     summary: dict[str, dict[str, int]] = {}
-    for filename in DOWNLOAD_FILENAMES:
+    for filename in MATCH_DOWNLOAD_FILENAMES:
         path = output / filename
         if path.stat().st_size > MAX_PARQUET_BYTES:
             raise RuntimeError(f"direct download exceeds 75 MB: {filename}")
@@ -1713,7 +1878,7 @@ def create_direct_downloads(
                 _required_row(
                     connection.execute(
                         f"SELECT count(*) FROM read_parquet({_quoted(path)}) "
-                        f"WHERE scheduled_on < DATE {_quoted(as_of.isoformat())}"
+                        f"WHERE date < DATE {_quoted(as_of.isoformat())}"
                     )
                 )[0]
             )
@@ -1737,6 +1902,14 @@ def create_direct_downloads(
         "fixtures": 0,
         "bytes": tournament_path.stat().st_size,
     }
+    for filename in (PROVENANCE_DOWNLOAD_FILENAME, SOURCES_DOWNLOAD_FILENAME):
+        path = output / filename
+        rows = int(
+            _required_row(
+                connection.execute(f"SELECT count(*) FROM read_parquet({_quoted(path)})")
+            )[0]
+        )
+        summary[filename] = {"rows": rows, "fixtures": 0, "bytes": path.stat().st_size}
     if sha256_file(output / "atp.parquet") != sha256_file(output / "mens.parquet"):
         raise RuntimeError("ATP and men's direct download aliases differ")
     if sha256_file(output / "wta.parquet") != sha256_file(output / "womens.parquet"):
@@ -1763,23 +1936,31 @@ def _write_partitioned_tables(
             destination = output / table / f"tour={tour}" / f"year={year}" / filename
             _copy_parquet(
                 connection,
-                f"SELECT * FROM {table} WHERE tour = {_quoted(tour)} AND year = {int(year)}",
+                f"SELECT * FROM {table} WHERE tour = {_quoted(tour)} AND year = {int(year)}"
+                + (
+                    " ORDER BY date NULLS LAST,tournament_id,draw,round,match_id"
+                    if table == "matches"
+                    else " ORDER BY ALL"
+                ),
                 destination,
                 row_group_size=row_group,
+                match_shaped=table == "matches",
             )
 
     for tour in TOURS:
         _copy_parquet(
             connection,
-            f"SELECT * FROM players WHERE tour = {_quoted(tour)}",
+            f"SELECT * FROM players WHERE tour = {_quoted(tour)} ORDER BY ALL",
             output / "players" / f"tour={tour}" / "players.parquet",
             row_group_size=OBSERVATION_ROW_GROUP_SIZE,
         )
         _copy_parquet(
             connection,
-            f"SELECT * FROM fixtures WHERE tour = {_quoted(tour)}",
+            f"SELECT * FROM fixtures WHERE tour = {_quoted(tour)} "
+            "ORDER BY date NULLS LAST,tournament_id,draw,round,match_id",
             output / "fixtures" / f"tour={tour}" / "current.parquet",
             row_group_size=MATCH_ROW_GROUP_SIZE,
+            match_shaped=True,
         )
 
     for table, relative, row_group in (
@@ -1797,7 +1978,7 @@ def _write_partitioned_tables(
     ):
         _copy_parquet(
             connection,
-            f"SELECT * FROM {table}",
+            f"SELECT * FROM {table} ORDER BY ALL",
             output / relative,
             row_group_size=row_group,
         )
@@ -1865,6 +2046,7 @@ def build_dataset(
     as_of: date,
     workers: int = 12,
     current_rankings_only: bool = False,
+    source_revision: str | None = None,
 ) -> dict[str, Any]:
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -1875,6 +2057,7 @@ def build_dataset(
             years,
             workers=workers,
             current_rankings_only=current_rankings_only,
+            revision=source_revision,
         )
         generated = temporary / "generated"
         database = temporary / "build.duckdb"
@@ -1900,6 +2083,20 @@ def build_dataset(
         )
         _create_ranking_tables(connection, sources)
         _create_identity_and_reports(connection, sources, as_of)
+        contribution_path = output.parent / "contributions" / "corrections.parquet"
+        if contribution_path.exists():
+            correction_columns = {
+                row[0]
+                for row in connection.execute(
+                    f"DESCRIBE SELECT * FROM read_parquet({_quoted(contribution_path)})"
+                ).fetchall()
+            }
+            if {"entity_type", "entity_id"}.issubset(correction_columns):
+                connection.execute("DROP TABLE corrections")
+                connection.execute(
+                    f"CREATE TABLE corrections AS SELECT * FROM read_parquet("
+                    f"{_quoted(contribution_path)})"
+                )
         _create_lean_tables(connection, as_of)
         _write_partitioned_tables(connection, generated)
         corrections_path = generated.parent / "corrections.parquet"
@@ -2011,11 +2208,23 @@ def _reuse_tournament_ids(
         *generated.glob("tournaments/tour=*/year=*/tournaments.parquet"),
         *generated.glob("fixtures/tour=*/current.parquet"),
     ]:
+        columns = {
+            row[0]
+            for row in connection.execute(
+                f"DESCRIBE SELECT * FROM read_parquet({_quoted(path)})"
+            ).fetchall()
+        }
+        ordering = (
+            " ORDER BY date NULLS LAST,tournament_id,draw,round,match_id"
+            if {"date", "tournament_id", "draw", "round", "match_id"}.issubset(columns)
+            else " ORDER BY ALL"
+        )
         _replace_parquet(
             connection,
             f"SELECT p.* REPLACE (coalesce(r.established_id,p.tournament_id) "
             f"AS tournament_id) FROM read_parquet({_quoted(path)}) p "
-            "LEFT JOIN tournament_id_reuse r ON p.tournament_id=r.generated_id",
+            "LEFT JOIN tournament_id_reuse r ON p.tournament_id=r.generated_id"
+            + ordering,
             path,
             row_group_size=MATCH_ROW_GROUP_SIZE,
         )
@@ -2026,6 +2235,202 @@ def _reuse_tournament_ids(
         "ON p.tournament_id=r.generated_id",
         new_sources,
         row_group_size=MATCH_ROW_GROUP_SIZE,
+    )
+    connection.close()
+    return reused
+
+
+def _reuse_match_ids(generated: Path, existing: Path, years: Sequence[int]) -> int:
+    """Reuse established source or semantic match IDs in mutable partitions."""
+    year_set = sorted(set(years))
+    old_observations = [
+        existing / "observations" / f"tour={tour}" / f"year={year}" / "observations.parquet"
+        for tour in TOURS
+        for year in year_set
+    ]
+    new_observations = [
+        generated / "observations" / f"tour={tour}" / f"year={year}" / "observations.parquet"
+        for tour in TOURS
+        for year in year_set
+    ]
+    old_observations = [path for path in old_observations if path.exists()]
+    new_observations = [path for path in new_observations if path.exists()]
+    old_sources = existing / "coverage/source-audit.parquet"
+    new_sources = generated / "coverage/source-audit.parquet"
+    if not old_observations or not new_observations or not old_sources.exists() or not new_sources.exists():
+        return 0
+    old_matches = sorted(existing.glob("matches/tour=*/year=*/matches.parquet"))
+    new_matches = sorted(generated.glob("matches/tour=*/year=*/matches.parquet"))
+    connection = duckdb.connect()
+    connection.execute(
+        f"""
+        CREATE TABLE source_match_id_reuse AS
+        WITH old_keys AS (
+          SELECT o.match_id, o.tour, o.year, o.source_match_id,
+            s.source_label, s.source_url
+          FROM read_parquet({_sql_list(old_observations)}, union_by_name=true,
+                            hive_partitioning=false) o
+          JOIN read_parquet({_quoted(old_sources)}) s USING(source_file_id)
+        ), new_keys AS (
+          SELECT o.match_id, o.tour, o.year, o.source_match_id,
+            s.source_label, s.source_url
+          FROM read_parquet({_sql_list(new_observations)}, union_by_name=true,
+                            hive_partitioning=false) o
+          JOIN read_parquet({_quoted(new_sources)}) s USING(source_file_id)
+        )
+        SELECT n.match_id AS generated_id, min(o.match_id) AS established_id
+        FROM new_keys n JOIN old_keys o
+          USING(tour,year,source_match_id,source_label,source_url)
+        WHERE n.match_id<>o.match_id
+        GROUP BY n.match_id
+        HAVING count(DISTINCT o.match_id)=1
+        """
+    )
+    if old_matches and new_matches:
+        connection.execute(
+            f"""
+            CREATE TABLE semantic_match_id_reuse AS
+            SELECT n.match_id AS generated_id, min(o.match_id) AS established_id
+            FROM read_parquet({_sql_list(new_matches)}, union_by_name=true,
+                              hive_partitioning=false) n
+            JOIN read_parquet({_sql_list(old_matches)}, union_by_name=true,
+                              hive_partitioning=false) o
+              ON n.tournament_id=o.tournament_id AND n.tour=o.tour AND n.year=o.year
+             AND n.draw=o.draw AND n.round=o.round
+             AND ((n.player1_id=o.player1_id AND n.player2_id=o.player2_id)
+               OR (n.player1_id=o.player2_id AND n.player2_id=o.player1_id))
+            LEFT JOIN source_match_id_reuse s ON n.match_id=s.generated_id
+            WHERE s.generated_id IS NULL AND n.match_id<>o.match_id
+            GROUP BY n.match_id
+            HAVING count(DISTINCT o.match_id)=1
+            """
+        )
+    else:
+        connection.execute(
+            "CREATE TABLE semantic_match_id_reuse (generated_id VARCHAR, established_id VARCHAR)"
+        )
+    connection.execute(
+        "CREATE TABLE match_id_reuse AS SELECT * FROM source_match_id_reuse "
+        "UNION ALL SELECT * FROM semantic_match_id_reuse"
+    )
+    collision_count = int(
+        _required_row(
+            connection.execute(
+                "SELECT count(*) FROM (SELECT established_id FROM match_id_reuse "
+                "GROUP BY established_id HAVING count(DISTINCT generated_id)>1)"
+            )
+        )[0]
+    )
+    if collision_count:
+        connection.close()
+        raise RuntimeError(
+            f"match identity collision quarantined during refresh: {collision_count}"
+        )
+    reused = int(_required_row(connection.execute("SELECT count(*) FROM match_id_reuse"))[0])
+    if not reused:
+        connection.close()
+        return 0
+    for path in [
+        *new_matches,
+        *generated.glob("fixtures/tour=*/current.parquet"),
+        *new_observations,
+        *generated.glob("match_stats/tour=*/year=*/match-stats.parquet"),
+    ]:
+        columns = {
+            row[0]
+            for row in connection.execute(
+                f"DESCRIBE SELECT * FROM read_parquet({_quoted(path)}, "
+                "hive_partitioning=false)"
+            ).fetchall()
+        }
+        ordering = (
+            " ORDER BY date NULLS LAST,tournament_id,draw,round,match_id"
+            if {"date", "tournament_id", "draw", "round", "match_id"}.issubset(
+                columns
+            )
+            else " ORDER BY ALL"
+        )
+        _replace_parquet(
+            connection,
+            f"SELECT p.* REPLACE (coalesce(r.established_id,p.match_id) AS match_id) "
+            f"FROM read_parquet({_quoted(path)}, hive_partitioning=false) p "
+            "LEFT JOIN match_id_reuse r ON p.match_id=r.generated_id" + ordering,
+            path,
+            row_group_size=MATCH_ROW_GROUP_SIZE,
+        )
+    connection.close()
+    return reused
+
+
+def _reuse_player_ids(generated: Path, existing: Path) -> int:
+    """Apply persisted source-player crosswalks before match identity resolution."""
+    old_links = existing / "identity/player-links.parquet"
+    new_links = generated / "identity/player-links.parquet"
+    if not old_links.exists() or not new_links.exists():
+        return 0
+    connection = duckdb.connect()
+    connection.execute(
+        f"""
+        CREATE TABLE player_id_reuse AS
+        SELECT n.player_id AS generated_id, min(o.player_id) AS established_id
+        FROM read_parquet({_quoted(new_links)}) n
+        JOIN read_parquet({_quoted(old_links)}) o
+          USING(source,source_player_id,tour)
+        WHERE n.player_id<>o.player_id
+        GROUP BY n.player_id
+        HAVING count(DISTINCT o.player_id)=1
+        """
+    )
+    collision_count = int(
+        _required_row(
+            connection.execute(
+                "SELECT count(*) FROM (SELECT established_id FROM player_id_reuse "
+                "GROUP BY established_id HAVING count(DISTINCT generated_id)>1)"
+            )
+        )[0]
+    )
+    if collision_count:
+        connection.close()
+        raise RuntimeError(
+            f"player identity collision quarantined during refresh: {collision_count}"
+        )
+    reused = int(_required_row(connection.execute("SELECT count(*) FROM player_id_reuse"))[0])
+    if not reused:
+        connection.close()
+        return 0
+    for path in generated.glob("players/tour=*/players.parquet"):
+        _replace_parquet(
+            connection,
+            f"SELECT p.* REPLACE(coalesce(r.established_id,p.player_id) AS player_id) "
+            f"FROM read_parquet({_quoted(path)}) p LEFT JOIN player_id_reuse r "
+            "ON p.player_id=r.generated_id ORDER BY ALL",
+            path,
+            row_group_size=OBSERVATION_ROW_GROUP_SIZE,
+        )
+    for path in [
+        *generated.glob("matches/tour=*/year=*/matches.parquet"),
+        *generated.glob("fixtures/tour=*/current.parquet"),
+    ]:
+        _replace_parquet(
+            connection,
+            "SELECT p.* REPLACE ("
+            "list_transform(p.player1_id,x->coalesce(m.id_map[x],x)) AS player1_id,"
+            "list_transform(p.player2_id,x->coalesce(m.id_map[x],x)) AS player2_id,"
+            "list_transform(p.winner_id,x->coalesce(m.id_map[x],x)) AS winner_id) "
+            f"FROM read_parquet({_quoted(path)}, hive_partitioning=false) p "
+            "CROSS JOIN (SELECT map(list(generated_id),list(established_id)) id_map "
+            "FROM player_id_reuse) m "
+            "ORDER BY date NULLS LAST,tournament_id,draw,round,match_id",
+            path,
+            row_group_size=MATCH_ROW_GROUP_SIZE,
+        )
+    _replace_parquet(
+        connection,
+        f"SELECT p.* REPLACE(coalesce(r.established_id,p.player_id) AS player_id) "
+        f"FROM read_parquet({_quoted(new_links)}) p LEFT JOIN player_id_reuse r "
+        "ON p.player_id=r.generated_id ORDER BY ALL",
+        new_links,
+        row_group_size=OBSERVATION_ROW_GROUP_SIZE,
     )
     connection.close()
     return reused
@@ -2092,6 +2497,11 @@ def _refresh_years(
     with tempfile.TemporaryDirectory(prefix="open-tennis-refresh-") as temporary_name:
         temporary = Path(temporary_name)
         generated = temporary / "generated"
+        corrections = root.parent / "contributions/corrections.parquet"
+        if corrections.exists():
+            temporary_contributions = temporary / "contributions"
+            temporary_contributions.mkdir(parents=True)
+            shutil.copy2(corrections, temporary_contributions / "corrections.parquet")
         build_summary = build_dataset(
             generated,
             years,
@@ -2102,6 +2512,8 @@ def _refresh_years(
         _reuse_tournament_ids(
             generated, root, [*years, as_of.year + 1]
         )
+        _reuse_player_ids(generated, root)
+        _reuse_match_ids(generated, root, [*years, as_of.year + 1])
         staged = temporary / "staged"
         shutil.copytree(root, staged)
         baseline_catalog = temporary / "baseline-catalog.parquet"
@@ -2180,9 +2592,12 @@ def _refresh_years(
             f"WHERE year IN ({tournament_year_sql}) "
             f"ORDER BY source,source_tournament_id,tour,year,tournament_id",
         )
-        shutil.copy2(
-            generated / "identity" / "player-links.parquet",
-            staged / "identity" / "player-links.parquet",
+        old_player_links = staged / "identity/player-links.parquet"
+        new_player_links = generated / "identity/player-links.parquet"
+        _merge_parquet_query(
+            old_player_links,
+            f"SELECT * FROM read_parquet({_quoted(old_player_links)}) UNION "
+            f"SELECT * FROM read_parquet({_quoted(new_player_links)}) ORDER BY ALL",
         )
         old_conflicts = staged / "conflicts" / "conflicts.parquet"
         new_conflicts = generated / "conflicts" / "conflicts.parquet"
@@ -2555,7 +2970,7 @@ def audit_retroactive_dataset(
             "matches",
             "match_id",
             years,
-            ("status", "player1_id", "player2_id", "winner_id", "loser_id", "score"),
+            ("date", "status", "format", "player1_id", "player2_id", "winner_id", "score"),
         ),
         (
             "tournaments",
@@ -2565,9 +2980,9 @@ def audit_retroactive_dataset(
         ),
         (
             "fixtures",
-            "fixture_id",
+            "match_id",
             fixture_years,
-            ("player1_id", "player2_id", "scheduled_on", "round", "tournament_id"),
+            ("player1_id", "player2_id", "date", "round", "format", "tournament_id"),
         ),
     )
     before = {
@@ -2579,6 +2994,13 @@ def audit_retroactive_dataset(
         with tempfile.TemporaryDirectory(prefix="open-tennis-audit-") as temporary_name:
             staged = Path(temporary_name) / "data"
             shutil.copytree(root, staged)
+            corrections = root.parent / "contributions/corrections.parquet"
+            if corrections.exists():
+                staged_contributions = staged.parent / "contributions"
+                staged_contributions.mkdir(parents=True)
+                shutil.copy2(
+                    corrections, staged_contributions / "corrections.parquet"
+                )
             refresh = _refresh_years(staged, years, as_of=as_of, workers=workers)
             assembled_errors = validate_dataset(staged)
             if assembled_errors:
@@ -2665,6 +3087,7 @@ def _replace_parquet(
         query,
         temporary,
         row_group_size=row_group_size,
+        match_shaped=path.name in {"matches.parquet", "current.parquet"},
     )
     os.replace(temporary, path)
 
@@ -2973,7 +3396,8 @@ def register_views(
         if not files:
             continue
         connection.execute(
-            f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM read_parquet({_sql_list(files)}, union_by_name=true)"
+            f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM read_parquet("
+            f"{_sql_list(files)}, union_by_name=true, hive_partitioning=false)"
         )
 
 
@@ -3006,11 +3430,13 @@ def extract_dataset(
         predicates.append("t.level IN (" + ",".join(_quoted(level) for level in levels) + ")")
     where = " WHERE " + " AND ".join(predicates) if predicates else ""
     output.parent.mkdir(parents=True, exist_ok=True)
-    connection.execute(
-        f"COPY (SELECT m.* FROM matches m JOIN tournaments t USING(tournament_id, tour, year)"
-        f"{where} ORDER BY m.tour, m.year, m.tournament_id, m.draw, m.round, m.match_id) "
-        f"TO {_quoted(output)} (FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 6, "
-        f"ROW_GROUP_SIZE {MATCH_ROW_GROUP_SIZE})"
+    _copy_parquet(
+        connection,
+        f"SELECT m.* FROM matches m JOIN tournaments t USING(tournament_id, tour, year)"
+        f"{where} ORDER BY m.date NULLS LAST,m.tournament_id,m.draw,m.round,m.match_id",
+        output,
+        row_group_size=MATCH_ROW_GROUP_SIZE,
+        match_shaped=True,
     )
     return int(
         _required_row(connection.execute(f"SELECT count(*) FROM read_parquet({_quoted(output)})"))[
@@ -3022,19 +3448,22 @@ def extract_dataset(
 def add_correction(
     path: Path,
     *,
-    match_id: str,
+    entity_type: str,
+    entity_id: str,
     field: str,
     corrected_value: str,
     source_url: str,
     contributor: str,
     contributed_on: date,
 ) -> str:
+    if entity_type not in {"match", "tournament", "player"}:
+        raise ValueError("entity_type must be match, tournament, or player")
     if not source_url.startswith(("https://", "http://")):
         raise ValueError("source_url must be an HTTP(S) URL")
     correction_id = (
         "correction:"
         + hashlib.sha256(
-            "|".join([match_id, field, corrected_value, source_url]).encode()
+            "|".join([entity_type, entity_id, field, corrected_value, source_url]).encode()
         ).hexdigest()[:20]
     )
     connection = duckdb.connect()
@@ -3046,7 +3475,8 @@ def add_correction(
         connection.execute(
             """
             CREATE TABLE corrections (
-              correction_id VARCHAR, match_id VARCHAR, field VARCHAR, corrected_value VARCHAR,
+              correction_id VARCHAR, entity_type VARCHAR, entity_id VARCHAR,
+              field VARCHAR, corrected_value VARCHAR,
               source_url VARCHAR, contributor VARCHAR, contributed_on DATE,
               license VARCHAR, status VARCHAR
             )
@@ -3054,8 +3484,17 @@ def add_correction(
         )
     connection.execute("DELETE FROM corrections WHERE correction_id = ?", [correction_id])
     connection.execute(
-        "INSERT INTO corrections VALUES (?, ?, ?, ?, ?, ?, ?, 'CC0-1.0', 'proposed')",
-        [correction_id, match_id, field, corrected_value, source_url, contributor, contributed_on],
+        "INSERT INTO corrections VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CC0-1.0', 'proposed')",
+        [
+            correction_id,
+            entity_type,
+            entity_id,
+            field,
+            corrected_value,
+            source_url,
+            contributor,
+            contributed_on,
+        ],
     )
     temporary = path.with_suffix(".tmp.parquet")
     _copy_parquet(
@@ -3499,6 +3938,10 @@ def validate_dataset(
         connection.close()
         return [f"invalid catalog: {exc}"]
     paths = [str(row[0]) for row in rows]
+    catalog_dates = {row[7] for row in rows}
+    if len(catalog_dates) != 1:
+        errors.append(f"catalog contains inconsistent as_of values: {sorted(map(str, catalog_dates))}")
+    catalog_as_of = next(iter(catalog_dates), None)
     if len(paths) != len(set(paths)):
         errors.append("catalog contains duplicate paths")
     actual_paths = {
@@ -3527,7 +3970,12 @@ def validate_dataset(
         schema = [
             (item[0], item[1])
             for item in connection.execute(
-                f"DESCRIBE SELECT * FROM read_parquet({_quoted(parquet_path)})"
+                f"DESCRIBE SELECT * FROM read_parquet({_quoted(parquet_path)}"
+                + (
+                    ", hive_partitioning=false)"
+                    if table in {"matches", "fixtures"}
+                    else ")"
+                )
             ).fetchall()
         ]
         if table in schemas and schemas[table] != schema:
@@ -3544,17 +3992,80 @@ def validate_dataset(
             errors.append(f"catalog row count mismatch: {relative}")
         if tour is not None and year is not None:
             partitions.setdefault(str(table), set()).add((str(tour), int(year)))
+        if table in {"matches", "fixtures"}:
+            metadata = {
+                (key.decode() if isinstance(key, bytes) else str(key)): (
+                    value.decode() if isinstance(value, bytes) else str(value)
+                )
+                for _, key, value in connection.execute(
+                    f"SELECT * FROM parquet_kv_metadata({_quoted(parquet_path)})"
+                ).fetchall()
+            }
+            if metadata != {SCHEMA_METADATA_KEY: SCHEMA_VERSION}:
+                errors.append(f"invalid v3.2 schema metadata: {relative}")
+            parquet_rows = connection.execute(
+                f"SELECT compression,row_group_num_rows FROM parquet_metadata("
+                f"{_quoted(parquet_path)})"
+            ).fetchall()
+            if any(codec != "ZSTD" for codec, _ in parquet_rows):
+                errors.append(f"non-ZSTD match data: {relative}")
+            if any(int(size) > MATCH_ROW_GROUP_SIZE + 2048 for _, size in parquet_rows):
+                errors.append(f"oversized match row group: {relative}")
+            created_by, format_version = _required_row(
+                connection.execute(
+                    f"SELECT created_by,format_version FROM parquet_file_metadata("
+                    f"{_quoted(parquet_path)})"
+                )
+            )
+            if not str(created_by).startswith("DuckDB version v1.5.4"):
+                errors.append(f"unexpected match writer: {relative}: {created_by}")
+            if int(format_version) != 2:
+                errors.append(f"non-V2 match Parquet: {relative}")
+            dictionary_columns = {
+                str(path_name).split(".")[0]
+                for path_name, encodings in connection.execute(
+                    f"SELECT path_in_schema,encodings FROM parquet_metadata("
+                    f"{_quoted(parquet_path)})"
+                ).fetchall()
+                if "RLE_DICTIONARY" in str(encodings)
+            }
+            if not {"tour", "draw", "format", "status"}.issubset(
+                dictionary_columns
+            ):
+                errors.append(f"missing match dictionary encoding: {relative}")
+            unsorted = int(
+                _required_row(
+                    connection.execute(
+                        f"WITH physical AS (SELECT match_id,row_number() OVER () ordinal "
+                        f"FROM read_parquet({_quoted(parquet_path)}, "
+                        "hive_partitioning=false)), ordered AS (SELECT match_id,"
+                        "row_number() OVER (ORDER BY date NULLS LAST,tournament_id,draw,"
+                        f"round,match_id) ordinal FROM read_parquet({_quoted(parquet_path)}, "
+                        "hive_partitioning=false)) SELECT count(*) FROM physical p "
+                        "JOIN ordered o USING(match_id) WHERE p.ordinal<>o.ordinal"
+                    )
+                )[0]
+            )
+            if unsorted:
+                errors.append(f"unstable match ordering: {relative}: {unsorted}")
 
     expected_names = {
         "matches": list(MATCH_COLUMNS),
         "fixtures": list(FIXTURE_COLUMNS),
         "tournaments": list(TOURNAMENT_COLUMNS),
         "observations": ["match_id", "tour", "year", "source_file_id", "source_match_id"],
+        "quarantine": [
+            "tour", "year", "source_label", "source_path", "source_file_id",
+            "source_match_id", "row_fingerprint", "candidate_match_ids", "reason",
+        ],
     }
     for table, names in expected_names.items():
         actual = [name for name, _ in schemas.get(table, [])]
         if actual != names:
             errors.append(f"{table} schema mismatch: {actual}")
+    for table in ("matches", "fixtures"):
+        if schemas.get(table) != list(MATCH_SCHEMA):
+            errors.append(f"{table} type mismatch: {schemas.get(table, [])}")
     match_partitions = partitions.get("matches", set())
     for table in ("tournaments", "observations"):
         missing = match_partitions - partitions.get(table, set())
@@ -3563,6 +4074,10 @@ def validate_dataset(
 
     try:
         register_views(connection, root)
+        connection.execute(
+            f"CREATE VIEW quarantine AS SELECT * FROM read_parquet("
+            f"{_quoted(root / 'quarantine/quarantine.parquet')})"
+        )
     except (duckdb.Error, ValueError) as exc:
         connection.close()
         return [*errors, f"could not register dataset views: {exc}"]
@@ -3571,35 +4086,92 @@ def validate_dataset(
         "duplicate tournament IDs": (
             "SELECT count(*)-count(DISTINCT tournament_id) FROM tournaments"
         ),
-        "duplicate fixture IDs": "SELECT count(*)-count(DISTINCT fixture_id) FROM fixtures",
+        "duplicate fixture IDs": "SELECT count(*)-count(DISTINCT match_id) FROM fixtures",
+        "duplicate lifecycle IDs": (
+            "SELECT count(*) FROM matches m JOIN fixtures f USING(match_id)"
+        ),
         "invalid match participants": (
             "SELECT count(*) FROM matches WHERE player1_id IS NULL OR player2_id IS NULL "
-            "OR player1_id=player2_id OR winner_id=loser_id "
+            "OR list_has_any(player1_id,player2_id) "
             "OR winner_id NOT IN (player1_id,player2_id) "
-            "OR loser_id NOT IN (player1_id,player2_id)"
+            "OR len(player1_id)<>CASE format WHEN 'singles' THEN 1 ELSE 2 END "
+            "OR len(player2_id)<>CASE format WHEN 'singles' THEN 1 ELSE 2 END "
+            "OR len(player1_name)<>len(player1_id) OR len(player2_name)<>len(player2_id) "
+            "OR list_unique(player1_id)<>len(player1_id) "
+            "OR list_unique(player2_id)<>len(player2_id)"
         ),
         "invalid match values": (
             "SELECT count(*) FROM matches WHERE match_id IS NULL OR tournament_id IS NULL "
             "OR tour NOT IN ('atp','wta') OR draw NOT IN ('main','qualifying') "
-            "OR round IS NULL OR status NOT IN "
-            "('completed','walkover','retired','defaulted','abandoned')"
+            "OR tournament_name IS NULL OR round IS NULL OR format NOT IN ('singles','doubles') "
+            "OR status NOT IN ('completed','walkover','retired','defaulted','abandoned','cancelled') "
+            "OR best_of NOT IN (1,3,5) "
+            "OR (status IN ('completed','walkover') AND winner_id IS NULL) "
+            "OR (status='cancelled' AND (winner_id IS NOT NULL OR score IS NOT NULL)) "
+            "OR trim(match_id)='' OR trim(tournament_id)='' OR trim(tournament_name)='' "
+            "OR trim(round)='' OR (player1_seed IS NOT NULL AND trim(player1_seed)='') "
+            "OR (player2_seed IS NOT NULL AND trim(player2_seed)='')"
+        ),
+        "invalid match participant text": (
+            "SELECT count(*) FROM ("
+            "SELECT unnest(player1_id) participant_value,'id' participant_kind FROM matches UNION ALL "
+            "SELECT unnest(player2_id),'id' FROM matches UNION ALL "
+            "SELECT unnest(player1_name),'name' FROM matches UNION ALL "
+            "SELECT unnest(player2_name),'name' FROM matches) values_ "
+            "WHERE participant_value IS NULL OR trim(participant_value)='' "
+            "OR (participant_kind='name' AND "
+            "regexp_matches(trim(participant_value), '^(?i:tbd|unknown|qualifier|lucky loser|"
+            "winner of match( [0-9]+)?)$'))"
         ),
         "orphan match tournaments": (
             "SELECT count(*) FROM matches m LEFT JOIN tournaments t "
             "USING(tournament_id,tour,year) WHERE t.tournament_id IS NULL"
         ),
         "orphan match players": (
-            "SELECT count(*) FROM matches m LEFT JOIN players p1 ON m.player1_id=p1.player_id "
-            "LEFT JOIN players p2 ON m.player2_id=p2.player_id "
-            "WHERE p1.player_id IS NULL OR p2.player_id IS NULL"
+            "SELECT count(*) FROM (SELECT unnest(player1_id) player_id FROM matches "
+            "UNION ALL SELECT unnest(player2_id) FROM matches) ids "
+            "LEFT JOIN players p USING(player_id) WHERE p.player_id IS NULL"
         ),
         "orphan observations": (
-            "SELECT count(*) FROM observations o LEFT JOIN matches m "
+            "SELECT count(*) FROM observations o LEFT JOIN (SELECT match_id,tour,year FROM matches "
+            "UNION ALL SELECT match_id,tour,year FROM fixtures) m "
             "USING(match_id,tour,year) WHERE m.match_id IS NULL"
         ),
         "duplicate observations": (
             "SELECT count(*)-count(DISTINCT (match_id,source_file_id,source_match_id)) "
             "FROM observations"
+        ),
+        "ambiguous source mappings": (
+            "SELECT count(*) FROM (SELECT source_file_id,source_match_id "
+            "FROM observations GROUP BY ALL HAVING count(DISTINCT match_id)>1)"
+        ),
+        "canonical matches without provenance evidence": (
+            "SELECT count(*) FROM matches m WHERE NOT EXISTS (SELECT 1 FROM observations o "
+            "WHERE (o.match_id,o.tour,o.year)=(m.match_id,m.tour,m.year)) AND NOT EXISTS ("
+            "SELECT 1 FROM quarantine q WHERE q.reason='ambiguous_source_mapping' "
+            "AND list_contains(q.candidate_match_ids,m.match_id))"
+        ),
+        "ambiguous quarantine rows without candidates": (
+            "SELECT count(*) FROM quarantine WHERE reason='ambiguous_source_mapping' "
+            "AND (candidate_match_ids IS NULL OR len(candidate_match_ids)=0)"
+        ),
+        "candidates on non-ambiguous quarantine rows": (
+            "SELECT count(*) FROM quarantine WHERE reason<>'ambiguous_source_mapping' "
+            "AND candidate_match_ids IS NOT NULL"
+        ),
+        "invalid quarantine candidate IDs": (
+            "SELECT count(*) FROM (SELECT unnest(candidate_match_ids) match_id FROM quarantine "
+            "WHERE candidate_match_ids IS NOT NULL) c ANTI JOIN matches m USING(match_id)"
+        ),
+        "quarantine rows without sources": (
+            "SELECT count(*) FROM quarantine q LEFT JOIN read_parquet("
+            + _quoted(root / "coverage/source-audit.parquet")
+            + ") s USING(source_file_id) WHERE s.source_file_id IS NULL"
+        ),
+        "orphan observation sources": (
+            "SELECT count(*) FROM observations o LEFT JOIN read_parquet("
+            + _quoted(root / "coverage/source-audit.parquet")
+            + ") s USING(source_file_id) WHERE s.source_file_id IS NULL"
         ),
         "invalid tournaments": (
             "SELECT count(*) FROM tournaments WHERE tournament_id IS NULL "
@@ -3608,8 +4180,36 @@ def validate_dataset(
             "OR end_date < start_date"
         ),
         "invalid fixtures": (
-            "SELECT count(*) FROM fixtures WHERE fixture_id IS NULL OR tournament_id IS NULL "
-            "OR tour NOT IN ('atp','wta') OR draw NOT IN ('main','qualifying') OR round IS NULL"
+            "SELECT count(*) FROM fixtures WHERE match_id IS NULL OR tournament_id IS NULL "
+            "OR tour NOT IN ('atp','wta') OR draw NOT IN ('main','qualifying') OR round IS NULL "
+            "OR format NOT IN ('singles','doubles') OR status<>'fixture' "
+            "OR winner_id IS NOT NULL OR score IS NOT NULL "
+            "OR (player1_id IS NULL)<>(player1_name IS NULL) "
+            "OR (player2_id IS NULL)<>(player2_name IS NULL) "
+            "OR (player1_id IS NULL AND player1_seed IS NOT NULL) "
+            "OR (player2_id IS NULL AND player2_seed IS NOT NULL) "
+            "OR (player1_id IS NOT NULL AND list_unique(player1_id)<>len(player1_id)) "
+            "OR (player2_id IS NOT NULL AND list_unique(player2_id)<>len(player2_id)) "
+            "OR (player1_id IS NOT NULL AND player2_id IS NOT NULL "
+            "AND list_has_any(player1_id,player2_id)) "
+            "OR (player1_id IS NOT NULL AND len(player1_id)<>CASE format WHEN 'singles' THEN 1 ELSE 2 END) "
+            "OR (player2_id IS NOT NULL AND len(player2_id)<>CASE format WHEN 'singles' THEN 1 ELSE 2 END) "
+            "OR (player1_id IS NOT NULL AND len(player1_name)<>len(player1_id)) "
+            "OR (player2_id IS NOT NULL AND len(player2_name)<>len(player2_id)) "
+            "OR trim(match_id)='' OR trim(tournament_id)='' OR trim(tournament_name)='' "
+            "OR trim(round)='' OR (player1_seed IS NOT NULL AND trim(player1_seed)='') "
+            "OR (player2_seed IS NOT NULL AND trim(player2_seed)='')"
+        ),
+        "invalid fixture participant text": (
+            "SELECT count(*) FROM ("
+            "SELECT unnest(player1_id) participant_value,'id' participant_kind FROM fixtures UNION ALL "
+            "SELECT unnest(player2_id),'id' FROM fixtures UNION ALL "
+            "SELECT unnest(player1_name),'name' FROM fixtures UNION ALL "
+            "SELECT unnest(player2_name),'name' FROM fixtures) values_ "
+            "WHERE participant_value IS NULL OR trim(participant_value)='' "
+            "OR (participant_kind='name' AND "
+            "regexp_matches(trim(participant_value), '^(?i:tbd|unknown|qualifier|lucky loser|"
+            "winner of match( [0-9]+)?)$'))"
         ),
         "orphan fixture tournaments": (
             "SELECT count(*) FROM fixtures f LEFT JOIN tournaments t "
@@ -3618,6 +4218,16 @@ def validate_dataset(
         "orphan statistics": (
             "SELECT count(*) FROM match_stats s LEFT JOIN matches m "
             "USING(match_id,tour,year) WHERE m.match_id IS NULL"
+        ),
+        "tournament name drift": (
+            "SELECT count(*) FROM (SELECT tournament_id,tour,year,tournament_name FROM matches "
+            "UNION ALL SELECT tournament_id,tour,year,tournament_name FROM fixtures) m "
+            "JOIN tournaments t USING(tournament_id,tour,year) "
+            "WHERE m.tournament_name<>t.tournament_name"
+        ),
+        "fixtures without provenance": (
+            "SELECT count(*) FROM fixtures f LEFT JOIN observations o "
+            "USING(match_id,tour,year) WHERE o.match_id IS NULL"
         ),
     }
     for label, sql in checks.items():
@@ -3634,9 +4244,9 @@ def validate_dataset(
         "matches invalid participants",
         """
         SELECT tour, year, count(*) FROM matches
-        WHERE player1_id IS NULL OR player2_id IS NULL OR player1_id=player2_id
-          OR winner_id=loser_id OR winner_id NOT IN (player1_id,player2_id)
-          OR loser_id NOT IN (player1_id,player2_id)
+        WHERE player1_id IS NULL OR player2_id IS NULL
+          OR list_has_any(player1_id,player2_id)
+          OR winner_id NOT IN (player1_id,player2_id)
         GROUP BY tour, year ORDER BY tour, year
         """,
     )
@@ -3713,6 +4323,37 @@ def validate_dataset(
                     f"source reconciliation failed for {source_path}: "
                     f"{source_rows} != {normalized_rows}+{quarantined_rows}"
                 )
+
+    health_path = root / "health" / "health.parquet"
+    if health_path.exists() and catalog_as_of is not None:
+        health_mismatches = int(
+            _required_row(
+                connection.execute(
+                    f"""
+                    WITH expected AS (
+                      SELECT m.tour, DATE {_quoted(catalog_as_of.isoformat())} AS as_of,
+                        count(*)::BIGINT AS match_count,
+                        count(DISTINCT m.tournament_id)::BIGINT AS tournament_count,
+                        min(t.start_date) AS earliest_tournament_date,
+                        max(coalesce(t.end_date,t.start_date)) AS latest_tournament_date,
+                        (SELECT max(ranking_date) FROM rankings r WHERE r.tour=m.tour) AS latest_ranking_date,
+                        (SELECT count(*) FROM rankings r WHERE r.tour=m.tour)::BIGINT AS ranking_row_count,
+                        (SELECT count(*) FROM quarantine q WHERE q.tour=m.tour)::BIGINT AS quarantined_rows,
+                        CASE WHEN (SELECT count(*) FROM rankings r WHERE r.tour=m.tour)=0 THEN 'unhealthy'
+                          WHEN date_diff('day',(SELECT max(ranking_date) FROM rankings r WHERE r.tour=m.tour),
+                            DATE {_quoted(catalog_as_of.isoformat())})>14 THEN 'stale'
+                          ELSE 'healthy' END AS status
+                      FROM matches m JOIN tournaments t USING(tournament_id,tour,year)
+                      GROUP BY m.tour
+                    ), published AS (SELECT * FROM read_parquet({_quoted(health_path)}))
+                    SELECT count(*) FROM ((TABLE expected EXCEPT TABLE published)
+                      UNION ALL (TABLE published EXCEPT TABLE expected)) differences
+                    """
+                )
+            )[0]
+        )
+        if health_mismatches:
+            errors.append(f"health does not match catalog and canonical tables: {health_mismatches}")
 
     if baseline_catalog is not None:
         if not baseline_catalog.exists():

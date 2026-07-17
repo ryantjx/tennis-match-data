@@ -80,11 +80,13 @@ class YearlyDataQualityTests(unittest.TestCase):
                     f"""
                     SELECT count(*) FROM read_parquet('{files['matches']}')
                     WHERE player1_id IS NULL OR player2_id IS NULL
-                      OR player1_id=player2_id OR winner_id=loser_id
+                      OR player1_id=player2_id
                       OR winner_id NOT IN (player1_id, player2_id)
-                      OR loser_id NOT IN (player1_id, player2_id)
+                      OR len(player1_id)<>1 OR len(player2_id)<>1
+                      OR len(player1_name)<>1 OR len(player2_name)<>1
                       OR tournament_id IS NULL OR match_id IS NULL
                       OR draw NOT IN ('main','qualifying') OR round IS NULL
+                      OR format<>'singles' OR best_of NOT IN (1,3,5)
                       OR status NOT IN ('completed','walkover','retired','defaulted','abandoned')
                     """
                 ).fetchone()[0]
@@ -113,7 +115,12 @@ class YearlyDataQualityTests(unittest.TestCase):
         }
         self.assertLessEqual(
             reasons,
-            {"duplicate_source_row", "invalid_participants", "invalid_statistics"},
+            {
+                "duplicate_source_row",
+                "invalid_participants",
+                "invalid_statistics",
+                "ambiguous_source_mapping",
+            },
         )
 
 

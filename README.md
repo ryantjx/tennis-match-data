@@ -2,8 +2,9 @@
 
 A self-updating, provenance-first collection of men's and women's singles data,
 from tour level through Challenger, WTA 125, ITF, and Futures. Completed
-matches, future fixtures, and annual tournament editions are separate Parquet
-contracts so match rows stay lean and historical partitions stay immutable.
+matches and future fixtures share one 19-column Parquet contract and are
+published as separate lifecycle views. Annual tournament editions and compact
+provenance remain auxiliary tables so match rows stay lean.
 
 Repository: https://github.com/ryantjx/tennis-match-data
 
@@ -26,6 +27,8 @@ regenerated after validated data updates.
 | WTA | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet> | All WTA completed matches |
 | All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Combined ATP and WTA completed matches |
 | Tournaments | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/tournaments.parquet> | Annual ATP/WTA tournament editions |
+| Provenance | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/provenance.parquet> | Match-to-source-file mappings |
+| Sources | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/sources.parquet> | Referenced source URLs, revisions, checksums, and licences |
 
 ### Future-only downloads
 
@@ -40,22 +43,27 @@ The future-only release uses the same filenames. Change `data-latest` to
 | [WTA future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/wta.parquet) | WTA fixtures only |
 | [All future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet) | Combined ATP and WTA fixtures |
 | [Tournaments](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/tournaments.parquet) | Annual editions referenced by fixtures |
+| [Provenance](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/provenance.parquet) | Fixture-to-source-file mappings |
+| [Sources](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/sources.parquet) | Referenced source-file records |
 
-`scheduled_on` is nullable. Dated rows before the catalog's `as_of` date are
-excluded; undated tentative draw slots are retained. Query fixtures with their
-tournament metadata:
+Future files have the exact same columns and types as completed files. Their
+`date` and participant lists may be null; `winner_id` and `score` are always
+null. Dated rows before the catalog's `as_of` date are excluded, while undated
+draw slots remain:
 
 ```sql
 SELECT
-  f.tour, t.tournament_name, f.round, f.player1_name, f.player2_name,
-  f.scheduled_on, f.source_url
+  f.date, f.tour, f.tournament_name, f.round, f.format,
+  array_to_string(f.player1_name, ' / ') AS player_or_team_1,
+  array_to_string(f.player2_name, ' / ') AS player_or_team_2,
+  f.status, f.best_of
 FROM read_parquet(
   'https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet'
 ) AS f
 LEFT JOIN read_parquet(
   'https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/tournaments.parquet'
 ) AS t USING (tournament_id)
-ORDER BY f.scheduled_on NULLS LAST, f.tour, t.tournament_name;
+ORDER BY f.date NULLS LAST, f.tour, f.tournament_name;
 ```
 
 ## Quick start
@@ -179,9 +187,10 @@ contributions/corrections.parquet
 tour/year partition, row count, byte size, SHA-256 checksum, dataset as-of date,
 and pinned source revision.
 
-The `matches` fact table contains result and participant facts. Tournament
-name, classification, surface, location, and date range live once in the
-`tournaments` table. `observations` is a compact match-to-source crosswalk;
+The `matches` and `fixtures` tables use the same v3.2 match schema. Tournament
+classification, surface, location, and date range live once in the
+`tournaments` table; its canonical name is deliberately copied into match rows.
+`observations` is a compact match-to-source crosswalk;
 file-level revision, URL, checksum, licence, and reconciliation totals live in
 `source-audit.parquet`.
 
@@ -193,8 +202,8 @@ file-level revision, URL, checksum, licence, and reconciliation totals live in
 - Historical ATP rankings from 1973 and WTA rankings from 1984.
 - Match statistics where the source publishes them.
 - Reusable Wikimedia completed results and best-effort fixture draw slots.
-- Tournament `start_date` and `end_date` provide edition context; the lean
-  match contract intentionally does not infer an exact match date from them.
+- Tournament `start_date` and `end_date` provide edition context. Match `date`
+  is nullable and is never inferred from the tournament window.
 
 Coverage means complete ingestion of the approved available source files, not
 proof that every tennis match ever played is represented. Inspect
@@ -207,10 +216,17 @@ proof that every tennis match ever played is represented. Inspect
 # Empty checkout only: one-time complete historical download.
 open-tennis-data bootstrap --as-of "$(date -u +%F)"
 
+# Reproducible full builds may pin the archive revision explicitly.
+open-tennis-data build --source-revision <40-character-git-sha>
+
 # Routine updates never rebuild older history.
 open-tennis-data refresh-current --as-of "$(date -u +%F)"
 open-tennis-data refresh-fixtures --as-of "$(date -u +%F)"
 open-tennis-data audit-retroactive --as-of "$(date -u +%F)"
+
+# One-time offline migration from a checked-in v3.1 data directory.
+open-tennis-data migrate-v3-2 --data data --output staged-v3.2 \
+  --report reports/v3.2
 
 open-tennis-data validate
 python -m unittest discover -s tests -v

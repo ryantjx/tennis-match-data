@@ -1,100 +1,106 @@
-# Data validation improvement plan
+# Open Tennis Data v3.2 test plan
 
-This repository validates three public contracts: completed matches, fixtures,
-and annual tournaments. Historical data is checked on every pull request and
-weekly; routine hourly and daily refreshes may only replace the current result
-year and the current/next fixture horizon.
+The v3.2 suite treats completed results and future fixtures as lifecycle views
+of one 19-column match contract. Repository history is validated locally on
+every pull request and every weekly audit. Hourly and daily refreshes may only
+replace the current result year and current/next fixture horizon.
 
-## Test tiers
-
-1. **Unit tests** run without network access and cover normalization, score and
-   date parsing, stable identifiers, source quarantine, CLI dispatch, release
-   schema selection, and audit/PR scripts.
-2. **Repository quality tests** run `open-tennis-data validate` and
-   `tests.test_data_quality` against every checked-in ATP/WTA partition. They
-   verify catalog checksums, exact schemas, IDs, participant/result invariants,
-   tournament references, rankings, source reconciliation, and quarantine
-   reasons.
-3. **Pinned-source integration tests** build an isolated current-year dataset,
-   validate it, query it, extract a level, and create both match and fixture
-   releases. Network failures never promote partial output.
-4. **Incremental tests** use a miniature two-year repository. They hash the old
-   year, refresh the current year, and assert that older paths, row counts, and
-   checksums remain identical. A rollover case creates year N+1 without
-   rewriting years before N. A temporary remote also proves validated hourly
-   and daily refreshes commit through an automatically merged data PR.
-5. **Weekly retroactive audit** checks all local history, then rebuilds only the
-   previous/current result years and current/next fixtures. It emits
-   `retroactive-audit.json` and `retroactive-audit.md`; validated changes open a
-   review-only PR, while a no-change run publishes artifacts only.
-
-## Required schema assertions
-
-- Matches contain exactly the 25 columns documented in `docs/SCHEMA.md` and
-  always have a unique `match_id` and valid `tournament_id`.
-- Fixtures contain exactly 12 columns, always have `fixture_id`, never expose
-  `match_id`, and may have a null `scheduled_on`.
-- Tournaments contain exactly 12 columns. IDs identify annual tour editions;
-  `end_date` may be null but cannot precede `start_date`.
-- Compact observations contain only `match_id`, `tour`, `year`,
-  `source_file_id`, and `source_match_id`.
-- Result and fixture releases have different schemas; both include a validated
-  `tournaments.parquet` asset.
-
-## Retroactive audit scenarios
-
-The dedicated `tests.test_audit_workflow` suite covers changed revisions with
-no semantic difference, previous/current result corrections, future fixture
-dates, tournament-date corrections, multiple changed sources, and failed
-rebuild isolation. `test_dataset` covers no-change artifacts, source revision
-drift, stable tournament IDs, and old-partition checksum enforcement;
-`test_scripts` proves review PR creation without auto-merge. Invalid staged
-data must leave the checked-in dataset unchanged and fail the workflow after
-writing its report.
-
-## Test fixtures
-
-- `tests/fixtures/` contains offline Wikimedia draw and tournament-page samples,
-  including qualifying, Unicode players, walkovers, and nullable schedules.
-- Temporary Parquet repositories model catalog corruption, immutable old-year
-  changes, stable tournament-ID reuse, result/fixture release separation, and
-  bootstrap refusal. Tests never mutate checked-in data.
-- Mock upstream revision maps model unchanged, added, removed, and modified
-  source pages without network access.
-- Temporary bare Git repositories verify that routine refreshes create and
-  auto-merge a validated data PR, while the weekly publisher creates a review
-  PR and never invokes merge or auto-merge.
-
-## Expected artifacts
-
-- `data/catalog/catalog.parquet` is the checksum baseline and contains exactly
-  the published Parquet inventory.
-- `data/coverage/source-audit.parquet` stores one file/page revision, checksum,
-  licence, and reconciliation record per source.
-- Both release families contain ATP, WTA, men's, women's, combined, and
-  `tournaments.parquet` assets; aliases must be byte-identical.
-- Every weekly run produces `retroactive-audit.json` and
-  `retroactive-audit.md`, including source revisions/checksums, entity and field
-  changes, quarantine/reconciliation deltas, and old partitions proven
-  unchanged.
-- A no-change audit produces workflow artifacts only. A valid semantic change
-  produces affected partitions/manifests plus a review-only PR. A failed audit
-  produces reports and a failed workflow, with no data promotion or PR.
-
-## Commands and acceptance criteria
+## Required commands
 
 ```bash
 ruff check src tests
 mypy src/open_tennis_data
 coverage run -m unittest discover -s tests -v
+coverage report --fail-under=90
 open-tennis-data validate
 python -m unittest tests.test_data_quality -v
 python -m unittest tests.test_audit_workflow -v
+python -m unittest tests.test_v32_contract -v
 ```
 
-A change is accepted only when all commands pass, every catalog entry matches
-its physical Parquet file, source rows reconcile to normalized plus quarantined
-rows, release aliases are byte-identical, no file exceeds 75 MB, and protected
-historical checksums remain unchanged. The one-time lean-schema migration must
-also compare retained fields and per-tour/year/status counts before enabling
-the historical immutability gate.
+Integration CI additionally builds the current year from pinned sources,
+validates and queries it, creates an extract, refreshes fixtures, runs the
+retroactive audit, verifies both release families, promotes an unchanged copy,
+and runs the browser suite.
+
+## Contract tests
+
+- Assert exact equality with the 19 names and physical types in
+  `docs/SCHEMA.md` for every match partition, fixture partition, extract, and
+  match release asset.
+- Prove completed and future files support direct `UNION ALL` without casts or
+  projections.
+- Require `open_tennis_data_schema_version=3.2`, Parquet V2, Zstandard,
+  65,536-row limits, stable sorting, and byte-identical deterministic writes.
+- Reject rank, rank-point, country, entry, loser, fixture-ID, scheduled-date,
+  and match-level source-URL columns while confirming the auxiliary rankings
+  archive remains available.
+- Require both release families to include byte-identical ATP/men's and
+  WTA/women's aliases plus `tournaments.parquet`, `provenance.parquet`, and
+  `sources.parquet`; every asset must remain below 75 MB.
+
+## Participant, result, and identity tests
+
+- Normalize singles scalars to one-element ID/name lists and validate synthetic
+  doubles with two-element lists in stable source order.
+- Reject invalid list lengths, empty lists, null or whitespace elements,
+  placeholder players, duplicate teammates, opposing-team overlap, unequal
+  ID/name lengths, and winner lists that do not exactly match either team.
+- Allow unresolved future slots only when ID, name, and seed are consistently
+  null. Fixtures require null winner and score.
+- Validate the status domain, nullable exact dates, scalar seeds, `best_of`
+  values 1/3/5, documented singles backfills, and the retained 303 completed
+  rows with unavailable scores.
+- Verify canonical player, tournament, and match IDs survive name, metadata,
+  schedule, participant, and result changes. Test aliases, crosswalk precedence,
+  source-slot fixture completion, and collision quarantine.
+- Require copied tournament names to equal the authoritative tournament row and
+  require approved name corrections to update staged affected partitions.
+- Enforce one canonical match per source-file/source-match key and prevent one
+  lifecycle ID from remaining in both completed and future releases.
+
+## Migration tests and artifacts
+
+`open-tennis-data migrate-v3-2` reads checked-in v3.1 data without network
+access and writes only to an empty staging directory. It rewrites every match
+and fixture partition, adds fixture provenance, rebuilds the catalog, validates
+the assembled repository, and emits:
+
+- `reports/v3.2/migration-v3.2.json`
+- `reports/v3.2/migration-v3.2.md`
+
+Acceptance requires identical old/new match counts, preserved established IDs,
+zero retained-field differences, documented old/new checksums and schemas,
+recorded `best_of` backfills, isolated ambiguous provenance, and no promotion
+before complete validation. When a PR base is v3.1, the required CI contract
+job checks this migration report instead of applying the old byte-immutability
+gate. Once the base is v3.2, normal historical immutability is mandatory.
+
+## Incremental and retroactive workflow tests
+
+- Hourly fixture and daily current-year refreshes cannot change any earlier
+  year. Rollover initializes the new year and freezes the preceding one.
+- Weekly audit first validates every local partition, probes revisions for the
+  previous/current result years and current/next fixture/tournament sources,
+  and rebuilds only changed inputs in isolation.
+- Test no upstream change, revision-only/no-semantic change, previous-year
+  correction, current-year correction, fixture/date correction, multiple
+  changed sources, and invalid staged input.
+- A no-change audit publishes JSON/Markdown artifacts only. A valid change opens
+  a review PR without auto-merge. Failure preserves checked-in data and opens no
+  PR.
+- Reports include old/new revisions and checksums, entity and field deltas,
+  quarantine/reconciliation changes, validation state, and partitions proven
+  unchanged.
+
+## Browser acceptance
+
+The guided browser provides completed/future selection with identical visible
+columns, renders a singles list as one name and doubles as joined names,
+searches within list values, derives winner display from ID lists, and resolves
+safe HTTP(S) source links through provenance. Explorer SQL remains read-only.
+
+The change is accepted only when all checks pass, unit/integration coverage is
+at least 90%, catalog rows match physical files, sources reconcile, aliases are
+byte-identical, historical gates select the correct base-schema behavior, and
+no failed build or audit mutates published data.

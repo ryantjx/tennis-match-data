@@ -48,6 +48,8 @@ reference.
 | WTA | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet> | Rolling, CI-validated release | Women's singles across tour, WTA 125, qualifying, team, and ITF coverage available from approved sources. |
 | All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Rolling, CI-validated release | Combined ATP and WTA file; the most convenient source for cross-tour queries. |
 | Tournaments | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/tournaments.parquet> | Rolling, CI-validated release | Annual tournament editions referenced by the match files. |
+| Provenance | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/provenance.parquet> | Rolling, CI-validated release | Compact match-to-source mappings. |
+| Sources | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/sources.parquet> | Rolling, CI-validated release | Referenced source-file URLs, revisions, checksums, licences, and reconciliation totals. |
 
 The rolling assets are replaced only after schema, integrity, reconciliation,
 compression, row-group, file-size, and query checks pass. Their stable URLs
@@ -55,9 +57,9 @@ always point to the latest published assets rather than an immutable snapshot.
 
 ## Future matches
 
-The `future-latest` release uses fixture-specific files. Fixtures deliberately
-have no `match_id`; they join to the included `tournaments.parquet` by
-`tournament_id`.
+The `future-latest` release uses the same 19-column names, order, and types as
+`data-latest`. Fixtures have lifecycle-stable `match_id` values and join to the
+included `tournaments.parquet` by `tournament_id`.
 
 | Dataset | URL | Health | Notes |
 | --- | --- | --- | --- |
@@ -67,22 +69,26 @@ have no `match_id`; they join to the included `tournaments.parquet` by
 | WTA future matches | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/wta.parquet> | Best effort; CI-validated | Current/future WTA fixtures, including undated draw slots. |
 | All future matches | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet> | Best effort; CI-validated | Combined ATP and WTA fixtures. |
 | Tournaments | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/tournaments.parquet> | Best effort; CI-validated | Annual editions referenced by fixtures. |
+| Provenance | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/provenance.parquet> | Best effort; CI-validated | Fixture-to-source mappings. |
+| Sources | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/sources.parquet> | Best effort; CI-validated | Referenced source-file records. |
 
-Rows with a known `scheduled_on` are retained when that date is on or after the
-catalog's `as_of` date. Undated tentative draw slots are also retained.
-Participants and dates may be null. Fixtures are not a complete schedule
-service and may be revised or replaced by completed results.
+Rows with a known `date` are retained when that date is on or after the
+catalog's `as_of` date. Undated draw slots are also retained. Participant lists
+may be null; `winner_id` and `score` are null. Fixtures are not a complete
+schedule service and may be revised or converted into completed results while
+retaining `match_id`.
 
 ```sql
-SELECT f.tour, t.tournament_name, f.round,
-       f.player1_name, f.player2_name, f.scheduled_on
+SELECT f.date, f.tour, f.tournament_name, f.round, f.format,
+       array_to_string(f.player1_name, ' / ') AS player_or_team_1,
+       array_to_string(f.player2_name, ' / ') AS player_or_team_2
 FROM read_parquet(
   'https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet'
 ) AS f
 LEFT JOIN read_parquet(
   'https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/tournaments.parquet'
 ) AS t USING (tournament_id)
-ORDER BY f.scheduled_on NULLS LAST, t.tournament_name;
+ORDER BY f.date NULLS LAST, f.tournament_name;
 ```
 
 ## Key repository files
@@ -105,7 +111,7 @@ detailed provenance, rankings, statistics, or quality analysis.
 | `data/coverage/source-audit.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/coverage/source-audit.parquet> | Input file URL, revision, checksum, and row reconciliation. |
 | `data/health/health.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/health/health.parquet> | Current ATP/WTA freshness and high-level counts. Query this instead of relying on a copied status. |
 | `data/conflicts/conflicts.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/conflicts/conflicts.parquet> | Unresolved cross-source ambiguities; may be empty. |
-| `data/quarantine/quarantine.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/quarantine/quarantine.parquet> | Rejected source records and reasons; non-empty quarantine is visible rather than silently dropped. |
+| `data/quarantine/quarantine.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/quarantine/quarantine.parquet> | Rejected source records and reasons. Ambiguous mappings retain their source-file ID and candidate canonical match IDs instead of being silently dropped. |
 | `contributions/corrections.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/contributions/corrections.parquet> | Sourced CC0 community correction proposals and their status. |
 
 ## Query live health
@@ -139,7 +145,7 @@ ORDER BY tour, year, level, draw;
 - Tournament dates describe the edition, not the exact match day.
 - Tournament and player names are display attributes, not identity keys. Use the
   canonical IDs for joins.
-- Statistics, rankings, biographical attributes, schedule dates, and some
+- Statistics, rankings, biographical attributes, match dates, and some
   participants are nullable because source availability varies.
 - Source licences remain attached to file-level provenance records. See
   [DATA_LICENSE.md](DATA_LICENSE.md) before redistribution or commercial use.

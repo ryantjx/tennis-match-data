@@ -35,13 +35,20 @@
           <p class="section-kicker">GUIDED SEARCH</p>
           <h2>Find a match</h2>
         </div>
-        <p>Search players and tournaments within an ATP or WTA yearly partition. Results are limited to 10 rows per page.</p>
+        <p>Search completed or future matches with the same visible contract. Results are limited to 10 rows per page.</p>
       </div>
 
       <form class="search-grid" id="search-form">
         <label class="field search-field" for="search-query">
           <span>Player or tournament</span>
           <input id="search-query" type="search" placeholder="e.g. Serena Williams or Wimbledon" autocomplete="off">
+        </label>
+        <label class="field" for="search-kind">
+          <span>Dataset</span>
+          <select id="search-kind">
+            <option value="matches">Completed</option>
+            <option value="fixtures">Future</option>
+          </select>
         </label>
         <label class="field" for="search-tour">
           <span>Tour</span>

@@ -35,27 +35,45 @@ const TABLES = {
     path: ({tour}) => `fixtures/tour=${tour}/current.parquet`,
     year: false,
   },
+  sources: {
+    path: () => "coverage/source-audit.parquet",
+    year: false,
+  },
 };
 
 const SEARCH_COLUMNS = [
-  "start_date",
+  "date",
   "tournament_name",
   "round",
+  "format",
   "player1_name",
+  "player1_seed",
   "player2_name",
+  "player2_seed",
+  "winner_name",
   "score",
+  "best_of",
+  "status",
   "level",
   "surface",
+  "source_url",
 ];
 const SEARCH_LABELS = {
-  start_date: "Date",
+  date: "Date",
   tournament_name: "Tournament",
   round: "Round",
-  player1_name: "Player 1",
-  player2_name: "Player 2",
+  format: "Format",
+  player1_name: "Player/Team 1",
+  player1_seed: "Seed 1",
+  player2_name: "Player/Team 2",
+  player2_seed: "Seed 2",
+  winner_name: "Winner",
   score: "Score",
+  best_of: "Best of",
+  status: "Status",
   level: "Level",
   surface: "Surface",
+  source_url: "Source",
 };
 
 const state = {
@@ -69,7 +87,7 @@ const state = {
 const elements = Object.fromEntries(
   [
     "search-tab", "explorer-tab", "search-panel", "explorer-panel",
-    "search-form", "search-query", "search-tour", "search-year", "search-level",
+    "search-form", "search-query", "search-kind", "search-tour", "search-year", "search-level",
     "search-surface", "search-button", "search-status", "search-results", "search-empty",
     "search-pagination", "search-previous", "search-next", "search-page-info",
     "explorer-table", "explorer-tour", "explorer-year", "load-table", "schema-list",
@@ -79,7 +97,7 @@ const elements = Object.fromEntries(
   ].map(id => [id, document.querySelector(`#${id}`)])
 );
 
-elements["search-year"].max = currentYear;
+elements["search-year"].max = currentYear + 1;
 elements["search-year"].value = currentYear;
 elements["explorer-year"].max = currentYear;
 elements["explorer-year"].value = currentYear;
@@ -119,6 +137,17 @@ function displayValue(value, type) {
   return String(value);
 }
 
+function safeSourceLink(value) {
+  if (!value) return "—";
+  try {
+    const url = new URL(String(value));
+    if (!["http:", "https:"].includes(url.protocol)) return "—";
+    return `<a href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">Source ↗</a>`;
+  } catch {
+    return "—";
+  }
+}
+
 function renderTable(table, empty, result, labels = {}) {
   const fields = result.schema.fields;
   const columns = fields.map(field => field.name);
@@ -126,7 +155,7 @@ function renderTable(table, empty, result, labels = {}) {
   const rows = resultRows(result);
   table.innerHTML = rows.length ? (
     `<thead><tr>${columns.map(column => `<th>${escapeHtml(labels[column] ?? column)}</th>`).join("")}</tr></thead>` +
-    `<tbody>${rows.map(row => `<tr>${columns.map(column => `<td>${escapeHtml(displayValue(row[column], types[column]))}</td>`).join("")}</tr>`).join("")}</tbody>`
+    `<tbody>${rows.map(row => `<tr>${columns.map(column => `<td>${column === "source_url" ? safeSourceLink(row[column]) : escapeHtml(displayValue(row[column], types[column]))}</td>`).join("")}</tr>`).join("")}</tbody>`
   ) : "";
   empty.hidden = rows.length > 0;
 }
@@ -209,17 +238,36 @@ async function runSearch({resetPage = true} = {}) {
   elements["search-status"].textContent = "Reading the selected Parquet partition…";
   try {
     const tour = elements["search-tour"].value;
+    const kind = elements["search-kind"].value;
     const year = Number(elements["search-year"].value);
-    if (year < 1968 || year > currentYear) throw new Error(`Choose a year from 1968 to ${currentYear}.`);
-    const partitionKey = `${tour}/${year}`;
+    const maximumYear = kind === "fixtures" ? currentYear + 1 : currentYear;
+    if (year < 1968 || year > maximumYear) throw new Error(`Choose a year from 1968 to ${maximumYear}.`);
+    const partitionKey = `${kind}/${tour}/${year}`;
     if (state.search.partition !== partitionKey) {
-      await registerTable("matches", tour, year);
+      await registerTable(kind, tour, year);
       await registerTable("tournaments", tour, year);
+      await registerTable("observations", tour, year);
+      await registerTable("sources", tour, year);
       await state.connection.query(`
         CREATE OR REPLACE VIEW search_matches AS
-        SELECT m.*, t.tournament_name, t.level, t.surface, t.start_date
-        FROM matches m
+        WITH links AS (
+          SELECT o.match_id, o.tour, o.year, min(s.source_url) AS source_url
+          FROM observations o JOIN sources s USING(source_file_id)
+          WHERE starts_with(s.source_url, 'http://') OR starts_with(s.source_url, 'https://')
+          GROUP BY o.match_id, o.tour, o.year
+        )
+        SELECT m.date, m.tournament_id, m.tournament_name, m.round, m.format,
+          array_to_string(m.player1_name, ' / ') AS player1_name, m.player1_seed,
+          array_to_string(m.player2_name, ' / ') AS player2_name, m.player2_seed,
+          CASE WHEN m.winner_id=m.player1_id THEN array_to_string(m.player1_name, ' / ')
+               WHEN m.winner_id=m.player2_id THEN array_to_string(m.player2_name, ' / ')
+               ELSE NULL END AS winner_name,
+          m.score, m.best_of, m.status, t.level, t.surface, links.source_url,
+          m.match_id, m.tour, m.year, m.draw
+        FROM ${kind} m
         JOIN tournaments t USING (tournament_id, tour, year)
+        LEFT JOIN links USING(match_id, tour, year)
+        WHERE m.year=${year}
       `);
       state.search.partition = partitionKey;
     }
@@ -235,14 +283,14 @@ async function runSearch({resetPage = true} = {}) {
       SELECT ${SEARCH_COLUMNS.join(", ")}
       FROM search_matches
       WHERE ${state.search.where}
-      ORDER BY start_date DESC NULLS LAST, tournament_id, round DESC, match_id
+      ORDER BY date DESC NULLS LAST, tournament_id, round DESC, match_id
       LIMIT ${PAGE_SIZE} OFFSET ${offset}
     `);
     renderTable(elements["search-results"], elements["search-empty"], result, SEARCH_LABELS);
     updatePagination("search");
     const elapsed = Math.round(performance.now() - started);
     const noun = state.search.total === 1 ? "match" : "matches";
-    elements["search-status"].textContent = `${state.search.total.toLocaleString()} ${noun} · ${tour.toUpperCase()} ${year} · ${elapsed} ms`;
+    elements["search-status"].textContent = `${state.search.total.toLocaleString()} ${noun} · ${kind === "fixtures" ? "future" : "completed"} · ${tour.toUpperCase()} ${year} · ${elapsed} ms`;
   } catch (error) {
     elements["search-status"].textContent = error.message;
   } finally {

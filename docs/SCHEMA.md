@@ -1,71 +1,91 @@
 # Parquet schemas
 
-All published structured data is Parquet. The exact Arrow schema is the public
-contract, and `open-tennis-data validate` checks schemas, checksums, uniqueness,
-references, source reconciliation, and file limits.
-
-## Completed matches
-
-Match partitions and the `data-latest` release contain only completed result
-records. Their columns, in order, are:
+Open Tennis Data v3.2 publishes one match contract for completed results,
+future fixtures, extracts, and rolling release assets. Every match-shaped file
+has metadata `open_tennis_data_schema_version=3.2` and these 19 columns in this
+exact order:
 
 ```text
-match_id, tournament_id, tour, year, draw, round,
-player1_id, player1_name, player1_country,
-player2_id, player2_name, player2_country,
-winner_id, loser_id,
-player1_seed, player2_seed, player1_entry, player2_entry,
-player1_rank, player2_rank, player1_rank_points, player2_rank_points,
-status, score, best_of
+date, match_id, tournament_id, tournament_name, tour, year, draw, round,
+format, player1_id, player1_name, player1_seed,
+player2_id, player2_name, player2_seed,
+winner_id, status, score, best_of
 ```
 
-`match_id` is a stable canonical identifier. Result `status` is one of
-`completed`, `walkover`, `retired`, `defaulted`, or `abandoned`.
-
-## Fixtures
-
-Fixture partitions and the `future-latest` release use a separate schema:
+The physical DuckDB/Arrow types are:
 
 ```text
-fixture_id, tournament_id, tour, year, draw, round,
-player1_id, player1_name, player2_id, player2_name,
-scheduled_on, source_url
+DATE, VARCHAR, VARCHAR, VARCHAR, VARCHAR, SMALLINT, VARCHAR, VARCHAR,
+VARCHAR, VARCHAR[], VARCHAR[], VARCHAR,
+VARCHAR[], VARCHAR[], VARCHAR,
+VARCHAR[], VARCHAR, VARCHAR, TINYINT
 ```
 
-Fixtures never have a `match_id`. `scheduled_on` is nullable because a draw can
-be known before the order of play. Dated rows older than the dataset `as_of`
-date are excluded from `future-latest`; undated draw slots remain.
+Participant IDs and names and `winner_id` are always lists in Parquet. Singles
+use one-element lists; doubles use two-element lists. Current ingestion remains
+singles-only, while validators and synthetic tests support doubles.
+
+Completed rows require both participant slots. A terminal winner must exactly
+equal one participant ID list. The 303 source-declared completed results whose
+provenance has no score remain `status=completed, score=null`; validation never
+invents a score. Historical `date` is null unless the exact match date is known.
+
+Fixtures use `status=fixture`, keep `winner_id` and `score` null, and may have a
+null `date` or unresolved participant slot. Their lifecycle-stable `match_id`
+survives conversion to a completed result. A match cannot be published in both
+completed and future data.
+
+The status domain is `fixture`, `completed`, `walkover`, `retired`, `defaulted`,
+`abandoned`, and `cancelled`. `best_of` accepts source values 1, 3, and 5.
+Missing singles values are backfilled as WTA 3, ATP Grand Slam main draw 5, and
+other ATP draws 3.
 
 ## Annual tournaments
 
-Tournament partitions and each rolling release include `tournaments.parquet`:
+Tournament partitions and both rolling release families include:
 
 ```text
 tournament_id, tour, year, tournament_name, level, surface, indoor,
 start_date, end_date, city, country, source_url
 ```
 
-One ID represents one annual tour edition and is shared by its main and
-qualifying draws. IDs use `tournament_{tour}_{year}_{stable_hash}`. ATP and WTA
-editions remain separate even when they share a brand or venue. Start and end
-dates describe the tournament window, not an individual match date.
+One immutable ID represents an annual tour edition and is shared by main and
+qualifying draws. ATP and WTA editions remain distinct. `tournaments.parquet`
+is authoritative for `tournament_name`; copied names in every match row must
+match it exactly.
 
-## Auxiliary facts and provenance
+## Provenance and auxiliary data
 
-- `players`: canonical player records and source identifiers.
-- `match_stats`: sparse duration, service, and break-point totals.
-- `rankings`: long-form ranking snapshots.
-- `observations`: compact match-to-source rows containing only `match_id`,
-  `tour`, `year`, `source_file_id`, and `source_match_id`.
-- `source-audit`: one row per source file with URL, revision, checksum, licence,
-  and source/normalized/quarantined counts.
-- `tournament-sources` and `player-links`: persistent source crosswalks.
-- `coverage`, `health`, `conflicts`, `quarantine`, and `corrections`: queryable
-  quality and contribution state.
+`observations` and release `provenance.parquet` contain only:
 
-## Canonical levels
+```text
+match_id, tour, year, source_file_id, source_match_id
+```
 
-ATP values are `grand_slam`, `tour_finals`, `masters_1000`, `atp_500`,
-`atp_250`, `challenger`, `itf`, `team`, `olympics`, or `other`. WTA values are
-`grand_slam`, `tour_finals`, `wta_1000`, `wta_500`, `wta_250`, `wta_125`,
-`itf`, `team`, `olympics`, or `other`.
+`source-audit.parquet` and release `sources.parquet` store URLs, revisions,
+checksums, licences, and reconciliation totals once per referenced source file.
+Match-shaped rows never contain `source_url`.
+
+`quarantine.parquet` contains:
+
+```text
+tour, year, source_label, source_path, source_file_id, source_match_id,
+row_fingerprint, candidate_match_ids, reason
+```
+
+`candidate_match_ids` is nullable and is populated only for
+`ambiguous_source_mapping` evidence. Those rows preserve every ambiguous source
+observation without selecting a canonical identity that the source does not prove.
+
+Players, rankings, match statistics, tournament/player source crosswalks,
+coverage, health, conflicts, quarantine, and corrections keep entity-specific
+schemas. Rankings remain available as an auxiliary archive even though public
+rank and rank-point columns were removed from match rows.
+
+## Physical layout
+
+Match-shaped files use DuckDB 1.5.4, Parquet V2, Zstandard level 19, 65,536-row
+groups, a 1 MiB dictionary page limit, one writer thread, stable ordering, and
+schema-version metadata. `open-tennis-data validate` checks the contract,
+metadata, checksums, row groups, identities, references, lifecycle rules,
+provenance, and the 75 MB file limit.

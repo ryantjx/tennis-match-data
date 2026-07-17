@@ -34,7 +34,6 @@ class RetroactiveAuditWorkflowTests(unittest.TestCase):
                 "player1_id": "p1",
                 "player2_id": "p2",
                 "winner_id": "p1",
-                "loser_id": "p2",
                 "score": "6-4 6-4",
             }
         }
@@ -49,11 +48,11 @@ class RetroactiveAuditWorkflowTests(unittest.TestCase):
             }
         }
         old_fixture = {
-            "fixture-1": {
-                "fixture_id": "fixture-1",
+            "match_fixture_1": {
+                "match_id": "match_fixture_1",
                 "player1_id": "p1",
                 "player2_id": "p2",
-                "scheduled_on": None,
+                "date": None,
                 "round": "QF",
                 "tournament_id": "tournament-1",
             }
@@ -75,9 +74,9 @@ class RetroactiveAuditWorkflowTests(unittest.TestCase):
             }
         }
         new_fixture = {
-            "fixture-1": {
-                **old_fixture["fixture-1"],
-                "scheduled_on": date(2026, 7, 17),
+            "match_fixture_1": {
+                **old_fixture["match_fixture_1"],
+                "date": date(2026, 7, 17),
             }
         }
         return [
@@ -178,7 +177,7 @@ class RetroactiveAuditWorkflowTests(unittest.TestCase):
             self.assertEqual(report["changed_files"], 6)
             self.assertEqual(report["changes"]["matches"]["field_changes"]["score"], 1)
             self.assertEqual(
-                report["changes"]["fixtures"]["field_changes"]["scheduled_on"], 1
+                report["changes"]["fixtures"]["field_changes"]["date"], 1
             )
             self.assertEqual(
                 report["changes"]["tournaments"]["field_changes"]["start_date"], 1
