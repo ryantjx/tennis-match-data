@@ -7,6 +7,7 @@ from open_tennis_data.fixtures import parse_wikimedia_fixture_page
 from open_tennis_data.sources.wikimedia import (
     discover_pages,
     fetch_page_revision,
+    fetch_pages_at_revisions,
     parse_page,
     parse_tournament_page,
 )
@@ -51,8 +52,32 @@ class WikimediaTests(unittest.TestCase):
         self.assertEqual(request.call_args.args[0]["revids"], "123")
 
         request.return_value["query"]["pages"][0]["revisions"][0]["revid"] = 124
-        with self.assertRaisesRegex(RuntimeError, "revision drift"):
+        with self.assertRaisesRegex(RuntimeError, "revisions are unavailable"):
             fetch_page_revision("Recorded page", "123")
+
+    @patch("open_tennis_data.sources.wikimedia.api")
+    def test_fetch_pages_at_revisions_batches_requests(self, request):
+        request.return_value = {
+            "query": {
+                "pages": [
+                    {
+                        "pageid": 10,
+                        "revisions": [
+                            {
+                                "revid": revision,
+                                "timestamp": "2026-07-10T12:00:00Z",
+                                "slots": {"main": {"content": title}},
+                            }
+                        ],
+                    }
+                    for title, revision in (("First", 123), ("Second", 456))
+                ]
+            }
+        }
+        pages = fetch_pages_at_revisions({"First": "123", "Second": "456"})
+        self.assertEqual(set(pages), {"First", "Second"})
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(request.call_args.args[0]["revids"], "123|456")
 
     def test_tournament_page_extracts_annual_date_window(self):
         tournament_page = {

@@ -681,7 +681,7 @@ def _ingest_wikimedia(
     from open_tennis_data.sources.wikimedia import (
         discover_pages,
         fetch_page,
-        fetch_page_revision,
+        fetch_pages_at_revisions,
         fetch_pages_optional,
         parse_page,
         parse_tournament_page,
@@ -733,18 +733,22 @@ def _ingest_wikimedia(
                 snapshot_tournaments[key] = str(revision)
 
     pages: list[tuple[str, int, dict[str, Any]]] = []
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(
-                fetch_page if revision is None else fetch_page_revision,
-                title,
-                *(() if revision is None else (revision,)),
-            ): (tour, page_year)
-            for tour, page_year, title, revision in tasks
-        }
-        for future in as_completed(futures):
-            tour, page_year = futures[future]
-            pages.append((tour, page_year, future.result()))
+    if source_audit is None:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(fetch_page, title): (tour, page_year)
+                for tour, page_year, title, _ in tasks
+            }
+            for future in as_completed(futures):
+                tour, page_year = futures[future]
+                pages.append((tour, page_year, future.result()))
+    else:
+        revisions_by_title = {title: str(revision) for _, _, title, revision in tasks}
+        snapshot_pages = fetch_pages_at_revisions(revisions_by_title)
+        pages.extend(
+            (tour, page_year, snapshot_pages[title])
+            for tour, page_year, title, _ in tasks
+        )
 
     tournament_tasks: dict[tuple[str, int, str], str] = {}
     for tour, page_year, page in pages:
@@ -757,11 +761,12 @@ def _ingest_wikimedia(
     if snapshot_tournaments is None:
         tournament_pages = fetch_pages_optional(sorted(set(tournament_tasks.values())))
     else:
-        tournament_pages = {}
+        tournament_revisions = {}
         for (tour, page_year, _), title in sorted(tournament_tasks.items()):
             revision = snapshot_tournaments.get((tour, page_year, title))
             if revision is not None:
-                tournament_pages[title] = fetch_page_revision(title, revision)
+                tournament_revisions[title] = revision
+        tournament_pages = fetch_pages_at_revisions(tournament_revisions)
     tasks_by_title: dict[str, list[tuple[str, int, str]]] = {}
     for key, title in tournament_tasks.items():
         tasks_by_title.setdefault(title, []).append(key)
