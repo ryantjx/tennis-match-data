@@ -115,6 +115,8 @@ The pull-request integration job performs a live current-year build, validation,
 extract, Wikimedia refresh, revision-gated audit, normal and future download generation,
 release verification, and a no-change promotion. Coverage from that sequence is appended
 to the deterministic tests and must remain at or above 90%.
+The archive revision is resolved once per job and passed to both builds, preventing a
+moving upstream branch from invalidating the byte-for-byte determinism comparison.
 
 The required `schema-contract` job switches on the base match metadata. A v3.1
 base requires the checked migration-equivalence report; a v3.2 base activates

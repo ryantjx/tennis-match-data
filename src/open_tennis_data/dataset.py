@@ -189,8 +189,11 @@ def download_sources(
     include_rankings: bool = True,
     current_rankings_only: bool = False,
     workers: int = 12,
+    revision: str | None = None,
 ) -> tuple[list[SourceFile], str]:
-    revision = resolve_archive_revision()
+    revision = revision or resolve_archive_revision()
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ValueError("source revision must be a 40-character lowercase Git SHA")
     specs = _source_specs(years, include_rankings, current_rankings_only)
     temporary.mkdir(parents=True, exist_ok=True)
 
@@ -2033,6 +2036,7 @@ def build_dataset(
     as_of: date,
     workers: int = 12,
     current_rankings_only: bool = False,
+    source_revision: str | None = None,
 ) -> dict[str, Any]:
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -2043,6 +2047,7 @@ def build_dataset(
             years,
             workers=workers,
             current_rankings_only=current_rankings_only,
+            revision=source_revision,
         )
         generated = temporary / "generated"
         database = temporary / "build.duckdb"

@@ -53,6 +53,7 @@ def command_build(args: argparse.Namespace) -> int:
         parse_years(args.years),
         as_of=date.fromisoformat(args.as_of),
         workers=args.workers,
+        source_revision=args.source_revision,
     )
     print(
         f"built dataset as of {summary['as_of']}: {summary['catalog_rows']} files, "
@@ -217,6 +218,10 @@ def parser() -> argparse.ArgumentParser:
     build.add_argument("--as-of", default=date.today().isoformat())
     build.add_argument("--output", default="data")
     build.add_argument("--workers", type=int, default=12)
+    build.add_argument(
+        "--source-revision",
+        help="immutable 40-character archive Git SHA (resolved automatically when omitted)",
+    )
     build.set_defaults(handler=command_build)
 
     bootstrap = commands.add_parser(

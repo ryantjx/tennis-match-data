@@ -108,15 +108,20 @@ jobs:
           cache: pip
       - run: python -m pip install '.[dev]'
       - run: coverage run -m unittest discover -s tests -v
+      - name: Pin archive revision for deterministic builds
+        run: |
+          echo "SOURCE_REVISION=$(python -c 'from open_tennis_data.dataset import resolve_archive_revision; print(resolve_archive_revision())')" >> "$GITHUB_ENV"
       - name: Exercise the pinned-source build
         run: |
           coverage run --append -m open_tennis_data.cli build \
             --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
+            --source-revision "$SOURCE_REVISION" \
             --output "$RUNNER_TEMP/tennis-data"
       - name: Prove two-build byte determinism
         run: |
           open-tennis-data build \
             --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
+            --source-revision "$SOURCE_REVISION" \
             --output "$RUNNER_TEMP/tennis-data-repeat"
           python - "$RUNNER_TEMP/tennis-data" "$RUNNER_TEMP/tennis-data-repeat" <<'PY'
           import hashlib

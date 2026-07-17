@@ -26,6 +26,7 @@ from open_tennis_data.dataset import (
     audit_retroactive_dataset,
     bootstrap_dataset,
     create_direct_downloads,
+    download_sources,
     extract_dataset,
     parse_years,
     query_dataset,
@@ -61,6 +62,13 @@ class DatasetTests(unittest.TestCase):
         self.assertEqual(parse_years("2020,2022:2024"), [2020, 2022, 2023, 2024])
         with self.assertRaises(ValueError):
             parse_years("1967")
+
+    def test_download_rejects_an_invalid_explicit_source_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(ValueError, "40-character lowercase Git SHA"):
+                download_sources(
+                    Path(temporary), [2026], revision="moving-main", workers=1
+                )
 
     def test_bootstrap_refuses_an_initialized_repository(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

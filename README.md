@@ -216,6 +216,9 @@ proof that every tennis match ever played is represented. Inspect
 # Empty checkout only: one-time complete historical download.
 open-tennis-data bootstrap --as-of "$(date -u +%F)"
 
+# Reproducible full builds may pin the archive revision explicitly.
+open-tennis-data build --source-revision <40-character-git-sha>
+
 # Routine updates never rebuild older history.
 open-tennis-data refresh-current --as-of "$(date -u +%F)"
 open-tennis-data refresh-fixtures --as-of "$(date -u +%F)"
