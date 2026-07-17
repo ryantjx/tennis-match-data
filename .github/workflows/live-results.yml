@@ -3,7 +3,7 @@ name: Daily refresh of current tennis data
 on:
   workflow_dispatch:
   schedule:
-    - cron: "23 6 * * *"
+    - cron: "0 0 * * *"
 
 permissions:
   contents: write

@@ -17,7 +17,7 @@ class ScriptTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertFalse((ROOT / ".github/workflows/daily-current.yml").exists())
-        self.assertIn('cron: "23 6 * * *"', workflow)
+        self.assertIn('cron: "0 0 * * *"', workflow)
         self.assertNotIn('cron: "17 * * * *"', workflow)
         self.assertIn(
             "Refresh Wikimedia results and fixtures, source files, rankings, and "
