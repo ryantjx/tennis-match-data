@@ -307,12 +307,15 @@ class DatasetTests(unittest.TestCase):
         self_match = {**valid, "match_num": "2", "loser_id": "1", "loser_name": "Winner"}
         negative = {**valid, "match_num": "3", "l_bpSaved": "-1"}
         impossible = {**valid, "match_num": "4", "w_1stWon": "31"}
+        semantic_duplicate = {**valid, "match_num": "5"}
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "matches.csv"
             with path.open("w", encoding="utf-8", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=columns)
                 writer.writeheader()
-                writer.writerows([valid, valid, self_match, negative, impossible])
+                writer.writerows(
+                    [valid, valid, self_match, negative, impossible, semantic_duplicate]
+                )
             source = SourceFile(
                 kind="matches",
                 tour="atp",
@@ -328,6 +331,7 @@ class DatasetTests(unittest.TestCase):
             _create_source_file_table(connection, [source])
             _create_match_tables(connection, [source], date(2026, 7, 12))
             self.assertEqual(connection.execute("SELECT count(*) FROM matches").fetchone()[0], 1)
+            self.assertEqual(connection.execute("SELECT count(*) FROM observations").fetchone()[0], 2)
             self.assertEqual(
                 dict(
                     connection.execute(

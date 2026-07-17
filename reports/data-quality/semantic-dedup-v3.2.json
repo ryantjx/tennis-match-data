@@ -1,0 +1,333 @@
+{
+  "affected_partitions": [
+    "atp/1971",
+    "atp/2007",
+    "atp/2024",
+    "atp/2025",
+    "atp/2026",
+    "wta/1973",
+    "wta/1981",
+    "wta/1990"
+  ],
+  "changed_on": "2026-07-17",
+  "exact_duplicate_groups": 54,
+  "observation_rows_after": 1742580,
+  "observation_rows_before": 1742580,
+  "preserved_surviving_ids": 54,
+  "removed_match_rows": 54,
+  "review_only_variant_groups": [
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:6c9d067f0b0af3cc62e4",
+        "match:atp:baf7d6eee9ca70669892"
+      ],
+      "participant1_id": "atp:100084",
+      "participant2_id": "atp:100113",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1968_578cd16645d6",
+      "year": 1968
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:65d0aa2fd564a1af37c1",
+        "match:atp:dab36dbc8d0a41a549d6"
+      ],
+      "participant1_id": "atp:100084",
+      "participant2_id": "atp:100098",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1968_c096095c11c7",
+      "year": 1968
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:24968ad6fd9c3d5109f0",
+        "match:atp:a424c686b11f6934f540"
+      ],
+      "participant1_id": "atp:100058",
+      "participant2_id": "atp:100084",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1969_30b99272774e",
+      "year": 1969
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:b9515c7a14ba68b8ea36",
+        "match:atp:cc99b95e7a82f517667c"
+      ],
+      "participant1_id": "atp:100069",
+      "participant2_id": "atp:100121",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1969_30b99272774e",
+      "year": 1969
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:35e32e3c55b6cc7b0673",
+        "match:atp:aa58ca94de93b15b5561"
+      ],
+      "participant1_id": "atp:100087",
+      "participant2_id": "atp:100126",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1970_1cda3c833266",
+      "year": 1970
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:3c588ecd2b03e7c6a602",
+        "match:atp:9658efc1774ecede79e0"
+      ],
+      "participant1_id": "atp:100058",
+      "participant2_id": "atp:100073",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1970_8d037ea39f9f",
+      "year": 1970
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:4e2e30bee4dc7a66fdca",
+        "match:atp:eb2bf728fc2483b4f204"
+      ],
+      "participant1_id": "atp:100022",
+      "participant2_id": "atp:100060",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1970_8d037ea39f9f",
+      "year": 1970
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:0af1907434cacb31902b",
+        "match:atp:92dae169dbea32c00886"
+      ],
+      "participant1_id": "atp:100029",
+      "participant2_id": "atp:100084",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1971_d844516935ff",
+      "year": 1971
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:1425e05a11c72bf15510",
+        "match:atp:b4ce9b6becef69ce7e33"
+      ],
+      "participant1_id": "atp:100029",
+      "participant2_id": "atp:100074",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1971_d844516935ff",
+      "year": 1971
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:34f9e9c08bf855b30765",
+        "match:atp:acba8ec04fc0dd81784a"
+      ],
+      "participant1_id": "atp:100022",
+      "participant2_id": "atp:100029",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1971_d844516935ff",
+      "year": 1971
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:6053f11634bd8f16ee1f",
+        "match:atp:f6a8473f9d7bf531c613"
+      ],
+      "participant1_id": "atp:106580",
+      "participant2_id": "atp:110881",
+      "round": "RR",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_1984_97d60feed106",
+      "year": 1984
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:057f848f382c8f542666",
+        "match:atp:9e026ecdabc6af7552db"
+      ],
+      "participant1_id": "atp:103921",
+      "participant2_id": "atp:104583",
+      "round": "R32",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_2007_35db383f1476",
+      "year": 2007
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:dc7d1778d22bb34b4025",
+        "match:atp:f25e95950fae932be1c3"
+      ],
+      "participant1_id": "atp:103977",
+      "participant2_id": "atp:110685",
+      "round": "R32",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_2007_754c74d4fd37",
+      "year": 2007
+    },
+    {
+      "draw": "qualifying",
+      "match_ids": [
+        "match:atp:0bc04e677c19ef76ff34",
+        "match:atp:1653c8b4380ad6dade69"
+      ],
+      "participant1_id": "atp:103252",
+      "participant2_id": "atp:104665",
+      "round": "Q3",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_2010_51562b420a6f",
+      "year": 2010
+    },
+    {
+      "draw": "qualifying",
+      "match_ids": [
+        "match:atp:22ed71dcc67a84d1a299",
+        "match:atp:e455f6389c42f959f420"
+      ],
+      "participant1_id": "atp:105137",
+      "participant2_id": "atp:105332",
+      "round": "Q3",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_2011_44640b78bd5d",
+      "year": 2011
+    },
+    {
+      "draw": "qualifying",
+      "match_ids": [
+        "match:atp:31f037c71a8b85a03f69",
+        "match:atp:ed8592355239c5d67b68"
+      ],
+      "participant1_id": "atp:104330",
+      "participant2_id": "atp:104372",
+      "round": "Q2",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_2011_908697f77253",
+      "year": 2011
+    },
+    {
+      "draw": "qualifying",
+      "match_ids": [
+        "match:atp:ad80b21b11f39bac7bf4",
+        "match:atp:edc9aaf6156fb2aa4be8"
+      ],
+      "participant1_id": "atp:103676",
+      "participant2_id": "atp:104733",
+      "round": "Q2",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_2011_908697f77253",
+      "year": 2011
+    },
+    {
+      "draw": "qualifying",
+      "match_ids": [
+        "match:atp:f93dcb7104efb0d35d89",
+        "match:atp:fed604c84587a5e556a6"
+      ],
+      "participant1_id": "atp:104171",
+      "participant2_id": "atp:104398",
+      "round": "Q2",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_2011_908697f77253",
+      "year": 2011
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:atp:474526d7e403f118f3f6",
+        "match:atp:911d434482cd41608fdb"
+      ],
+      "participant1_id": "atp:106099",
+      "participant2_id": "atp:126207",
+      "round": "F",
+      "tour": "atp",
+      "tournament_id": "tournament_atp_2020_32a76cc87015",
+      "year": 2020
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:wta:41ee8de93c59fe833582",
+        "match:wta:b02b17495fabf4323223"
+      ],
+      "participant1_id": "wta:200992",
+      "participant2_id": "wta:201720",
+      "round": "R16",
+      "tour": "wta",
+      "tournament_id": "tournament_wta_1983_978a0fe866dc",
+      "year": 1983
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:wta:11783e724ca23d02bbe1",
+        "match:wta:963ca95d702b883a364f"
+      ],
+      "participant1_id": "wta:201048",
+      "participant2_id": "wta:201054",
+      "round": "R16",
+      "tour": "wta",
+      "tournament_id": "tournament_wta_1990_01bb01254617",
+      "year": 1990
+    },
+    {
+      "draw": "main",
+      "match_ids": [
+        "match:wta:53e9c782aee4e3f48b58",
+        "match:wta:b5c5a380c684f8e25b81"
+      ],
+      "participant1_id": "wta:200639",
+      "participant2_id": "wta:201804",
+      "round": "R32",
+      "tour": "wta",
+      "tournament_id": "tournament_wta_1990_01bb01254617",
+      "year": 1990
+    },
+    {
+      "draw": "qualifying",
+      "match_ids": [
+        "match:wta:2b03720927f9cddd2cb2",
+        "match:wta:7c3ff77b6bc6a72df2d7"
+      ],
+      "participant1_id": "wta:200627",
+      "participant2_id": "wta:201054",
+      "round": "QF",
+      "tour": "wta",
+      "tournament_id": "tournament_wta_1990_01bb01254617",
+      "year": 1990
+    },
+    {
+      "draw": "qualifying",
+      "match_ids": [
+        "match:wta:a4dbe09f57fddb1ca173",
+        "match:wta:cf2a3c9bec2050b34750"
+      ],
+      "participant1_id": "wta:200021",
+      "participant2_id": "wta:200584",
+      "round": "QF",
+      "tour": "wta",
+      "tournament_id": "tournament_wta_1990_01bb01254617",
+      "year": 1990
+    }
+  ],
+  "status": "passed"
+}

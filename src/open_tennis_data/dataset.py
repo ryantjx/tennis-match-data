@@ -466,7 +466,7 @@ def _create_match_tables(
     )
     connection.execute(
         """
-        CREATE TABLE normalized AS
+        CREATE TABLE normalized_ranked AS
         SELECT *, row_number() OVER (
           PARTITION BY canonical_match_key ORDER BY source_match_id, row_fingerprint
         ) AS match_ordinal
@@ -474,10 +474,24 @@ def _create_match_tables(
         """
     )
     connection.execute(
+        """
+        CREATE TABLE normalized AS
+        SELECT *, min(match_ordinal) OVER (PARTITION BY canonical_match_key,
+          tourney_name,surface,draw_size,tourney_level,tourney_date,
+          winner_player_id,winner_name,winner_ioc,winner_seed,winner_entry,
+          loser_player_id,loser_name,loser_ioc,loser_seed,loser_entry,
+          score,best_of,minutes,winner_rank,winner_rank_points,loser_rank,loser_rank_points,
+          w_ace,w_df,w_svpt,w_1stIn,w_1stWon,w_2ndWon,w_SvGms,w_bpSaved,w_bpFaced,
+          l_ace,l_df,l_svpt,l_1stIn,l_1stWon,l_2ndWon,l_SvGms,l_bpSaved,l_bpFaced
+        ) AS canonical_match_ordinal
+        FROM normalized_ranked
+        """
+    )
+    connection.execute(
         f"""
         CREATE TABLE matches AS
         SELECT
-          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || match_ordinal), 1, 20) AS match_id,
+          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || canonical_match_ordinal), 1, 20) AS match_id,
           event_id, tour, source_year::SMALLINT AS year, 'singles'::VARCHAR AS discipline,
           trim(coalesce(tourney_name, 'Unknown event')) AS event_name,
           canonical_level AS level, level_detail, nullif(trim(coalesce(tourney_level, '')), '') AS source_level,
@@ -517,6 +531,8 @@ def _create_match_tables(
           DATE {_quoted(as_of.isoformat())} AS last_updated_on,
           'sackmann'::VARCHAR AS preferred_source, 1::SMALLINT AS source_count
         FROM normalized
+        QUALIFY row_number() OVER (PARTITION BY canonical_match_key,canonical_match_ordinal
+          ORDER BY source_match_id,row_fingerprint)=1
         ORDER BY tour, source_year, canonical_level, event_date, event_id, round_order, match_id
         """
     )
@@ -543,7 +559,7 @@ def _create_match_tables(
         """
         CREATE TABLE match_stats AS
         SELECT
-          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || match_ordinal), 1, 20) AS match_id,
+          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || canonical_match_ordinal), 1, 20) AS match_id,
           tour, source_year::SMALLINT AS year,
           try_cast(minutes AS INTEGER) AS duration_minutes,
           try_cast(w_ace AS INTEGER) AS player1_aces,
@@ -568,6 +584,8 @@ def _create_match_tables(
         WHERE coalesce(minutes, w_ace, w_df, w_svpt, w_1stIn, w_1stWon, w_2ndWon,
                        w_SvGms, w_bpSaved, w_bpFaced, l_ace, l_df, l_svpt, l_1stIn,
                        l_1stWon, l_2ndWon, l_SvGms, l_bpSaved, l_bpFaced) IS NOT NULL
+        QUALIFY row_number() OVER (PARTITION BY canonical_match_key,canonical_match_ordinal
+          ORDER BY source_match_id,row_fingerprint)=1
         ORDER BY tour, year, match_id
         """
     )
@@ -575,7 +593,7 @@ def _create_match_tables(
         f"""
         CREATE TABLE observations AS
         SELECT
-          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || match_ordinal), 1, 20) AS match_id,
+          'match:' || tour || ':' || substr(sha256(canonical_match_key || '|' || canonical_match_ordinal), 1, 20) AS match_id,
           event_id, tour, source_year::SMALLINT AS year, 'sackmann'::VARCHAR AS source,
           source_label, coalesce(tourney_id, '') AS source_event_id, source_match_id,
           row_fingerprint, source_url, revision, source_sha256,
@@ -1316,6 +1334,14 @@ def _create_identity_and_reports(
     )
     connection.execute(
         """
+        CREATE TABLE match_aliases (
+          retired_match_id VARCHAR, canonical_match_id VARCHAR,
+          reason VARCHAR, changed_on DATE
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE conflicts AS SELECT * FROM wikimedia_conflicts
         """
     )
@@ -1973,6 +1999,7 @@ def _write_partitioned_tables(
             OBSERVATION_ROW_GROUP_SIZE,
         ),
         ("player_links", "identity/player-links.parquet", OBSERVATION_ROW_GROUP_SIZE),
+        ("match_aliases", "identity/match-aliases.parquet", OBSERVATION_ROW_GROUP_SIZE),
         ("conflicts", "conflicts/conflicts.parquet", MATCH_ROW_GROUP_SIZE),
         ("quarantine", "quarantine/quarantine.parquet", MATCH_ROW_GROUP_SIZE),
     ):
@@ -4058,6 +4085,9 @@ def validate_dataset(
             "tour", "year", "source_label", "source_path", "source_file_id",
             "source_match_id", "row_fingerprint", "candidate_match_ids", "reason",
         ],
+        "match_aliases": [
+            "retired_match_id", "canonical_match_id", "reason", "changed_on"
+        ],
     }
     for table, names in expected_names.items():
         actual = [name for name, _ in schemas.get(table, [])]
@@ -4078,11 +4108,39 @@ def validate_dataset(
             f"CREATE VIEW quarantine AS SELECT * FROM read_parquet("
             f"{_quoted(root / 'quarantine/quarantine.parquet')})"
         )
+        connection.execute(
+            f"CREATE VIEW match_aliases AS SELECT * FROM read_parquet("
+            f"{_quoted(root / 'identity/match-aliases.parquet')})"
+        )
     except (duckdb.Error, ValueError) as exc:
         connection.close()
         return [*errors, f"could not register dataset views: {exc}"]
     checks = {
         "duplicate match IDs": "SELECT count(*)-count(DISTINCT match_id) FROM matches",
+        "exact semantic duplicate matches": (
+            "SELECT count(*) FROM (SELECT m.* EXCLUDE(match_id),"
+            "s.* EXCLUDE(match_id,tour,year),count(*) n FROM matches m "
+            "LEFT JOIN match_stats s USING(match_id,tour,year) GROUP BY ALL HAVING n>1)"
+        ),
+        "duplicate retired match aliases": (
+            "SELECT count(*)-count(DISTINCT retired_match_id) FROM match_aliases"
+        ),
+        "invalid match alias values": (
+            "SELECT count(*) FROM match_aliases WHERE retired_match_id=canonical_match_id "
+            "OR reason<>'semantic_duplicate' OR changed_on IS NULL"
+        ),
+        "match alias targets missing": (
+            "SELECT count(*) FROM match_aliases a ANTI JOIN matches m "
+            "ON a.canonical_match_id=m.match_id"
+        ),
+        "retired match aliases still canonical": (
+            "SELECT count(*) FROM match_aliases a JOIN matches m "
+            "ON a.retired_match_id=m.match_id"
+        ),
+        "cyclic or chained match aliases": (
+            "SELECT count(*) FROM match_aliases a JOIN match_aliases b "
+            "ON a.canonical_match_id=b.retired_match_id"
+        ),
         "duplicate tournament IDs": (
             "SELECT count(*)-count(DISTINCT tournament_id) FROM tournaments"
         ),
