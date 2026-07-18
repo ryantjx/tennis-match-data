@@ -28,6 +28,7 @@ regenerated after validated data updates.
 | All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Combined ATP and WTA completed matches |
 | Tournaments | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/tournaments.parquet> | Annual ATP/WTA tournament editions |
 | Provenance | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/provenance.parquet> | Match-to-source-file mappings |
+| Ambiguities | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/ambiguities.parquet> | Ambiguous source observations and candidate match IDs |
 | Sources | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/sources.parquet> | Referenced source URLs, revisions, checksums, and licences |
 
 ### Future-only downloads
@@ -44,6 +45,7 @@ The future-only release uses the same filenames. Change `data-latest` to
 | [All future matches](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet) | Combined ATP and WTA fixtures |
 | [Tournaments](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/tournaments.parquet) | Annual editions referenced by fixtures |
 | [Provenance](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/provenance.parquet) | Fixture-to-source-file mappings |
+| [Ambiguities](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/ambiguities.parquet) | Ambiguous source evidence; normally an empty typed asset |
 | [Sources](https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/sources.parquet) | Referenced source-file records |
 
 Future files have the exact same columns and types as completed files. Their

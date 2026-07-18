@@ -54,11 +54,13 @@ MATCH_DOWNLOAD_FILENAMES = (
 )
 TOURNAMENT_DOWNLOAD_FILENAME = "tournaments.parquet"
 PROVENANCE_DOWNLOAD_FILENAME = "provenance.parquet"
+AMBIGUITIES_DOWNLOAD_FILENAME = "ambiguities.parquet"
 SOURCES_DOWNLOAD_FILENAME = "sources.parquet"
 RELEASE_FILENAMES = (
     *MATCH_DOWNLOAD_FILENAMES,
     TOURNAMENT_DOWNLOAD_FILENAME,
     PROVENANCE_DOWNLOAD_FILENAME,
+    AMBIGUITIES_DOWNLOAD_FILENAME,
     SOURCES_DOWNLOAD_FILENAME,
 )
 FIXTURE_COLUMNS = MATCH_COLUMNS
@@ -95,6 +97,21 @@ class SourceFile:
     url: str
     revision: str
     sha256: str
+
+
+def _source_file_id_expression(
+    source_label: str,
+    source_url: str,
+    revision: str,
+    content_sha256: str,
+    kind: str,
+    tour: str,
+) -> str:
+    """Return the canonical contextual source-file ID SQL expression."""
+    return (
+        "'source_file_' || substr(sha256(concat_ws('|', "
+        f"{source_label}, {source_url}, {revision}, {content_sha256}, {kind}, {tour})), 1, 20)"
+    )
 
 
 def sha256_file(path: Path) -> str:
@@ -360,13 +377,20 @@ def _create_match_tables(
     connection: duckdb.DuckDBPyConnection, sources: Sequence[SourceFile], as_of: date
 ) -> None:
     match_sources = [item for item in sources if item.kind == "matches"]
+    source_file_id = _source_file_id_expression(
+        "files.source_label",
+        "files.source_url",
+        "files.revision",
+        "files.sha256",
+        "files.kind",
+        "files.tour",
+    )
     connection.execute(
         f"""
         CREATE TABLE raw_matches AS
         SELECT csv.*, files.tour, files.year AS source_year, files.source_label,
                files.source_path, files.source_url, files.revision, files.sha256 AS source_sha256,
-               'source_file_' || substr(sha256(concat_ws('|', 'sackmann', files.source_url,
-                 files.revision, files.sha256)), 1, 20) AS source_file_id
+               {source_file_id} AS source_file_id
         FROM read_csv({_sql_list(item.local_path for item in match_sources)},
                       header=true, all_varchar=true, union_by_name=true,
                       filename=true, null_padding=true) csv
@@ -1425,11 +1449,13 @@ def _create_identity_and_reports(
         FROM matches m GROUP BY tour ORDER BY tour
         """
     )
+    sackmann_source_file_id = _source_file_id_expression(
+        "f.source_label", "f.source_url", "f.revision", "f.sha256", "f.kind", "f.tour"
+    )
     connection.execute(
-        """
+        f"""
         CREATE TABLE source_audit AS
-        SELECT 'source_file_' || substr(sha256(concat_ws('|', 'sackmann', f.source_url,
-                 f.revision, f.sha256)), 1, 20) AS source_file_id,
+        SELECT {sackmann_source_file_id} AS source_file_id,
           f.kind, f.tour, f.year, f.source_label, f.source_path, f.source_url,
           f.revision, f.sha256, 'CC-BY-NC-SA-4.0'::VARCHAR AS license,
           CASE
@@ -1566,7 +1592,7 @@ def _create_lean_tables(connection: duckdb.DuckDBPyConnection, as_of: date) -> N
     connection.execute(
         """
         CREATE TABLE matches_lean AS
-        SELECT m.played_on AS date, m.match_id, et.tournament_id,
+        SELECT coalesce(m.played_on, et.start_date) AS date, m.match_id, et.tournament_id,
           et.tournament_name, m.tour, m.year::SMALLINT AS year, m.draw, m.round,
           m.discipline AS format,
           [m.player1_id]::VARCHAR[] AS player1_id,
@@ -1654,19 +1680,23 @@ def _create_lean_tables(connection: duckdb.DuckDBPyConnection, as_of: date) -> N
           AND correction.field='best_of' AND correction.entity_id=match.match_id
         """
     )
+    match_source_file_id = _source_file_id_expression(
+        "source_label", "source_url", "revision", "source_sha256", "'matches'", "tour"
+    )
+    fixture_source_file_id = _source_file_id_expression(
+        "'wikimedia'", "a.source_url", "a.revision", "a.sha256", "a.kind", "a.tour"
+    )
     connection.execute(
-        """
+        f"""
         CREATE TABLE observations_lean AS
         WITH combined AS (
           SELECT match_id, tour, year,
-            'source_file_' || substr(sha256(concat_ws('|', source, source_url,
-              revision, source_sha256)), 1, 20) AS source_file_id,
+            {match_source_file_id} AS source_file_id,
             source_match_id
           FROM observations
           UNION ALL
           SELECT f.fixture_id AS match_id, f.tour, f.year,
-            'source_file_' || substr(sha256(concat_ws('|', 'wikimedia', a.source_url,
-              a.revision, a.sha256)), 1, 20) AS source_file_id,
+            {fixture_source_file_id} AS source_file_id,
             f.source_match_id
           FROM fixtures f
           JOIN wikimedia_page_audit a ON a.kind='fixtures' AND a.tour=f.tour
@@ -1690,24 +1720,28 @@ def _create_lean_tables(connection: duckdb.DuckDBPyConnection, as_of: date) -> N
         ORDER BY et.source, source_tournament_id, et.tour, et.year, et.tournament_id
         """
     )
+    wikimedia_match_source_file_id = _source_file_id_expression(
+        "source_label", "source_url", "revision", "source_sha256", "'matches'", "tour"
+    )
+    wikimedia_audit_source_file_id = _source_file_id_expression(
+        "'wikimedia'", "source_url", "revision", "sha256", "kind", "tour"
+    )
     connection.execute(
-        """
+        f"""
         CREATE TABLE source_audit_lean AS
         SELECT * FROM source_audit
         UNION ALL BY NAME
-        SELECT 'source_file_' || substr(sha256(concat_ws('|', source, source_url,
-                 revision, source_sha256)), 1, 20) AS source_file_id,
-          'matches'::VARCHAR AS kind, tour, year, source AS source_label,
+        SELECT {wikimedia_match_source_file_id} AS source_file_id,
+          'matches'::VARCHAR AS kind, tour, year, source_label,
           source_url AS source_path, source_url, revision, source_sha256 AS sha256,
           'CC-BY-SA-4.0'::VARCHAR AS license,
           count(*)::BIGINT AS source_rows, count(*)::BIGINT AS normalized_rows,
           0::BIGINT AS quarantined_rows
         FROM observations
         WHERE source <> 'sackmann'
-        GROUP BY source, tour, year, source_url, revision, source_sha256
+        GROUP BY source_label, tour, year, source_url, revision, source_sha256
         UNION ALL BY NAME
-        SELECT 'source_file_' || substr(sha256(concat_ws('|', 'wikimedia', source_url,
-                 revision, sha256)), 1, 20) AS source_file_id,
+        SELECT {wikimedia_audit_source_file_id} AS source_file_id,
           kind, tour, year, 'wikimedia'::VARCHAR AS source_label,
           title AS source_path, source_url, revision, sha256,
           'CC-BY-SA-4.0'::VARCHAR AS license,
@@ -1815,12 +1849,14 @@ def create_direct_downloads(
         (root / "observations").glob("tour=*/year=*/observations.parquet")
     )
     source_audit = root / "coverage" / "source-audit.parquet"
+    quarantine = root / "quarantine" / "quarantine.parquet"
     if (
         not match_files
         or not fixture_files
         or not tournament_files
         or not observation_files
         or not source_audit.exists()
+        or not quarantine.exists()
     ):
         raise ValueError("downloads require match, fixture, and tournament Parquet files")
 
@@ -1833,13 +1869,21 @@ def create_direct_downloads(
     if not isinstance(as_of, date):
         raise ValueError(f"catalog as_of must be a DATE, got {as_of!r}")
     source_files = fixture_files if future_only else match_files
-    records_query = (
-        f"SELECT * FROM read_parquet({_sql_list(source_files)}, "
+    source_records = (
+        f"read_parquet({_sql_list(source_files)}, "
         "union_by_name=true, hive_partitioning=false)"
     )
+    records_query = f"SELECT * FROM {source_records}"
     if future_only:
         records_query += (
             f" WHERE date IS NULL OR date >= DATE {_quoted(as_of.isoformat())}"
+        )
+    else:
+        records_query = (
+            f"SELECT records.* REPLACE (coalesce(records.date, tournaments.start_date) AS date) "
+            f"FROM {source_records} records LEFT JOIN read_parquet("
+            f"{_sql_list(tournament_files)}, union_by_name=true, hive_partitioning=false) "
+            "tournaments USING(tournament_id, tour, year)"
         )
     order = "date NULLS LAST, tournament_id, draw, round, match_id"
     output.mkdir(parents=True, exist_ok=True)
@@ -1896,9 +1940,27 @@ def create_direct_downloads(
     )
     _copy_parquet(
         connection,
+        f"WITH records AS ({records_query}), candidates AS ("
+        f"SELECT q.tour,q.year,q.source_file_id,q.source_match_id,"
+        f"candidate.match_id,q.reason FROM read_parquet({_quoted(quarantine)}) q "
+        "CROSS JOIN unnest(q.candidate_match_ids) candidate(match_id) JOIN records r "
+        "ON candidate.match_id=r.match_id AND q.tour=r.tour AND q.year=r.year "
+        "WHERE q.reason='ambiguous_source_mapping') "
+        "SELECT tour,year,source_file_id,source_match_id,"
+        "list(match_id ORDER BY match_id)::VARCHAR[] AS candidate_match_ids,reason "
+        "FROM candidates GROUP BY tour,year,source_file_id,source_match_id,reason "
+        "ORDER BY tour,year,source_file_id,source_match_id",
+        output / AMBIGUITIES_DOWNLOAD_FILENAME,
+        row_group_size=OBSERVATION_ROW_GROUP_SIZE,
+        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+    )
+    _copy_parquet(
+        connection,
         f"SELECT s.* FROM read_parquet({_quoted(source_audit)}) s "
-        f"JOIN (SELECT DISTINCT source_file_id FROM read_parquet("
-        f"{_quoted(output / PROVENANCE_DOWNLOAD_FILENAME)})) p USING(source_file_id) "
+        f"JOIN (SELECT source_file_id FROM read_parquet("
+        f"{_quoted(output / PROVENANCE_DOWNLOAD_FILENAME)}) UNION SELECT source_file_id "
+        f"FROM read_parquet({_quoted(output / AMBIGUITIES_DOWNLOAD_FILENAME)})) p "
+        "USING(source_file_id) "
         "ORDER BY kind,tour,year,source_label,source_file_id",
         output / SOURCES_DOWNLOAD_FILENAME,
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
@@ -1931,6 +1993,19 @@ def create_direct_downloads(
             "fixtures": rows if future_only else 0,
             "bytes": path.stat().st_size,
         }
+        if not future_only:
+            undated_rows = int(
+                _required_row(
+                    connection.execute(
+                        f"SELECT count(*) FROM read_parquet({_quoted(path)}) WHERE date IS NULL"
+                    )
+                )[0]
+            )
+            if undated_rows:
+                raise RuntimeError(
+                    f"completed direct download contains {undated_rows} undated rows: "
+                    f"{filename}"
+                )
         if future_only:
             invalid_rows = int(
                 _required_row(
@@ -1960,7 +2035,11 @@ def create_direct_downloads(
         "fixtures": 0,
         "bytes": tournament_path.stat().st_size,
     }
-    for filename in (PROVENANCE_DOWNLOAD_FILENAME, SOURCES_DOWNLOAD_FILENAME):
+    for filename in (
+        PROVENANCE_DOWNLOAD_FILENAME,
+        AMBIGUITIES_DOWNLOAD_FILENAME,
+        SOURCES_DOWNLOAD_FILENAME,
+    ):
         path = output / filename
         rows = int(
             _required_row(
@@ -1968,6 +2047,16 @@ def create_direct_downloads(
             )[0]
         )
         summary[filename] = {"rows": rows, "fixtures": 0, "bytes": path.stat().st_size}
+    duplicate_source_ids = int(
+        _required_row(
+            connection.execute(
+                f"SELECT count(*)-count(DISTINCT source_file_id) FROM read_parquet("
+                f"{_quoted(output / SOURCES_DOWNLOAD_FILENAME)})"
+            )
+        )[0]
+    )
+    if duplicate_source_ids:
+        raise RuntimeError(f"direct download contains {duplicate_source_ids} duplicate source IDs")
     if sha256_file(output / "atp.parquet") != sha256_file(output / "mens.parquet"):
         raise RuntimeError("ATP and men's direct download aliases differ")
     if sha256_file(output / "wta.parquet") != sha256_file(output / "womens.parquet"):
@@ -4204,6 +4293,7 @@ def validate_dataset(
             "OR trim(round)='' OR (player1_seed IS NOT NULL AND trim(player1_seed)='') "
             "OR (player2_seed IS NOT NULL AND trim(player2_seed)='')"
         ),
+        "matches without dates": "SELECT count(*) FROM matches WHERE date IS NULL",
         "invalid match participant text": (
             "SELECT count(*) FROM ("
             "SELECT unnest(player1_id) participant_value,'id' participant_kind FROM matches UNION ALL "
@@ -4404,6 +4494,20 @@ def validate_dataset(
 
     source_audit_path = root / "coverage" / "source-audit.parquet"
     if source_audit_path.exists():
+        expected_source_file_id = _source_file_id_expression(
+            "source_label", "source_url", "revision", "sha256", "kind", "tour"
+        )
+        duplicate_source_ids, invalid_source_ids = _required_row(
+            connection.execute(
+                f"SELECT count(*)-count(DISTINCT source_file_id), "
+                f"count(*) FILTER (WHERE source_file_id<>{expected_source_file_id}) "
+                f"FROM read_parquet({_quoted(source_audit_path)})"
+            )
+        )
+        if int(duplicate_source_ids):
+            errors.append(f"duplicate source file IDs: {int(duplicate_source_ids)}")
+        if int(invalid_source_ids):
+            errors.append(f"non-canonical source file IDs: {int(invalid_source_ids)}")
         for source_path, source_rows, normalized_rows, quarantined_rows in connection.execute(
             f"SELECT source_path, source_rows, normalized_rows, quarantined_rows "
             f"FROM read_parquet({_quoted(source_audit_path)}) WHERE kind='matches'"

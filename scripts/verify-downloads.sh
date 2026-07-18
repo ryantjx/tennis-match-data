@@ -7,7 +7,7 @@ mode=${2:-all}
 manifest="$(cd "$(dirname "$0")" && pwd)/release-assets.txt"
 files=()
 while IFS= read -r filename; do files+=("$filename"); done < "$manifest"
-test "${#files[@]}" -eq 8
+test "${#files[@]}" -eq 9
 for filename in "${files[@]}"; do
   test -f "$directory/$filename"
 done
@@ -65,6 +65,12 @@ for path in match_paths:
         ).fetchone()[0]
         if invalid_past:
             raise SystemExit(f"past fixtures in {path.name}: {invalid_past}")
+    else:
+        undated = connection.execute(
+            f"SELECT count(*) FROM read_parquet('{path}') WHERE date IS NULL"
+        ).fetchone()[0]
+        if undated:
+            raise SystemExit(f"completed matches without dates in {path.name}: {undated}")
 tournaments = directory / "tournaments.parquet"
 if tournaments.stat().st_size > 75 * 1024 * 1024:
     raise SystemExit("download exceeds 75 MB: tournaments.parquet")
@@ -86,6 +92,14 @@ if [row[0] for row in connection.execute(
     f"DESCRIBE SELECT * FROM read_parquet('{directory / 'provenance.parquet'}')"
 ).fetchall()] != ["match_id", "tour", "year", "source_file_id", "source_match_id"]:
     raise SystemExit("unexpected provenance.parquet schema")
+if [(row[0], row[1]) for row in connection.execute(
+    f"DESCRIBE SELECT * FROM read_parquet('{directory / 'ambiguities.parquet'}')"
+).fetchall()] != [
+    ("tour", "VARCHAR"), ("year", "SMALLINT"), ("source_file_id", "VARCHAR"),
+    ("source_match_id", "VARCHAR"), ("candidate_match_ids", "VARCHAR[]"),
+    ("reason", "VARCHAR"),
+]:
+    raise SystemExit("unexpected ambiguities.parquet schema")
 source_columns = [row[0] for row in connection.execute(
     f"DESCRIBE SELECT * FROM read_parquet('{directory / 'sources.parquet'}')"
 ).fetchall()]
@@ -94,7 +108,13 @@ for required in ("source_file_id", "source_url", "revision", "sha256", "license"
         raise SystemExit(f"sources.parquet is missing {required}")
 records = directory / "all-matches.parquet"
 provenance = directory / "provenance.parquet"
+ambiguities = directory / "ambiguities.parquet"
 sources = directory / "sources.parquet"
+duplicate_sources = connection.execute(
+    f"SELECT count(*)-count(DISTINCT source_file_id) FROM read_parquet('{sources}')"
+).fetchone()[0]
+if duplicate_sources:
+    raise SystemExit(f"sources contains {duplicate_sources} duplicate source IDs")
 missing_matches = connection.execute(
     f"SELECT count(*) FROM read_parquet('{provenance}') p ANTI JOIN "
     f"read_parquet('{records}') m USING(match_id,tour,year)"
@@ -107,9 +127,40 @@ missing_sources = connection.execute(
 ).fetchone()[0]
 if missing_sources:
     raise SystemExit(f"provenance references {missing_sources} missing sources")
+invalid_ambiguities = connection.execute(
+    f"SELECT count(*) FROM read_parquet('{ambiguities}') "
+    "WHERE reason<>'ambiguous_source_mapping' OR candidate_match_ids IS NULL "
+    "OR len(candidate_match_ids)=0"
+).fetchone()[0]
+if invalid_ambiguities:
+    raise SystemExit(f"ambiguities contains {invalid_ambiguities} invalid rows")
+missing_ambiguity_matches = connection.execute(
+    f"SELECT count(*) FROM (SELECT tour,year,unnest(candidate_match_ids) match_id "
+    f"FROM read_parquet('{ambiguities}')) a ANTI JOIN read_parquet('{records}') m "
+    "USING(match_id,tour,year)"
+).fetchone()[0]
+if missing_ambiguity_matches:
+    raise SystemExit(f"ambiguities references {missing_ambiguity_matches} missing matches")
+missing_ambiguity_sources = connection.execute(
+    f"SELECT count(*) FROM read_parquet('{ambiguities}') a ANTI JOIN "
+    f"read_parquet('{sources}') s USING(source_file_id)"
+).fetchone()[0]
+if missing_ambiguity_sources:
+    raise SystemExit(f"ambiguities references {missing_ambiguity_sources} missing sources")
+matches_without_evidence = connection.execute(
+    f"WITH ambiguity_candidates AS (SELECT tour,year,unnest(candidate_match_ids) match_id "
+    f"FROM read_parquet('{ambiguities}')) SELECT count(*) FROM read_parquet('{records}') m "
+    f"WHERE NOT EXISTS (SELECT 1 FROM read_parquet('{provenance}') p "
+    "WHERE (p.match_id,p.tour,p.year)=(m.match_id,m.tour,m.year)) "
+    "AND NOT EXISTS (SELECT 1 FROM ambiguity_candidates a "
+    "WHERE (a.match_id,a.tour,a.year)=(m.match_id,m.tour,m.year))"
+).fetchone()[0]
+if matches_without_evidence:
+    raise SystemExit(f"release contains {matches_without_evidence} matches without evidence")
 unused_sources = connection.execute(
     f"SELECT count(*) FROM read_parquet('{sources}') s ANTI JOIN "
-    f"(SELECT DISTINCT source_file_id FROM read_parquet('{provenance}')) p "
+    f"(SELECT source_file_id FROM read_parquet('{provenance}') UNION "
+    f"SELECT source_file_id FROM read_parquet('{ambiguities}')) p "
     "USING(source_file_id)"
 ).fetchone()[0]
 if unused_sources:

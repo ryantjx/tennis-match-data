@@ -332,6 +332,15 @@ class DatasetTests(unittest.TestCase):
             _create_match_tables(connection, [source], date(2026, 7, 12))
             self.assertEqual(connection.execute("SELECT count(*) FROM matches").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT count(*) FROM observations").fetchone()[0], 2)
+            observation_source_id = connection.execute(
+                "SELECT 'source_file_' || substr(sha256(concat_ws('|', source_label, "
+                "source_url, revision, source_sha256, 'matches', tour)), 1, 20) "
+                "FROM observations LIMIT 1"
+            ).fetchone()[0]
+            raw_source_id = connection.execute(
+                "SELECT source_file_id FROM raw_matches LIMIT 1"
+            ).fetchone()[0]
+            self.assertEqual(observation_source_id, raw_source_id)
             self.assertEqual(
                 dict(
                     connection.execute(
@@ -360,7 +369,10 @@ class DatasetTests(unittest.TestCase):
             coverage = root / "coverage/coverage.parquet"
             self.replace_test_parquet(
                 matches,
-                f"SELECT * REPLACE (player1_id AS player2_id) FROM read_parquet('{matches}')",
+                f"WITH numbered AS (SELECT *,row_number() OVER (ORDER BY match_id) rn "
+                f"FROM read_parquet('{matches}')) SELECT * EXCLUDE(rn) REPLACE ("
+                "player1_id AS player2_id,CASE WHEN rn=1 THEN NULL::DATE ELSE date END AS date) "
+                "FROM numbered",
             )
             self.replace_test_parquet(
                 statistics,
@@ -377,6 +389,7 @@ class DatasetTests(unittest.TestCase):
             self.assertTrue(
                 any(error.startswith("matches invalid participants atp/1969:") for error in errors)
             )
+            self.assertIn("matches without dates: 1", errors)
             self.assertTrue(
                 any(error.startswith("statistics invalid values atp/1991:") for error in errors)
             )
@@ -511,6 +524,24 @@ class DatasetTests(unittest.TestCase):
                 any(
                     "invalid quarantine candidate IDs" in error
                     for error in validate_dataset(quarantine_root)
+                )
+            )
+
+            source_root = base / "source-data"
+            shutil.copytree(DATA, source_root, copy_function=os.link)
+            sources = source_root / "coverage/source-audit.parquet"
+            self.replace_test_parquet(
+                sources,
+                f"WITH numbered AS (SELECT *,row_number() OVER (ORDER BY kind,tour,year,"
+                f"source_file_id) rn FROM read_parquet('{sources}')) SELECT * EXCLUDE(rn) "
+                "REPLACE(CASE WHEN rn=1 THEN 'source_file_invalid' ELSE source_file_id END "
+                "AS source_file_id) FROM numbered",
+            )
+            self.rebuild_test_catalog(source_root)
+            self.assertTrue(
+                any(
+                    "non-canonical source file IDs" in error
+                    for error in validate_dataset(source_root)
                 )
             )
 
@@ -654,10 +685,31 @@ class DatasetTests(unittest.TestCase):
                 )
             (root / "catalog").mkdir(parents=True)
             (root / "coverage").mkdir(parents=True)
+            (root / "quarantine").mkdir(parents=True)
             shutil.copy2(DATA / "catalog" / "catalog.parquet", root / "catalog/catalog.parquet")
             shutil.copy2(
                 DATA / "coverage/source-audit.parquet",
                 root / "coverage/source-audit.parquet",
+            )
+            match_id, tour, year = connection.execute(
+                f"SELECT match_id,tour,year FROM read_parquet("
+                f"'{root / 'matches/tour=atp/year=2026/matches.parquet'}',"
+                "hive_partitioning=false) ORDER BY match_id LIMIT 1"
+            ).fetchone()
+            source_file_id = connection.execute(
+                f"SELECT source_file_id FROM read_parquet("
+                f"'{root / 'observations/tour=atp/year=2026/observations.parquet'}') "
+                "WHERE match_id=? ORDER BY source_file_id LIMIT 1",
+                [match_id],
+            ).fetchone()[0]
+            connection.execute(
+                f"COPY (SELECT '{tour}'::VARCHAR AS tour,{year}::SMALLINT AS \"year\","
+                f"'wikimedia'::VARCHAR source_label,'test'::VARCHAR source_path,"
+                f"'{source_file_id}'::VARCHAR source_file_id,"
+                f"'ambiguous-test'::VARCHAR source_match_id,'test'::VARCHAR row_fingerprint,"
+                f"['{match_id}']::VARCHAR[] candidate_match_ids,"
+                f"'ambiguous_source_mapping'::VARCHAR reason) TO "
+                f"'{root / 'quarantine/quarantine.parquet'}' (FORMAT PARQUET)"
             )
 
             summary = create_direct_downloads(root, output)
@@ -671,6 +723,7 @@ class DatasetTests(unittest.TestCase):
                     "all-matches.parquet",
                     "tournaments.parquet",
                     "provenance.parquet",
+                    "ambiguities.parquet",
                     "sources.parquet",
                 },
             )
@@ -682,12 +735,21 @@ class DatasetTests(unittest.TestCase):
                 (output / "wta.parquet").read_bytes(),
                 (output / "womens.parquet").read_bytes(),
             )
-            rows, tours = connection.execute(
-                f"SELECT count(*), count(DISTINCT tour) "
+            rows, tours, undated = connection.execute(
+                f"SELECT count(*), count(DISTINCT tour), "
+                f"count(*) FILTER (WHERE date IS NULL) "
                 f"FROM read_parquet('{output / 'all-matches.parquet'}')"
             ).fetchone()
             self.assertEqual(rows, 20)
             self.assertEqual(tours, 2)
+            self.assertEqual(undated, 0)
+            self.assertEqual(
+                connection.execute(
+                    f"SELECT count(*) FROM (SELECT unnest(candidate_match_ids) "
+                    f"FROM read_parquet('{output / 'ambiguities.parquet'}'))"
+                ).fetchone()[0],
+                1,
+            )
             metadata = dict(
                 (key.decode(), value.decode())
                 for _, key, value in connection.execute(
@@ -708,6 +770,13 @@ class DatasetTests(unittest.TestCase):
             self.assertEqual(future_tours, 2)
             self.assertEqual(past_dates, 0)
             self.assertEqual(undated, 2)
+            self.assertEqual(
+                connection.execute(
+                    f"SELECT count(*) FROM read_parquet("
+                    f"'{future_output / 'ambiguities.parquet'}')"
+                ).fetchone()[0],
+                0,
+            )
 
     def test_correction_is_deterministic_parquet(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -275,6 +275,30 @@ def _parameter_map(template: Any) -> dict[str, str]:
 def _date_range(value: str, year: int) -> tuple[date | None, date | None]:
     plain = _plain(value).replace("–", "-").replace("—", "-")
     plain = re.sub(r"(\d)(?:st|nd|rd|th)\b", r"\1", plain, flags=re.I)
+    cross_month = re.search(
+        r"(?P<start>\d{1,2})\s+(?P<start_month>[A-Za-z]+)\s*-\s*"
+        r"(?P<end>\d{1,2})\s+(?P<end_month>[A-Za-z]+)"
+        r"(?:\s*,?\s*(?P<year>\d{4}))?",
+        plain,
+    ) or re.search(
+        r"(?P<start_month>[A-Za-z]+)\s+(?P<start>\d{1,2})\s*-\s*"
+        r"(?P<end_month>[A-Za-z]+)\s+(?P<end>\d{1,2})"
+        r"(?:\s*,?\s*(?P<year>\d{4}))?",
+        plain,
+    )
+    if cross_month:
+        start_month = MONTHS.get(cross_month.group("start_month").lower())
+        end_month = MONTHS.get(cross_month.group("end_month").lower())
+        end_year = int(cross_month.group("year") or year)
+        start_year = end_year - 1 if start_month and end_month and start_month > end_month else end_year
+        if start_month and end_month:
+            try:
+                return (
+                    date(start_year, start_month, int(cross_month.group("start"))),
+                    date(end_year, end_month, int(cross_month.group("end"))),
+                )
+            except ValueError:
+                return None, None
     patterns = (
         re.search(
             r"(?P<start>\d{1,2})\s*-\s*(?P<end>\d{1,2})\s+"
@@ -323,7 +347,8 @@ def parse_tournament_page(page: Mapping[str, Any], tour: str, year: int) -> dict
     code = mwparserfromhell.parse(str(page["content"]))
     for template in code.filter_templates(recursive=True):
         name = _plain(str(template.name)).lower()
-        if "infobox" in name and "tennis" in name:
+        normalized_name = re.sub(r"[^a-z]", "", name)
+        if ("infobox" in name and "tennis" in name) or normalized_name == "tenniseventinfo":
             parameters = {
                 str(key).strip().lower().replace(" ", "_"): value
                 for key, value in _parameter_map(template).items()

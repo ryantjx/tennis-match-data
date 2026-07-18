@@ -94,16 +94,18 @@ The validation and yearly tests jointly enforce these rules:
   `duplicate_source_row`, `invalid_participants`, `invalid_statistics`, or
   `ambiguous_source_mapping`, and source
   reconciliation must satisfy `source_rows = normalized_rows + quarantined_rows`.
-- Match and tournament dates may be null. Optional statistics, fixture
-  participants, and player biography values may remain null. The 303 completed
-  results whose source lacks a score remain valid with `score=null`.
+- Completed match dates are required; the exact match day falls back to the
+  source tournament start date. Tournament metadata, future fixture dates,
+  optional statistics, fixture participants, and player biography values may
+  remain null. The 303 completed results whose source lacks a score remain
+  valid with `score=null`.
 
 ## Download expectations
 
 Normal and future rolling downloads use the same v3.2 19-column schema. Future
 dates must be on or after catalog `as_of`; undated slots remain. Both release
-families include `tournaments.parquet`, `provenance.parquet`, and
-`sources.parquet`.
+families include `tournaments.parquet`, `provenance.parquet`,
+`ambiguities.parquet`, and `sources.parquet`.
 
 For both release families, tests require the five match/fixture files plus the tournament
 file, identical ATP/men's and WTA/women's aliases, exact schema-version metadata,

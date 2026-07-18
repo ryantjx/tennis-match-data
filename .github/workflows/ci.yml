@@ -63,7 +63,45 @@ jobs:
           raise SystemExit(0 if metadata.get("open_tennis_data_schema_version") == "3.2" else 1)
           PY
           then
-            if test -f reports/data-quality/semantic-dedup-v3.2.json; then
+            if test -f reports/data-quality/audit-remediation-v3.2.json; then
+              python - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+          report = json.loads(
+              Path("reports/data-quality/audit-remediation-v3.2.json").read_text()
+          )
+          assert report["status"] == "passed"
+          before, after = report["before"], report["after"]
+          assert before["match_rows"] == after["match_rows"]
+          assert before["observation_rows"] == after["observation_rows"]
+          assert before["null_match_dates"] == 1_742_406
+          assert after["null_match_dates"] == 0
+          assert before["source_rows"] == after["source_rows"] == 502
+          assert before["distinct_source_ids"] == 414
+          assert after["distinct_source_ids"] == 502
+          assert before["matches_without_direct_provenance"] == 115
+          assert after["matches_without_direct_provenance"] == 115
+          assert after["ambiguity_candidate_matches"] == 120
+          assert after["matches_without_any_evidence"] == 0
+          assert report["retained_match_field_differences"] == 0
+          assert report["retained_observation_field_differences"] == 0
+          assert len(report["affected_match_partitions"]) == 118
+          assert all(row["status"] == "stale" for row in after["health"])
+          assert all(
+              row["latest_ranking_date"] == "2026-06-08" for row in after["health"]
+          )
+          expected = {f"data/{path}" for path in report["changed_data_files"]}
+          changed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", f"origin/{os.environ['BASE_REF']}...HEAD", "--", "data"],
+              text=True,
+          ).splitlines())
+          assert changed == expected, {"unexpected": changed - expected, "missing": expected - changed}
+          PY
+              open-tennis-data validate
+              python scripts/remediate-audit-v3.2.py --check
+            elif test -f reports/data-quality/semantic-dedup-v3.2.json; then
               python - <<'PY'
           import json
           import os

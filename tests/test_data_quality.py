@@ -80,6 +80,7 @@ class YearlyDataQualityTests(unittest.TestCase):
                     f"""
                     SELECT count(*) FROM read_parquet('{files['matches']}')
                     WHERE player1_id IS NULL OR player2_id IS NULL
+                      OR date IS NULL
                       OR player1_id=player2_id
                       OR winner_id NOT IN (player1_id, player2_id)
                       OR len(player1_id)<>1 OR len(player2_id)<>1
@@ -91,6 +92,23 @@ class YearlyDataQualityTests(unittest.TestCase):
                     """
                 ).fetchone()[0]
                 self.assertEqual(invalid_matches, 0)
+
+    def test_health_truthfully_reports_the_14_day_ranking_threshold(self) -> None:
+        rows = self.connection.execute(
+            f"SELECT tour,as_of,latest_ranking_date,ranking_row_count,status "
+            f"FROM read_parquet('{DATA / 'health/health.parquet'}') ORDER BY tour"
+        ).fetchall()
+        self.assertEqual({row[0] for row in rows}, {"atp", "wta"})
+        for tour, as_of, latest_ranking, ranking_rows, status in rows:
+            with self.subTest(tour=tour):
+                expected = (
+                    "unhealthy"
+                    if ranking_rows == 0
+                    else "stale"
+                    if (as_of - latest_ranking).days > 14
+                    else "healthy"
+                )
+                self.assertEqual(status, expected)
 
     def test_ranking_years_follow_documented_coverage(self) -> None:
         expected = {
