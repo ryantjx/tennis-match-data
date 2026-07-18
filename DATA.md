@@ -37,8 +37,9 @@ Check `health.parquet` and the relevant coverage rows before analysis.
 ## Match downloads
 
 The `data-latest` release is the easiest result entry point. Match files contain
-completed matches only; `tournaments.parquet` contains the annual editions they
-reference.
+only completed rows backed by accepted day-precision match evidence;
+`tournaments.parquet` contains the annual editions they reference. Canonical
+history with unresolved dates remains in `data/matches/` and is not discarded.
 
 | Dataset | URL | Health | Notes |
 | --- | --- | --- | --- |
@@ -107,6 +108,7 @@ detailed provenance, rankings, statistics, or quality analysis.
 | `data/match_stats/` | <https://github.com/ryantjx/tennis-match-data/tree/main/data/match_stats> | Duration, serve, return, and break-point facts where a source publishes them. Absence means unavailable, not zero. |
 | `data/rankings/` | <https://github.com/ryantjx/tennis-match-data/tree/main/data/rankings> | Long-form ranking snapshots. Ranking freshness directly affects the tour health status. |
 | `data/observations/` | <https://github.com/ryantjx/tennis-match-data/tree/main/data/observations> | Compact `match_id` to source-file/source-match crosswalk. File metadata is stored once in `source-audit.parquet`. |
+| `data/date_observations/` | <https://github.com/ryantjx/tennis-match-data/tree/main/data/date_observations> | Accepted day-precision match dates, source IDs, row fingerprints, and conservative reconciliation methods. This internal evidence is not a tenth release asset. |
 | `data/fixtures/` | <https://github.com/ryantjx/tennis-match-data/tree/main/data/fixtures> | Current/next-year best-effort fixtures by tour, published separately in `future-latest`. |
 | `data/identity/tournament-sources.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/identity/tournament-sources.parquet> | Persistent source crosswalks that keep annual tournament IDs stable after metadata corrections. |
 | `data/identity/match-aliases.parquet` | <https://raw.githubusercontent.com/ryantjx/tennis-match-data/main/data/identity/match-aliases.parquet> | Backward resolution from retired exact-duplicate match IDs to their surviving canonical IDs. |
@@ -145,9 +147,11 @@ ORDER BY tour, year, level, draw;
 
 - Coverage means complete ingestion of approved available sources, not proof
   that every tennis match ever played is present.
-- A completed match `date` is the exact match day when available and otherwise
-  the source tournament start date; join tournament metadata when that
-  distinction matters.
+- A canonical completed match `date` is set only from accepted day-precision
+  match evidence. It remains null when exact evidence is unavailable or
+  conflicting; tournament timing is never substituted. Rolling completed
+  downloads therefore represent the exact-dated subset, not full canonical
+  history.
 - Tournament and player names are display attributes, not identity keys. Use the
   canonical IDs for joins.
 - Statistics, rankings, biographical attributes, future fixture dates, and

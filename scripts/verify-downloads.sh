@@ -157,6 +157,23 @@ matches_without_evidence = connection.execute(
 ).fetchone()[0]
 if matches_without_evidence:
     raise SystemExit(f"release contains {matches_without_evidence} matches without evidence")
+if not future_only:
+    without_exact_date_evidence = connection.execute(
+        f"SELECT count(*) FROM read_parquet('{records}') m WHERE NOT EXISTS ("
+        f"SELECT 1 FROM read_parquet('{provenance}') p JOIN read_parquet('{sources}') s "
+        "USING(source_file_id) WHERE (p.match_id,p.tour,p.year)=(m.match_id,m.tour,m.year) "
+        "AND s.kind='match_dates')"
+    ).fetchone()[0]
+    if without_exact_date_evidence:
+        raise SystemExit(
+            f"completed release contains {without_exact_date_evidence} rows without exact-date evidence"
+        )
+    nonterminal = connection.execute(
+        f"SELECT count(*) FROM read_parquet('{records}') WHERE status NOT IN "
+        "('completed','walkover','retired','defaulted','abandoned')"
+    ).fetchone()[0]
+    if nonterminal:
+        raise SystemExit(f"completed release contains {nonterminal} nonterminal rows")
 unused_sources = connection.execute(
     f"SELECT count(*) FROM read_parquet('{sources}') s ANTI JOIN "
     f"(SELECT source_file_id FROM read_parquet('{provenance}') UNION "

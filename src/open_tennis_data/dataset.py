@@ -1449,6 +1449,8 @@ def _create_identity_and_reports(
         FROM matches m GROUP BY tour ORDER BY tour
         """
     )
+
+
     sackmann_source_file_id = _source_file_id_expression(
         "f.source_label", "f.source_url", "f.revision", "f.sha256", "f.kind", "f.tour"
     )
@@ -1472,6 +1474,154 @@ def _create_identity_and_reports(
         FROM source_files f ORDER BY kind, tour, year, source_label
         """
     )
+
+
+def _ingest_exact_match_dates(
+    connection: duckdb.DuckDBPyConnection,
+    temporary: Path,
+    years: Sequence[int],
+    *,
+    as_of: date,
+    include_live_apis: bool = False,
+) -> dict[str, int]:
+    """Ingest approved day-precision evidence and conservatively reconcile it."""
+    from open_tennis_data.exact_dates import (
+        CanonicalMatch,
+        fetch_live_completed_sources,
+        fetch_tennis_data_file,
+        parse_tennis_data_file,
+        quarantine_conflicting_dates,
+        reconcile_date_rows,
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE date_observations (
+          match_id VARCHAR, tour VARCHAR, year SMALLINT, played_on DATE,
+          source_file_id VARCHAR, source_match_id VARCHAR, date_precision VARCHAR,
+          match_method VARCHAR, row_fingerprint VARCHAR
+        )
+        """
+    )
+    eligible = [
+        (tour, year)
+        for tour in TOURS
+        for year in sorted(set(years))
+        if year >= (2000 if tour == "atp" else 2007)
+    ]
+    if not eligible:
+        return {"sources": 0, "rows": 0, "matched": 0, "quarantined": 0}
+
+    canonical = [
+        CanonicalMatch(*row)
+        for row in connection.execute(
+            "SELECT match_id,tour,year,event_name,event_start_date,NULL::DATE,"
+            "round,player1_name,player2_name,score FROM matches"
+        ).fetchall()
+    ]
+    sources = []
+    exact_rows = []
+    rejects: list[dict[str, Any]] = []
+    for tour, year in eligible:
+        local, url = fetch_tennis_data_file(
+            tour, year, temporary / f"tennis-data-{tour}-{year}"
+        )
+        source, parsed, invalid = parse_tennis_data_file(local, tour, year, url)
+        sources.append(source)
+        exact_rows.extend(parsed)
+        rejects.extend(invalid)
+    if include_live_apis and as_of.year in years:
+        for source, parsed, invalid in fetch_live_completed_sources(as_of.year, as_of):
+            sources.append(source)
+            exact_rows.extend(parsed)
+            rejects.extend(invalid)
+    source_by_id = {source.source_file_id: source for source in sources}
+
+    reconciled, conflicts = quarantine_conflicting_dates(
+        reconcile_date_rows(exact_rows, canonical)
+    )
+    accepted = [item for item in reconciled if item.match_id is not None]
+    rejected_reconciliations = [item for item in (*reconciled, *conflicts) if item.reason]
+    match_year = {item.match_id: item.year for item in canonical}
+    if accepted:
+        connection.executemany(
+            "INSERT INTO date_observations VALUES (?, ?, ?, ?, ?, ?, 'day', ?, ?)",
+            [
+                (
+                    item.match_id,
+                    item.row.tour,
+                    match_year[str(item.match_id)],
+                    item.row.played_on,
+                    item.row.source_file_id,
+                    item.row.source_match_id,
+                    item.match_method,
+                    item.row.row_fingerprint,
+                )
+                for item in accepted
+            ],
+        )
+    rejects.extend(
+        {
+            "tour": item.row.tour,
+            "year": item.row.source_year,
+            "source_label": source_by_id[item.row.source_file_id].source_label,
+            "source_path": source_by_id[item.row.source_file_id].source_path,
+            "source_file_id": item.row.source_file_id,
+            "source_match_id": item.row.source_match_id,
+            "row_fingerprint": item.row.row_fingerprint,
+            "candidate_match_ids": list(item.candidate_match_ids) or None,
+            "reason": item.reason,
+        }
+        for item in rejected_reconciliations
+    )
+    if rejects:
+        connection.executemany(
+            "INSERT INTO quarantine VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    item["tour"], item["year"], item["source_label"], item["source_path"],
+                    item["source_file_id"], item["source_match_id"], item["row_fingerprint"],
+                    item["candidate_match_ids"], item["reason"],
+                )
+                for item in rejects
+            ],
+        )
+    accepted_by_source: dict[str, int] = {}
+    rejected_by_source: dict[str, int] = {}
+    for item in accepted:
+        accepted_by_source[item.row.source_file_id] = accepted_by_source.get(
+            item.row.source_file_id, 0
+        ) + 1
+    for reject in rejects:
+        identifier = str(reject["source_file_id"])
+        rejected_by_source[identifier] = rejected_by_source.get(identifier, 0) + 1
+    connection.executemany(
+        "INSERT INTO source_audit VALUES (?, 'match_dates', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                source.source_file_id, source.tour, source.year, source.source_label,
+                source.source_path, source.source_url, source.revision, source.sha256,
+                source.license, source.source_rows,
+                accepted_by_source.get(source.source_file_id, 0),
+                rejected_by_source.get(source.source_file_id, 0),
+            )
+            for source in sources
+        ],
+    )
+    connection.execute(
+        """
+        UPDATE matches AS match SET played_on=evidence.played_on, played_on_precision='day'
+        FROM (SELECT match_id,min(played_on) AS played_on FROM date_observations
+              GROUP BY match_id HAVING count(DISTINCT played_on)=1) evidence
+        WHERE evidence.match_id=match.match_id
+        """
+    )
+    return {
+        "sources": len(sources),
+        "rows": sum(source.source_rows for source in sources),
+        "matched": len(accepted),
+        "quarantined": len(rejects),
+    }
 
 
 def _create_lean_tables(connection: duckdb.DuckDBPyConnection, as_of: date) -> None:
@@ -1592,7 +1742,7 @@ def _create_lean_tables(connection: duckdb.DuckDBPyConnection, as_of: date) -> N
     connection.execute(
         """
         CREATE TABLE matches_lean AS
-        SELECT coalesce(m.played_on, et.start_date) AS date, m.match_id, et.tournament_id,
+        SELECT m.played_on AS date, m.match_id, et.tournament_id,
           et.tournament_name, m.tour, m.year::SMALLINT AS year, m.draw, m.round,
           m.discipline AS format,
           [m.player1_id]::VARCHAR[] AS player1_id,
@@ -1848,6 +1998,9 @@ def create_direct_downloads(
     observation_files = sorted(
         (root / "observations").glob("tour=*/year=*/observations.parquet")
     )
+    date_observation_files = sorted(
+        (root / "date_observations").glob("tour=*/year=*/date-observations.parquet")
+    )
     source_audit = root / "coverage" / "source-audit.parquet"
     quarantine = root / "quarantine" / "quarantine.parquet"
     if (
@@ -1855,6 +2008,7 @@ def create_direct_downloads(
         or not fixture_files
         or not tournament_files
         or not observation_files
+        or (not future_only and not date_observation_files)
         or not source_audit.exists()
         or not quarantine.exists()
     ):
@@ -1880,10 +2034,10 @@ def create_direct_downloads(
         )
     else:
         records_query = (
-            f"SELECT records.* REPLACE (coalesce(records.date, tournaments.start_date) AS date) "
-            f"FROM {source_records} records LEFT JOIN read_parquet("
-            f"{_sql_list(tournament_files)}, union_by_name=true, hive_partitioning=false) "
-            "tournaments USING(tournament_id, tour, year)"
+            f"SELECT records.* FROM {source_records} records "
+            f"SEMI JOIN read_parquet({_sql_list(date_observation_files)}, "
+            "union_by_name=true, hive_partitioning=false) evidence "
+            "USING(match_id,tour,year) WHERE records.date IS NOT NULL"
         )
     order = "date NULLS LAST, tournament_id, draw, round, match_id"
     output.mkdir(parents=True, exist_ok=True)
@@ -1931,7 +2085,15 @@ def create_direct_downloads(
         connection,
         f"WITH records AS ({records_query}), observations AS ("
         f"SELECT * FROM read_parquet({_sql_list(observation_files)}, "
-        "union_by_name=true, hive_partitioning=false)) "
+        "union_by_name=true, hive_partitioning=false)"
+        + (
+            f" UNION ALL SELECT match_id,tour,year,source_file_id,source_match_id "
+            f"FROM read_parquet({_sql_list(date_observation_files)}, "
+            "union_by_name=true,hive_partitioning=false)"
+            if not future_only
+            else ""
+        )
+        + ") "
         "SELECT DISTINCT o.* FROM observations o JOIN records r "
         "USING(match_id,tour,year) ORDER BY tour,year,source_file_id,source_match_id,match_id",
         output / PROVENANCE_DOWNLOAD_FILENAME,
@@ -2074,6 +2236,11 @@ def _write_partitioned_tables(
         ("tournaments", "tournaments.parquet", MATCH_ROW_GROUP_SIZE),
         ("match_stats", "match-stats.parquet", OBSERVATION_ROW_GROUP_SIZE),
         ("observations", "observations.parquet", OBSERVATION_ROW_GROUP_SIZE),
+        (
+            "date_observations",
+            "date-observations.parquet",
+            OBSERVATION_ROW_GROUP_SIZE,
+        ),
         ("rankings", "rankings.parquet", RANKING_ROW_GROUP_SIZE),
     ):
         partitions = connection.execute(
@@ -2196,6 +2363,7 @@ def build_dataset(
     current_rankings_only: bool = False,
     source_revision: str | None = None,
     wikimedia_source_audit: Path | None = None,
+    include_live_exact_date_apis: bool = False,
 ) -> dict[str, Any]:
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -2233,6 +2401,19 @@ def build_dataset(
         )
         _create_ranking_tables(connection, sources)
         _create_identity_and_reports(connection, sources, as_of)
+        exact_dates = _ingest_exact_match_dates(
+            connection,
+            temporary / "exact-date-sources",
+            years,
+            as_of=as_of,
+            include_live_apis=include_live_exact_date_apis,
+        )
+        print(
+            "Exact dates: "
+            f"{exact_dates['matched']}/{exact_dates['rows']} rows matched; "
+            f"{exact_dates['quarantined']} quarantined",
+            flush=True,
+        )
         contribution_path = output.parent / "contributions" / "corrections.parquet"
         if contribution_path.exists():
             correction_columns = {
@@ -2658,6 +2839,7 @@ def _refresh_years(
             as_of=as_of,
             workers=workers,
             current_rankings_only=True,
+            include_live_exact_date_apis=True,
         )
         _reuse_tournament_ids(
             generated, root, [*years, as_of.year + 1]
@@ -2672,6 +2854,7 @@ def _refresh_years(
         partition_specs = (
             ("matches", "matches.parquet"),
             ("observations", "observations.parquet"),
+            ("date_observations", "date-observations.parquet"),
             ("match_stats", "match-stats.parquet"),
             ("rankings", "rankings.parquet"),
         )
@@ -2716,11 +2899,11 @@ def _refresh_years(
         _merge_parquet_query(
             old_audit,
             f"SELECT * FROM read_parquet({_quoted(old_audit)}) WHERE "
-            f"(kind='matches' AND year NOT IN ({year_sql})) OR "
+            f"(kind IN ('matches','match_dates') AND year NOT IN ({year_sql})) OR "
             f"(kind='rankings' AND source_label<>'current') OR "
             f"(kind IN ('fixtures','tournaments') AND year NOT IN ({tournament_year_sql})) "
             f"UNION ALL BY NAME SELECT * FROM read_parquet({_quoted(new_audit)}) WHERE "
-            f"(kind='matches' AND year IN ({year_sql})) OR kind IN ('rankings','players') OR "
+            f"(kind IN ('matches','match_dates') AND year IN ({year_sql})) OR kind IN ('rankings','players') OR "
             f"(kind IN ('fixtures','tournaments') AND year IN ({tournament_year_sql})) "
             f"ORDER BY kind,tour,year,source_label",
         )
@@ -3538,6 +3721,7 @@ def register_views(
         "tournaments",
         "match_stats",
         "observations",
+        "date_observations",
         "rankings",
         "players",
         "fixtures",
@@ -4204,6 +4388,10 @@ def validate_dataset(
         "fixtures": list(FIXTURE_COLUMNS),
         "tournaments": list(TOURNAMENT_COLUMNS),
         "observations": ["match_id", "tour", "year", "source_file_id", "source_match_id"],
+        "date_observations": [
+            "match_id", "tour", "year", "played_on", "source_file_id",
+            "source_match_id", "date_precision", "match_method", "row_fingerprint",
+        ],
         "quarantine": [
             "tour", "year", "source_label", "source_path", "source_file_id",
             "source_match_id", "row_fingerprint", "candidate_match_ids", "reason",
@@ -4293,7 +4481,6 @@ def validate_dataset(
             "OR trim(round)='' OR (player1_seed IS NOT NULL AND trim(player1_seed)='') "
             "OR (player2_seed IS NOT NULL AND trim(player2_seed)='')"
         ),
-        "matches without dates": "SELECT count(*) FROM matches WHERE date IS NULL",
         "invalid match participant text": (
             "SELECT count(*) FROM ("
             "SELECT unnest(player1_id) participant_value,'id' participant_kind FROM matches UNION ALL "
@@ -4334,11 +4521,13 @@ def validate_dataset(
             "AND list_contains(q.candidate_match_ids,m.match_id))"
         ),
         "ambiguous quarantine rows without candidates": (
-            "SELECT count(*) FROM quarantine WHERE reason='ambiguous_source_mapping' "
+            "SELECT count(*) FROM quarantine WHERE reason IN "
+            "('ambiguous_source_mapping','ambiguous_exact_date') "
             "AND (candidate_match_ids IS NULL OR len(candidate_match_ids)=0)"
         ),
         "candidates on non-ambiguous quarantine rows": (
-            "SELECT count(*) FROM quarantine WHERE reason<>'ambiguous_source_mapping' "
+            "SELECT count(*) FROM quarantine WHERE reason NOT IN "
+            "('ambiguous_source_mapping','ambiguous_exact_date','conflicting_exact_date') "
             "AND candidate_match_ids IS NOT NULL"
         ),
         "invalid quarantine candidate IDs": (
@@ -4354,6 +4543,37 @@ def validate_dataset(
             "SELECT count(*) FROM observations o LEFT JOIN read_parquet("
             + _quoted(root / "coverage/source-audit.parquet")
             + ") s USING(source_file_id) WHERE s.source_file_id IS NULL"
+        ),
+        "orphan exact date observations": (
+            "SELECT count(*) FROM date_observations o ANTI JOIN matches m "
+            "USING(match_id,tour,year)"
+        ),
+        "orphan exact date sources": (
+            "SELECT count(*) FROM date_observations o LEFT JOIN read_parquet("
+            + _quoted(root / "coverage/source-audit.parquet")
+            + ") s USING(source_file_id) WHERE s.source_file_id IS NULL"
+        ),
+        "invalid exact date observations": (
+            "SELECT count(*) FROM date_observations WHERE played_on IS NULL "
+            "OR date_precision<>'day' OR trim(match_method)='' OR trim(row_fingerprint)=''"
+        ),
+        "duplicate exact date observations": (
+            "SELECT count(*)-count(DISTINCT (match_id,source_file_id,source_match_id)) "
+            "FROM date_observations"
+        ),
+        "exact date observations with non-date sources": (
+            "SELECT count(*) FROM date_observations o JOIN read_parquet("
+            + _quoted(root / "coverage/source-audit.parquet")
+            + ") s USING(source_file_id) WHERE s.kind<>'match_dates'"
+        ),
+        "canonical dates without exact evidence": (
+            "SELECT count(*) FROM matches m WHERE m.date IS NOT NULL AND NOT EXISTS ("
+            "SELECT 1 FROM date_observations o WHERE o.match_id=m.match_id AND o.tour=m.tour "
+            "AND o.year=m.year AND o.played_on=m.date AND o.date_precision='day')"
+        ),
+        "conflicting accepted exact dates": (
+            "SELECT count(*) FROM (SELECT match_id,count(DISTINCT played_on) dates "
+            "FROM date_observations GROUP BY match_id HAVING dates<>1)"
         ),
         "invalid tournaments": (
             "SELECT count(*) FROM tournaments WHERE tournament_id IS NULL "
@@ -4510,7 +4730,8 @@ def validate_dataset(
             errors.append(f"non-canonical source file IDs: {int(invalid_source_ids)}")
         for source_path, source_rows, normalized_rows, quarantined_rows in connection.execute(
             f"SELECT source_path, source_rows, normalized_rows, quarantined_rows "
-            f"FROM read_parquet({_quoted(source_audit_path)}) WHERE kind='matches'"
+            f"FROM read_parquet({_quoted(source_audit_path)}) "
+            "WHERE kind IN ('matches','match_dates')"
         ).fetchall():
             if int(source_rows or 0) != int(normalized_rows or 0) + int(
                 quarantined_rows or 0

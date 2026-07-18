@@ -1,0 +1,2019 @@
+{
+  "after": {
+    "by_tour_year": [
+      {
+        "exact_dates": 0,
+        "rows": 4377,
+        "tour": "atp",
+        "year": 1968
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3163,
+        "tour": "atp",
+        "year": 1969
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3287,
+        "tour": "atp",
+        "year": 1970
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3638,
+        "tour": "atp",
+        "year": 1971
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3617,
+        "tour": "atp",
+        "year": 1972
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4327,
+        "tour": "atp",
+        "year": 1973
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4199,
+        "tour": "atp",
+        "year": 1974
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4164,
+        "tour": "atp",
+        "year": 1975
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3979,
+        "tour": "atp",
+        "year": 1976
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4140,
+        "tour": "atp",
+        "year": 1977
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4860,
+        "tour": "atp",
+        "year": 1978
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4994,
+        "tour": "atp",
+        "year": 1979
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4853,
+        "tour": "atp",
+        "year": 1980
+      },
+      {
+        "exact_dates": 0,
+        "rows": 5476,
+        "tour": "atp",
+        "year": 1981
+      },
+      {
+        "exact_dates": 0,
+        "rows": 5561,
+        "tour": "atp",
+        "year": 1982
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4745,
+        "tour": "atp",
+        "year": 1983
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4322,
+        "tour": "atp",
+        "year": 1984
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4694,
+        "tour": "atp",
+        "year": 1985
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4997,
+        "tour": "atp",
+        "year": 1986
+      },
+      {
+        "exact_dates": 0,
+        "rows": 5584,
+        "tour": "atp",
+        "year": 1987
+      },
+      {
+        "exact_dates": 0,
+        "rows": 6598,
+        "tour": "atp",
+        "year": 1988
+      },
+      {
+        "exact_dates": 0,
+        "rows": 6527,
+        "tour": "atp",
+        "year": 1989
+      },
+      {
+        "exact_dates": 0,
+        "rows": 5914,
+        "tour": "atp",
+        "year": 1990
+      },
+      {
+        "exact_dates": 0,
+        "rows": 15698,
+        "tour": "atp",
+        "year": 1991
+      },
+      {
+        "exact_dates": 0,
+        "rows": 15271,
+        "tour": "atp",
+        "year": 1992
+      },
+      {
+        "exact_dates": 0,
+        "rows": 16878,
+        "tour": "atp",
+        "year": 1993
+      },
+      {
+        "exact_dates": 0,
+        "rows": 17284,
+        "tour": "atp",
+        "year": 1994
+      },
+      {
+        "exact_dates": 0,
+        "rows": 18288,
+        "tour": "atp",
+        "year": 1995
+      },
+      {
+        "exact_dates": 0,
+        "rows": 19361,
+        "tour": "atp",
+        "year": 1996
+      },
+      {
+        "exact_dates": 0,
+        "rows": 20538,
+        "tour": "atp",
+        "year": 1997
+      },
+      {
+        "exact_dates": 0,
+        "rows": 20264,
+        "tour": "atp",
+        "year": 1998
+      },
+      {
+        "exact_dates": 0,
+        "rows": 20053,
+        "tour": "atp",
+        "year": 1999
+      },
+      {
+        "exact_dates": 2917,
+        "rows": 19797,
+        "tour": "atp",
+        "year": 2000
+      },
+      {
+        "exact_dates": 2941,
+        "rows": 20756,
+        "tour": "atp",
+        "year": 2001
+      },
+      {
+        "exact_dates": 2845,
+        "rows": 20028,
+        "tour": "atp",
+        "year": 2002
+      },
+      {
+        "exact_dates": 2830,
+        "rows": 21360,
+        "tour": "atp",
+        "year": 2003
+      },
+      {
+        "exact_dates": 2825,
+        "rows": 22429,
+        "tour": "atp",
+        "year": 2004
+      },
+      {
+        "exact_dates": 2878,
+        "rows": 23438,
+        "tour": "atp",
+        "year": 2005
+      },
+      {
+        "exact_dates": 2847,
+        "rows": 24319,
+        "tour": "atp",
+        "year": 2006
+      },
+      {
+        "exact_dates": 2761,
+        "rows": 25744,
+        "tour": "atp",
+        "year": 2007
+      },
+      {
+        "exact_dates": 2669,
+        "rows": 26872,
+        "tour": "atp",
+        "year": 2008
+      },
+      {
+        "exact_dates": 2687,
+        "rows": 25115,
+        "tour": "atp",
+        "year": 2009
+      },
+      {
+        "exact_dates": 2611,
+        "rows": 24701,
+        "tour": "atp",
+        "year": 2010
+      },
+      {
+        "exact_dates": 2539,
+        "rows": 26021,
+        "tour": "atp",
+        "year": 2011
+      },
+      {
+        "exact_dates": 2484,
+        "rows": 27748,
+        "tour": "atp",
+        "year": 2012
+      },
+      {
+        "exact_dates": 2514,
+        "rows": 29359,
+        "tour": "atp",
+        "year": 2013
+      },
+      {
+        "exact_dates": 2448,
+        "rows": 30187,
+        "tour": "atp",
+        "year": 2014
+      },
+      {
+        "exact_dates": 2431,
+        "rows": 31132,
+        "tour": "atp",
+        "year": 2015
+      },
+      {
+        "exact_dates": 2437,
+        "rows": 32637,
+        "tour": "atp",
+        "year": 2016
+      },
+      {
+        "exact_dates": 2497,
+        "rows": 30555,
+        "tour": "atp",
+        "year": 2017
+      },
+      {
+        "exact_dates": 2569,
+        "rows": 29803,
+        "tour": "atp",
+        "year": 2018
+      },
+      {
+        "exact_dates": 2555,
+        "rows": 28374,
+        "tour": "atp",
+        "year": 2019
+      },
+      {
+        "exact_dates": 1236,
+        "rows": 9336,
+        "tour": "atp",
+        "year": 2020
+      },
+      {
+        "exact_dates": 2423,
+        "rows": 22063,
+        "tour": "atp",
+        "year": 2021
+      },
+      {
+        "exact_dates": 2558,
+        "rows": 29239,
+        "tour": "atp",
+        "year": 2022
+      },
+      {
+        "exact_dates": 2610,
+        "rows": 31275,
+        "tour": "atp",
+        "year": 2023
+      },
+      {
+        "exact_dates": 2603,
+        "rows": 32687,
+        "tour": "atp",
+        "year": 2024
+      },
+      {
+        "exact_dates": 2513,
+        "rows": 32477,
+        "tour": "atp",
+        "year": 2025
+      },
+      {
+        "exact_dates": 981,
+        "rows": 16377,
+        "tour": "atp",
+        "year": 2026
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3174,
+        "tour": "wta",
+        "year": 1968
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3204,
+        "tour": "wta",
+        "year": 1969
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3240,
+        "tour": "wta",
+        "year": 1970
+      },
+      {
+        "exact_dates": 0,
+        "rows": 2750,
+        "tour": "wta",
+        "year": 1971
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3666,
+        "tour": "wta",
+        "year": 1972
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3724,
+        "tour": "wta",
+        "year": 1973
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3229,
+        "tour": "wta",
+        "year": 1974
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3097,
+        "tour": "wta",
+        "year": 1975
+      },
+      {
+        "exact_dates": 0,
+        "rows": 2460,
+        "tour": "wta",
+        "year": 1976
+      },
+      {
+        "exact_dates": 0,
+        "rows": 2741,
+        "tour": "wta",
+        "year": 1977
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3040,
+        "tour": "wta",
+        "year": 1978
+      },
+      {
+        "exact_dates": 0,
+        "rows": 3154,
+        "tour": "wta",
+        "year": 1979
+      },
+      {
+        "exact_dates": 0,
+        "rows": 6134,
+        "tour": "wta",
+        "year": 1980
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4975,
+        "tour": "wta",
+        "year": 1981
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4490,
+        "tour": "wta",
+        "year": 1982
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4852,
+        "tour": "wta",
+        "year": 1983
+      },
+      {
+        "exact_dates": 0,
+        "rows": 4870,
+        "tour": "wta",
+        "year": 1984
+      },
+      {
+        "exact_dates": 0,
+        "rows": 5813,
+        "tour": "wta",
+        "year": 1985
+      },
+      {
+        "exact_dates": 0,
+        "rows": 5881,
+        "tour": "wta",
+        "year": 1986
+      },
+      {
+        "exact_dates": 0,
+        "rows": 6334,
+        "tour": "wta",
+        "year": 1987
+      },
+      {
+        "exact_dates": 0,
+        "rows": 8224,
+        "tour": "wta",
+        "year": 1988
+      },
+      {
+        "exact_dates": 0,
+        "rows": 8700,
+        "tour": "wta",
+        "year": 1989
+      },
+      {
+        "exact_dates": 0,
+        "rows": 9420,
+        "tour": "wta",
+        "year": 1990
+      },
+      {
+        "exact_dates": 0,
+        "rows": 10701,
+        "tour": "wta",
+        "year": 1991
+      },
+      {
+        "exact_dates": 0,
+        "rows": 10587,
+        "tour": "wta",
+        "year": 1992
+      },
+      {
+        "exact_dates": 0,
+        "rows": 11498,
+        "tour": "wta",
+        "year": 1993
+      },
+      {
+        "exact_dates": 0,
+        "rows": 11338,
+        "tour": "wta",
+        "year": 1994
+      },
+      {
+        "exact_dates": 0,
+        "rows": 11685,
+        "tour": "wta",
+        "year": 1995
+      },
+      {
+        "exact_dates": 0,
+        "rows": 10731,
+        "tour": "wta",
+        "year": 1996
+      },
+      {
+        "exact_dates": 0,
+        "rows": 12132,
+        "tour": "wta",
+        "year": 1997
+      },
+      {
+        "exact_dates": 0,
+        "rows": 12565,
+        "tour": "wta",
+        "year": 1998
+      },
+      {
+        "exact_dates": 0,
+        "rows": 12072,
+        "tour": "wta",
+        "year": 1999
+      },
+      {
+        "exact_dates": 0,
+        "rows": 13970,
+        "tour": "wta",
+        "year": 2000
+      },
+      {
+        "exact_dates": 0,
+        "rows": 13737,
+        "tour": "wta",
+        "year": 2001
+      },
+      {
+        "exact_dates": 0,
+        "rows": 14150,
+        "tour": "wta",
+        "year": 2002
+      },
+      {
+        "exact_dates": 0,
+        "rows": 14262,
+        "tour": "wta",
+        "year": 2003
+      },
+      {
+        "exact_dates": 0,
+        "rows": 15396,
+        "tour": "wta",
+        "year": 2004
+      },
+      {
+        "exact_dates": 0,
+        "rows": 16247,
+        "tour": "wta",
+        "year": 2005
+      },
+      {
+        "exact_dates": 0,
+        "rows": 17162,
+        "tour": "wta",
+        "year": 2006
+      },
+      {
+        "exact_dates": 2253,
+        "rows": 17448,
+        "tour": "wta",
+        "year": 2007
+      },
+      {
+        "exact_dates": 2190,
+        "rows": 17971,
+        "tour": "wta",
+        "year": 2008
+      },
+      {
+        "exact_dates": 2210,
+        "rows": 18105,
+        "tour": "wta",
+        "year": 2009
+      },
+      {
+        "exact_dates": 2246,
+        "rows": 18756,
+        "tour": "wta",
+        "year": 2010
+      },
+      {
+        "exact_dates": 2283,
+        "rows": 19963,
+        "tour": "wta",
+        "year": 2011
+      },
+      {
+        "exact_dates": 2197,
+        "rows": 19454,
+        "tour": "wta",
+        "year": 2012
+      },
+      {
+        "exact_dates": 2241,
+        "rows": 21410,
+        "tour": "wta",
+        "year": 2013
+      },
+      {
+        "exact_dates": 2274,
+        "rows": 21559,
+        "tour": "wta",
+        "year": 2014
+      },
+      {
+        "exact_dates": 2347,
+        "rows": 22332,
+        "tour": "wta",
+        "year": 2015
+      },
+      {
+        "exact_dates": 2319,
+        "rows": 22266,
+        "tour": "wta",
+        "year": 2016
+      },
+      {
+        "exact_dates": 2291,
+        "rows": 21695,
+        "tour": "wta",
+        "year": 2017
+      },
+      {
+        "exact_dates": 2279,
+        "rows": 21196,
+        "tour": "wta",
+        "year": 2018
+      },
+      {
+        "exact_dates": 2313,
+        "rows": 32121,
+        "tour": "wta",
+        "year": 2019
+      },
+      {
+        "exact_dates": 1012,
+        "rows": 10698,
+        "tour": "wta",
+        "year": 2020
+      },
+      {
+        "exact_dates": 2331,
+        "rows": 26731,
+        "tour": "wta",
+        "year": 2021
+      },
+      {
+        "exact_dates": 2268,
+        "rows": 35598,
+        "tour": "wta",
+        "year": 2022
+      },
+      {
+        "exact_dates": 2431,
+        "rows": 37027,
+        "tour": "wta",
+        "year": 2023
+      },
+      {
+        "exact_dates": 2443,
+        "rows": 40801,
+        "tour": "wta",
+        "year": 2024
+      },
+      {
+        "exact_dates": 2455,
+        "rows": 24072,
+        "tour": "wta",
+        "year": 2025
+      },
+      {
+        "exact_dates": 906,
+        "rows": 12318,
+        "tour": "wta",
+        "year": 2026
+      }
+    ],
+    "date_observations": 111498,
+    "exact_match_dates": 111498,
+    "match_rows": 1742406,
+    "null_match_dates": 1630908
+  },
+  "before": {
+    "by_tour_year": [
+      {
+        "exact_dates": 4377,
+        "rows": 4377,
+        "tour": "atp",
+        "year": 1968
+      },
+      {
+        "exact_dates": 3163,
+        "rows": 3163,
+        "tour": "atp",
+        "year": 1969
+      },
+      {
+        "exact_dates": 3287,
+        "rows": 3287,
+        "tour": "atp",
+        "year": 1970
+      },
+      {
+        "exact_dates": 3638,
+        "rows": 3638,
+        "tour": "atp",
+        "year": 1971
+      },
+      {
+        "exact_dates": 3617,
+        "rows": 3617,
+        "tour": "atp",
+        "year": 1972
+      },
+      {
+        "exact_dates": 4327,
+        "rows": 4327,
+        "tour": "atp",
+        "year": 1973
+      },
+      {
+        "exact_dates": 4199,
+        "rows": 4199,
+        "tour": "atp",
+        "year": 1974
+      },
+      {
+        "exact_dates": 4164,
+        "rows": 4164,
+        "tour": "atp",
+        "year": 1975
+      },
+      {
+        "exact_dates": 3979,
+        "rows": 3979,
+        "tour": "atp",
+        "year": 1976
+      },
+      {
+        "exact_dates": 4140,
+        "rows": 4140,
+        "tour": "atp",
+        "year": 1977
+      },
+      {
+        "exact_dates": 4860,
+        "rows": 4860,
+        "tour": "atp",
+        "year": 1978
+      },
+      {
+        "exact_dates": 4994,
+        "rows": 4994,
+        "tour": "atp",
+        "year": 1979
+      },
+      {
+        "exact_dates": 4853,
+        "rows": 4853,
+        "tour": "atp",
+        "year": 1980
+      },
+      {
+        "exact_dates": 5476,
+        "rows": 5476,
+        "tour": "atp",
+        "year": 1981
+      },
+      {
+        "exact_dates": 5561,
+        "rows": 5561,
+        "tour": "atp",
+        "year": 1982
+      },
+      {
+        "exact_dates": 4745,
+        "rows": 4745,
+        "tour": "atp",
+        "year": 1983
+      },
+      {
+        "exact_dates": 4322,
+        "rows": 4322,
+        "tour": "atp",
+        "year": 1984
+      },
+      {
+        "exact_dates": 4694,
+        "rows": 4694,
+        "tour": "atp",
+        "year": 1985
+      },
+      {
+        "exact_dates": 4997,
+        "rows": 4997,
+        "tour": "atp",
+        "year": 1986
+      },
+      {
+        "exact_dates": 5584,
+        "rows": 5584,
+        "tour": "atp",
+        "year": 1987
+      },
+      {
+        "exact_dates": 6598,
+        "rows": 6598,
+        "tour": "atp",
+        "year": 1988
+      },
+      {
+        "exact_dates": 6527,
+        "rows": 6527,
+        "tour": "atp",
+        "year": 1989
+      },
+      {
+        "exact_dates": 5914,
+        "rows": 5914,
+        "tour": "atp",
+        "year": 1990
+      },
+      {
+        "exact_dates": 15698,
+        "rows": 15698,
+        "tour": "atp",
+        "year": 1991
+      },
+      {
+        "exact_dates": 15271,
+        "rows": 15271,
+        "tour": "atp",
+        "year": 1992
+      },
+      {
+        "exact_dates": 16878,
+        "rows": 16878,
+        "tour": "atp",
+        "year": 1993
+      },
+      {
+        "exact_dates": 17284,
+        "rows": 17284,
+        "tour": "atp",
+        "year": 1994
+      },
+      {
+        "exact_dates": 18288,
+        "rows": 18288,
+        "tour": "atp",
+        "year": 1995
+      },
+      {
+        "exact_dates": 19361,
+        "rows": 19361,
+        "tour": "atp",
+        "year": 1996
+      },
+      {
+        "exact_dates": 20538,
+        "rows": 20538,
+        "tour": "atp",
+        "year": 1997
+      },
+      {
+        "exact_dates": 20264,
+        "rows": 20264,
+        "tour": "atp",
+        "year": 1998
+      },
+      {
+        "exact_dates": 20053,
+        "rows": 20053,
+        "tour": "atp",
+        "year": 1999
+      },
+      {
+        "exact_dates": 19797,
+        "rows": 19797,
+        "tour": "atp",
+        "year": 2000
+      },
+      {
+        "exact_dates": 20756,
+        "rows": 20756,
+        "tour": "atp",
+        "year": 2001
+      },
+      {
+        "exact_dates": 20028,
+        "rows": 20028,
+        "tour": "atp",
+        "year": 2002
+      },
+      {
+        "exact_dates": 21360,
+        "rows": 21360,
+        "tour": "atp",
+        "year": 2003
+      },
+      {
+        "exact_dates": 22429,
+        "rows": 22429,
+        "tour": "atp",
+        "year": 2004
+      },
+      {
+        "exact_dates": 23438,
+        "rows": 23438,
+        "tour": "atp",
+        "year": 2005
+      },
+      {
+        "exact_dates": 24319,
+        "rows": 24319,
+        "tour": "atp",
+        "year": 2006
+      },
+      {
+        "exact_dates": 25744,
+        "rows": 25744,
+        "tour": "atp",
+        "year": 2007
+      },
+      {
+        "exact_dates": 26872,
+        "rows": 26872,
+        "tour": "atp",
+        "year": 2008
+      },
+      {
+        "exact_dates": 25115,
+        "rows": 25115,
+        "tour": "atp",
+        "year": 2009
+      },
+      {
+        "exact_dates": 24701,
+        "rows": 24701,
+        "tour": "atp",
+        "year": 2010
+      },
+      {
+        "exact_dates": 26021,
+        "rows": 26021,
+        "tour": "atp",
+        "year": 2011
+      },
+      {
+        "exact_dates": 27748,
+        "rows": 27748,
+        "tour": "atp",
+        "year": 2012
+      },
+      {
+        "exact_dates": 29359,
+        "rows": 29359,
+        "tour": "atp",
+        "year": 2013
+      },
+      {
+        "exact_dates": 30187,
+        "rows": 30187,
+        "tour": "atp",
+        "year": 2014
+      },
+      {
+        "exact_dates": 31132,
+        "rows": 31132,
+        "tour": "atp",
+        "year": 2015
+      },
+      {
+        "exact_dates": 32637,
+        "rows": 32637,
+        "tour": "atp",
+        "year": 2016
+      },
+      {
+        "exact_dates": 30555,
+        "rows": 30555,
+        "tour": "atp",
+        "year": 2017
+      },
+      {
+        "exact_dates": 29803,
+        "rows": 29803,
+        "tour": "atp",
+        "year": 2018
+      },
+      {
+        "exact_dates": 28374,
+        "rows": 28374,
+        "tour": "atp",
+        "year": 2019
+      },
+      {
+        "exact_dates": 9336,
+        "rows": 9336,
+        "tour": "atp",
+        "year": 2020
+      },
+      {
+        "exact_dates": 22063,
+        "rows": 22063,
+        "tour": "atp",
+        "year": 2021
+      },
+      {
+        "exact_dates": 29239,
+        "rows": 29239,
+        "tour": "atp",
+        "year": 2022
+      },
+      {
+        "exact_dates": 31275,
+        "rows": 31275,
+        "tour": "atp",
+        "year": 2023
+      },
+      {
+        "exact_dates": 32687,
+        "rows": 32687,
+        "tour": "atp",
+        "year": 2024
+      },
+      {
+        "exact_dates": 32477,
+        "rows": 32477,
+        "tour": "atp",
+        "year": 2025
+      },
+      {
+        "exact_dates": 16377,
+        "rows": 16377,
+        "tour": "atp",
+        "year": 2026
+      },
+      {
+        "exact_dates": 3174,
+        "rows": 3174,
+        "tour": "wta",
+        "year": 1968
+      },
+      {
+        "exact_dates": 3204,
+        "rows": 3204,
+        "tour": "wta",
+        "year": 1969
+      },
+      {
+        "exact_dates": 3240,
+        "rows": 3240,
+        "tour": "wta",
+        "year": 1970
+      },
+      {
+        "exact_dates": 2750,
+        "rows": 2750,
+        "tour": "wta",
+        "year": 1971
+      },
+      {
+        "exact_dates": 3666,
+        "rows": 3666,
+        "tour": "wta",
+        "year": 1972
+      },
+      {
+        "exact_dates": 3724,
+        "rows": 3724,
+        "tour": "wta",
+        "year": 1973
+      },
+      {
+        "exact_dates": 3229,
+        "rows": 3229,
+        "tour": "wta",
+        "year": 1974
+      },
+      {
+        "exact_dates": 3097,
+        "rows": 3097,
+        "tour": "wta",
+        "year": 1975
+      },
+      {
+        "exact_dates": 2460,
+        "rows": 2460,
+        "tour": "wta",
+        "year": 1976
+      },
+      {
+        "exact_dates": 2741,
+        "rows": 2741,
+        "tour": "wta",
+        "year": 1977
+      },
+      {
+        "exact_dates": 3040,
+        "rows": 3040,
+        "tour": "wta",
+        "year": 1978
+      },
+      {
+        "exact_dates": 3154,
+        "rows": 3154,
+        "tour": "wta",
+        "year": 1979
+      },
+      {
+        "exact_dates": 6134,
+        "rows": 6134,
+        "tour": "wta",
+        "year": 1980
+      },
+      {
+        "exact_dates": 4975,
+        "rows": 4975,
+        "tour": "wta",
+        "year": 1981
+      },
+      {
+        "exact_dates": 4490,
+        "rows": 4490,
+        "tour": "wta",
+        "year": 1982
+      },
+      {
+        "exact_dates": 4852,
+        "rows": 4852,
+        "tour": "wta",
+        "year": 1983
+      },
+      {
+        "exact_dates": 4870,
+        "rows": 4870,
+        "tour": "wta",
+        "year": 1984
+      },
+      {
+        "exact_dates": 5813,
+        "rows": 5813,
+        "tour": "wta",
+        "year": 1985
+      },
+      {
+        "exact_dates": 5881,
+        "rows": 5881,
+        "tour": "wta",
+        "year": 1986
+      },
+      {
+        "exact_dates": 6334,
+        "rows": 6334,
+        "tour": "wta",
+        "year": 1987
+      },
+      {
+        "exact_dates": 8224,
+        "rows": 8224,
+        "tour": "wta",
+        "year": 1988
+      },
+      {
+        "exact_dates": 8700,
+        "rows": 8700,
+        "tour": "wta",
+        "year": 1989
+      },
+      {
+        "exact_dates": 9420,
+        "rows": 9420,
+        "tour": "wta",
+        "year": 1990
+      },
+      {
+        "exact_dates": 10701,
+        "rows": 10701,
+        "tour": "wta",
+        "year": 1991
+      },
+      {
+        "exact_dates": 10587,
+        "rows": 10587,
+        "tour": "wta",
+        "year": 1992
+      },
+      {
+        "exact_dates": 11498,
+        "rows": 11498,
+        "tour": "wta",
+        "year": 1993
+      },
+      {
+        "exact_dates": 11338,
+        "rows": 11338,
+        "tour": "wta",
+        "year": 1994
+      },
+      {
+        "exact_dates": 11685,
+        "rows": 11685,
+        "tour": "wta",
+        "year": 1995
+      },
+      {
+        "exact_dates": 10731,
+        "rows": 10731,
+        "tour": "wta",
+        "year": 1996
+      },
+      {
+        "exact_dates": 12132,
+        "rows": 12132,
+        "tour": "wta",
+        "year": 1997
+      },
+      {
+        "exact_dates": 12565,
+        "rows": 12565,
+        "tour": "wta",
+        "year": 1998
+      },
+      {
+        "exact_dates": 12072,
+        "rows": 12072,
+        "tour": "wta",
+        "year": 1999
+      },
+      {
+        "exact_dates": 13970,
+        "rows": 13970,
+        "tour": "wta",
+        "year": 2000
+      },
+      {
+        "exact_dates": 13737,
+        "rows": 13737,
+        "tour": "wta",
+        "year": 2001
+      },
+      {
+        "exact_dates": 14150,
+        "rows": 14150,
+        "tour": "wta",
+        "year": 2002
+      },
+      {
+        "exact_dates": 14262,
+        "rows": 14262,
+        "tour": "wta",
+        "year": 2003
+      },
+      {
+        "exact_dates": 15396,
+        "rows": 15396,
+        "tour": "wta",
+        "year": 2004
+      },
+      {
+        "exact_dates": 16247,
+        "rows": 16247,
+        "tour": "wta",
+        "year": 2005
+      },
+      {
+        "exact_dates": 17162,
+        "rows": 17162,
+        "tour": "wta",
+        "year": 2006
+      },
+      {
+        "exact_dates": 17448,
+        "rows": 17448,
+        "tour": "wta",
+        "year": 2007
+      },
+      {
+        "exact_dates": 17971,
+        "rows": 17971,
+        "tour": "wta",
+        "year": 2008
+      },
+      {
+        "exact_dates": 18105,
+        "rows": 18105,
+        "tour": "wta",
+        "year": 2009
+      },
+      {
+        "exact_dates": 18756,
+        "rows": 18756,
+        "tour": "wta",
+        "year": 2010
+      },
+      {
+        "exact_dates": 19963,
+        "rows": 19963,
+        "tour": "wta",
+        "year": 2011
+      },
+      {
+        "exact_dates": 19454,
+        "rows": 19454,
+        "tour": "wta",
+        "year": 2012
+      },
+      {
+        "exact_dates": 21410,
+        "rows": 21410,
+        "tour": "wta",
+        "year": 2013
+      },
+      {
+        "exact_dates": 21559,
+        "rows": 21559,
+        "tour": "wta",
+        "year": 2014
+      },
+      {
+        "exact_dates": 22332,
+        "rows": 22332,
+        "tour": "wta",
+        "year": 2015
+      },
+      {
+        "exact_dates": 22266,
+        "rows": 22266,
+        "tour": "wta",
+        "year": 2016
+      },
+      {
+        "exact_dates": 21695,
+        "rows": 21695,
+        "tour": "wta",
+        "year": 2017
+      },
+      {
+        "exact_dates": 21196,
+        "rows": 21196,
+        "tour": "wta",
+        "year": 2018
+      },
+      {
+        "exact_dates": 32121,
+        "rows": 32121,
+        "tour": "wta",
+        "year": 2019
+      },
+      {
+        "exact_dates": 10698,
+        "rows": 10698,
+        "tour": "wta",
+        "year": 2020
+      },
+      {
+        "exact_dates": 26731,
+        "rows": 26731,
+        "tour": "wta",
+        "year": 2021
+      },
+      {
+        "exact_dates": 35598,
+        "rows": 35598,
+        "tour": "wta",
+        "year": 2022
+      },
+      {
+        "exact_dates": 37027,
+        "rows": 37027,
+        "tour": "wta",
+        "year": 2023
+      },
+      {
+        "exact_dates": 40801,
+        "rows": 40801,
+        "tour": "wta",
+        "year": 2024
+      },
+      {
+        "exact_dates": 24072,
+        "rows": 24072,
+        "tour": "wta",
+        "year": 2025
+      },
+      {
+        "exact_dates": 12318,
+        "rows": 12318,
+        "tour": "wta",
+        "year": 2026
+      }
+    ],
+    "date_observations": 0,
+    "exact_match_dates": 1742406,
+    "match_rows": 1742406,
+    "null_match_dates": 0
+  },
+  "deterministic_noop_verified": true,
+  "changed_data_files": [
+    "catalog/catalog.parquet",
+    "coverage/source-audit.parquet",
+    "date_observations/tour=atp/year=2000/date-observations.parquet",
+    "date_observations/tour=atp/year=2001/date-observations.parquet",
+    "date_observations/tour=atp/year=2002/date-observations.parquet",
+    "date_observations/tour=atp/year=2003/date-observations.parquet",
+    "date_observations/tour=atp/year=2004/date-observations.parquet",
+    "date_observations/tour=atp/year=2005/date-observations.parquet",
+    "date_observations/tour=atp/year=2006/date-observations.parquet",
+    "date_observations/tour=atp/year=2007/date-observations.parquet",
+    "date_observations/tour=atp/year=2008/date-observations.parquet",
+    "date_observations/tour=atp/year=2009/date-observations.parquet",
+    "date_observations/tour=atp/year=2010/date-observations.parquet",
+    "date_observations/tour=atp/year=2011/date-observations.parquet",
+    "date_observations/tour=atp/year=2012/date-observations.parquet",
+    "date_observations/tour=atp/year=2013/date-observations.parquet",
+    "date_observations/tour=atp/year=2014/date-observations.parquet",
+    "date_observations/tour=atp/year=2015/date-observations.parquet",
+    "date_observations/tour=atp/year=2016/date-observations.parquet",
+    "date_observations/tour=atp/year=2017/date-observations.parquet",
+    "date_observations/tour=atp/year=2018/date-observations.parquet",
+    "date_observations/tour=atp/year=2019/date-observations.parquet",
+    "date_observations/tour=atp/year=2020/date-observations.parquet",
+    "date_observations/tour=atp/year=2021/date-observations.parquet",
+    "date_observations/tour=atp/year=2022/date-observations.parquet",
+    "date_observations/tour=atp/year=2023/date-observations.parquet",
+    "date_observations/tour=atp/year=2024/date-observations.parquet",
+    "date_observations/tour=atp/year=2025/date-observations.parquet",
+    "date_observations/tour=atp/year=2026/date-observations.parquet",
+    "date_observations/tour=wta/year=2007/date-observations.parquet",
+    "date_observations/tour=wta/year=2008/date-observations.parquet",
+    "date_observations/tour=wta/year=2009/date-observations.parquet",
+    "date_observations/tour=wta/year=2010/date-observations.parquet",
+    "date_observations/tour=wta/year=2011/date-observations.parquet",
+    "date_observations/tour=wta/year=2012/date-observations.parquet",
+    "date_observations/tour=wta/year=2013/date-observations.parquet",
+    "date_observations/tour=wta/year=2014/date-observations.parquet",
+    "date_observations/tour=wta/year=2015/date-observations.parquet",
+    "date_observations/tour=wta/year=2016/date-observations.parquet",
+    "date_observations/tour=wta/year=2017/date-observations.parquet",
+    "date_observations/tour=wta/year=2018/date-observations.parquet",
+    "date_observations/tour=wta/year=2019/date-observations.parquet",
+    "date_observations/tour=wta/year=2020/date-observations.parquet",
+    "date_observations/tour=wta/year=2021/date-observations.parquet",
+    "date_observations/tour=wta/year=2022/date-observations.parquet",
+    "date_observations/tour=wta/year=2023/date-observations.parquet",
+    "date_observations/tour=wta/year=2024/date-observations.parquet",
+    "date_observations/tour=wta/year=2025/date-observations.parquet",
+    "date_observations/tour=wta/year=2026/date-observations.parquet",
+    "health/health.parquet",
+    "matches/tour=atp/year=1968/matches.parquet",
+    "matches/tour=atp/year=1969/matches.parquet",
+    "matches/tour=atp/year=1970/matches.parquet",
+    "matches/tour=atp/year=1971/matches.parquet",
+    "matches/tour=atp/year=1972/matches.parquet",
+    "matches/tour=atp/year=1973/matches.parquet",
+    "matches/tour=atp/year=1974/matches.parquet",
+    "matches/tour=atp/year=1975/matches.parquet",
+    "matches/tour=atp/year=1976/matches.parquet",
+    "matches/tour=atp/year=1977/matches.parquet",
+    "matches/tour=atp/year=1978/matches.parquet",
+    "matches/tour=atp/year=1979/matches.parquet",
+    "matches/tour=atp/year=1980/matches.parquet",
+    "matches/tour=atp/year=1981/matches.parquet",
+    "matches/tour=atp/year=1982/matches.parquet",
+    "matches/tour=atp/year=1983/matches.parquet",
+    "matches/tour=atp/year=1984/matches.parquet",
+    "matches/tour=atp/year=1985/matches.parquet",
+    "matches/tour=atp/year=1986/matches.parquet",
+    "matches/tour=atp/year=1987/matches.parquet",
+    "matches/tour=atp/year=1988/matches.parquet",
+    "matches/tour=atp/year=1989/matches.parquet",
+    "matches/tour=atp/year=1990/matches.parquet",
+    "matches/tour=atp/year=1991/matches.parquet",
+    "matches/tour=atp/year=1992/matches.parquet",
+    "matches/tour=atp/year=1993/matches.parquet",
+    "matches/tour=atp/year=1994/matches.parquet",
+    "matches/tour=atp/year=1995/matches.parquet",
+    "matches/tour=atp/year=1996/matches.parquet",
+    "matches/tour=atp/year=1997/matches.parquet",
+    "matches/tour=atp/year=1998/matches.parquet",
+    "matches/tour=atp/year=1999/matches.parquet",
+    "matches/tour=atp/year=2000/matches.parquet",
+    "matches/tour=atp/year=2001/matches.parquet",
+    "matches/tour=atp/year=2002/matches.parquet",
+    "matches/tour=atp/year=2003/matches.parquet",
+    "matches/tour=atp/year=2004/matches.parquet",
+    "matches/tour=atp/year=2005/matches.parquet",
+    "matches/tour=atp/year=2006/matches.parquet",
+    "matches/tour=atp/year=2007/matches.parquet",
+    "matches/tour=atp/year=2008/matches.parquet",
+    "matches/tour=atp/year=2009/matches.parquet",
+    "matches/tour=atp/year=2010/matches.parquet",
+    "matches/tour=atp/year=2011/matches.parquet",
+    "matches/tour=atp/year=2012/matches.parquet",
+    "matches/tour=atp/year=2013/matches.parquet",
+    "matches/tour=atp/year=2014/matches.parquet",
+    "matches/tour=atp/year=2015/matches.parquet",
+    "matches/tour=atp/year=2016/matches.parquet",
+    "matches/tour=atp/year=2017/matches.parquet",
+    "matches/tour=atp/year=2018/matches.parquet",
+    "matches/tour=atp/year=2019/matches.parquet",
+    "matches/tour=atp/year=2020/matches.parquet",
+    "matches/tour=atp/year=2021/matches.parquet",
+    "matches/tour=atp/year=2022/matches.parquet",
+    "matches/tour=atp/year=2023/matches.parquet",
+    "matches/tour=atp/year=2024/matches.parquet",
+    "matches/tour=atp/year=2025/matches.parquet",
+    "matches/tour=atp/year=2026/matches.parquet",
+    "matches/tour=wta/year=1968/matches.parquet",
+    "matches/tour=wta/year=1969/matches.parquet",
+    "matches/tour=wta/year=1970/matches.parquet",
+    "matches/tour=wta/year=1971/matches.parquet",
+    "matches/tour=wta/year=1972/matches.parquet",
+    "matches/tour=wta/year=1973/matches.parquet",
+    "matches/tour=wta/year=1974/matches.parquet",
+    "matches/tour=wta/year=1975/matches.parquet",
+    "matches/tour=wta/year=1976/matches.parquet",
+    "matches/tour=wta/year=1977/matches.parquet",
+    "matches/tour=wta/year=1978/matches.parquet",
+    "matches/tour=wta/year=1979/matches.parquet",
+    "matches/tour=wta/year=1980/matches.parquet",
+    "matches/tour=wta/year=1981/matches.parquet",
+    "matches/tour=wta/year=1982/matches.parquet",
+    "matches/tour=wta/year=1983/matches.parquet",
+    "matches/tour=wta/year=1984/matches.parquet",
+    "matches/tour=wta/year=1985/matches.parquet",
+    "matches/tour=wta/year=1986/matches.parquet",
+    "matches/tour=wta/year=1987/matches.parquet",
+    "matches/tour=wta/year=1988/matches.parquet",
+    "matches/tour=wta/year=1989/matches.parquet",
+    "matches/tour=wta/year=1990/matches.parquet",
+    "matches/tour=wta/year=1991/matches.parquet",
+    "matches/tour=wta/year=1992/matches.parquet",
+    "matches/tour=wta/year=1993/matches.parquet",
+    "matches/tour=wta/year=1994/matches.parquet",
+    "matches/tour=wta/year=1995/matches.parquet",
+    "matches/tour=wta/year=1996/matches.parquet",
+    "matches/tour=wta/year=1997/matches.parquet",
+    "matches/tour=wta/year=1998/matches.parquet",
+    "matches/tour=wta/year=1999/matches.parquet",
+    "matches/tour=wta/year=2000/matches.parquet",
+    "matches/tour=wta/year=2001/matches.parquet",
+    "matches/tour=wta/year=2002/matches.parquet",
+    "matches/tour=wta/year=2003/matches.parquet",
+    "matches/tour=wta/year=2004/matches.parquet",
+    "matches/tour=wta/year=2005/matches.parquet",
+    "matches/tour=wta/year=2006/matches.parquet",
+    "matches/tour=wta/year=2007/matches.parquet",
+    "matches/tour=wta/year=2008/matches.parquet",
+    "matches/tour=wta/year=2009/matches.parquet",
+    "matches/tour=wta/year=2010/matches.parquet",
+    "matches/tour=wta/year=2011/matches.parquet",
+    "matches/tour=wta/year=2012/matches.parquet",
+    "matches/tour=wta/year=2013/matches.parquet",
+    "matches/tour=wta/year=2014/matches.parquet",
+    "matches/tour=wta/year=2015/matches.parquet",
+    "matches/tour=wta/year=2016/matches.parquet",
+    "matches/tour=wta/year=2017/matches.parquet",
+    "matches/tour=wta/year=2018/matches.parquet",
+    "matches/tour=wta/year=2019/matches.parquet",
+    "matches/tour=wta/year=2020/matches.parquet",
+    "matches/tour=wta/year=2021/matches.parquet",
+    "matches/tour=wta/year=2022/matches.parquet",
+    "matches/tour=wta/year=2023/matches.parquet",
+    "matches/tour=wta/year=2024/matches.parquet",
+    "matches/tour=wta/year=2025/matches.parquet",
+    "matches/tour=wta/year=2026/matches.parquet",
+    "quarantine/quarantine.parquet"
+  ],
+  "preservation": {
+    "all_other_match_fields_unchanged": true,
+    "intended_match_field": "date",
+    "match_rows_unchanged": true,
+    "retained_match_field_differences": 0
+  },
+  "retrieved_on": "2026-07-18",
+  "reconciliation": {
+    "accepted_observations": 111498,
+    "ambiguous": 799,
+    "conflicting": 10,
+    "invalid_source_rows": 2,
+    "source_rows": 117898,
+    "unmatched": 5589
+  },
+  "regression_2024": {
+    "atp": {
+      "accepted": 2603,
+      "ambiguous": 1,
+      "source_rows": 2703
+    },
+    "wta": {
+      "accepted": 2443,
+      "ambiguous": 0,
+      "source_rows": 2490
+    }
+  },
+  "removed_byte_identical_provider_duplicates": [
+    "matches/tour=atp/year=1989/matches 2.parquet",
+    "matches/tour=wta/year=1975/matches 2.parquet"
+  ],
+  "schema_version": "3.2",
+  "source_files": [
+    {
+      "sha256": "03db38ea13c83795b24eac6c068432ca86d735ac816ef42928d89216d28415f8",
+      "source_file_id": "source_file_7a0c8854140b21687693",
+      "source_rows": 2963,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2000/2000.xlsx",
+      "year": 2000
+    },
+    {
+      "sha256": "a3161067b946881e1a2b067ec5a78f078155b8177e17ae307084e7e3facca2fc",
+      "source_file_id": "source_file_2ce9c9063fa4d75b670d",
+      "source_rows": 2963,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2001/2001.xlsx",
+      "year": 2001
+    },
+    {
+      "sha256": "60bed111e535655bbba9a6634777ef5c8984a83d61f4116fda77e7fea7b68798",
+      "source_file_id": "source_file_9e6b49e3ed71017bc84d",
+      "source_rows": 2854,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2002/2002.xlsx",
+      "year": 2002
+    },
+    {
+      "sha256": "d570759da44f474a9091c1143c6a077d4975ee5abae534ca63a583df7b3de382",
+      "source_file_id": "source_file_eda066ec39b7a82dc1e8",
+      "source_rows": 2861,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2003/2003.xlsx",
+      "year": 2003
+    },
+    {
+      "sha256": "134f007467923e36eec83cef311dce89a711c46f7f2e70d4ad5c4c1bbd3292ca",
+      "source_file_id": "source_file_2672bff860967a09b997",
+      "source_rows": 2877,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2004/2004.xlsx",
+      "year": 2004
+    },
+    {
+      "sha256": "8c7d3aff7c00ccceef571d2ee4236636621da4d11def5aa9c707620e6c309908",
+      "source_file_id": "source_file_7de46d801472ce0ebc1a",
+      "source_rows": 2909,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2005/2005.xlsx",
+      "year": 2005
+    },
+    {
+      "sha256": "4317bc976cb17d0346a36ad5c09024b7957c28155ed5a59bd38e2df7226aa492",
+      "source_file_id": "source_file_2b2c5620c612df77a780",
+      "source_rows": 2909,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2006/2006.xlsx",
+      "year": 2006
+    },
+    {
+      "sha256": "77e2b8504a6f0376a76a1a1e55e55ec53b008e400beebba8fdc2e655eaff8449",
+      "source_file_id": "source_file_20add411c7b5dd26b83f",
+      "source_rows": 2806,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2007/2007.xlsx",
+      "year": 2007
+    },
+    {
+      "sha256": "d374f8563fd417a1e3b57eeb6cc4f83042cd62bb63323a528ae5a3483fc0113c",
+      "source_file_id": "source_file_90a4cbbc5e7b763afcac",
+      "source_rows": 2707,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2008/2008.xlsx",
+      "year": 2008
+    },
+    {
+      "sha256": "94028838328000f8c0b9c4ff2e8821a18e7a5d3653e7b5d0d870c81222bdc06d",
+      "source_file_id": "source_file_b672745576fe444e083e",
+      "source_rows": 2731,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2009/2009.xlsx",
+      "year": 2009
+    },
+    {
+      "sha256": "c90c5bfe3b801a351240110212c48dc71c46a2a83bb64f07fd9e1372730ce638",
+      "source_file_id": "source_file_753c1d88d3366afa95a2",
+      "source_rows": 2679,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2010/2010.xlsx",
+      "year": 2010
+    },
+    {
+      "sha256": "56d5a35f05f1c74afe576bfb2f34710971d92229e56bf91e44164c36bbc16ef1",
+      "source_file_id": "source_file_ed84ab223637961d95a3",
+      "source_rows": 2675,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2011/2011.xlsx",
+      "year": 2011
+    },
+    {
+      "sha256": "c54d1b4d816479d0b4ecb37468dbf710140053a76b0494237c42773092687234",
+      "source_file_id": "source_file_6b1c33878451778d8660",
+      "source_rows": 2607,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2012/2012.xlsx",
+      "year": 2012
+    },
+    {
+      "sha256": "95b8af095a5ae0d64be2cbc838684a094ac542f5cb151da545ebf166ed21a80c",
+      "source_file_id": "source_file_db8016f02f2ea0dd2ffe",
+      "source_rows": 2631,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2013/2013.xlsx",
+      "year": 2013
+    },
+    {
+      "sha256": "ebc5749b3b537cc6dafde5d416a330752dc64a1b2f3f4f9698699763a3ce7d9f",
+      "source_file_id": "source_file_2340bbc8504c35569621",
+      "source_rows": 2600,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2014/2014.xlsx",
+      "year": 2014
+    },
+    {
+      "sha256": "74d1ffa15ad8b13aea0ffd6eba17fa5dc05b2b57263515d20e7ee39be0354485",
+      "source_file_id": "source_file_653eb0cd2b847c0750a7",
+      "source_rows": 2630,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2015/2015.xlsx",
+      "year": 2015
+    },
+    {
+      "sha256": "e55547add1d8c8cad17d1eb7be5a24de7757f33dd90fe4f91ca7d4ee8a3e4b08",
+      "source_file_id": "source_file_fe99fba1c81fe83872b8",
+      "source_rows": 2626,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2016/2016.xlsx",
+      "year": 2016
+    },
+    {
+      "sha256": "d8d2e2af5bda1f7891de39b18739ba229719e00672c22d2892b3e347dc6e1537",
+      "source_file_id": "source_file_c45d9ca12389a9a8637e",
+      "source_rows": 2633,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2017/2017.xlsx",
+      "year": 2017
+    },
+    {
+      "sha256": "3e52c70872c87736110bfe22f682bd224bb5883bf5367a7f8997aab991c7162a",
+      "source_file_id": "source_file_6db58823bdcc66a549c1",
+      "source_rows": 2637,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2018/2018.xlsx",
+      "year": 2018
+    },
+    {
+      "sha256": "a267a7a779406ccd89762b98cbe4bb6370839a658f2a95ac098310ea3394e827",
+      "source_file_id": "source_file_80f6a506165f4a6a0517",
+      "source_rows": 2610,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2019/2019.xlsx",
+      "year": 2019
+    },
+    {
+      "sha256": "310467bb81360e1981e9f3775946c63a5dc707a1d941e5ad4d9713da97daa752",
+      "source_file_id": "source_file_bbf38dad82dd40e29b49",
+      "source_rows": 1267,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2020/2020.xlsx",
+      "year": 2020
+    },
+    {
+      "sha256": "dcbd273a4fa101f4783384dbfe3410bfc7ee7bed0aed4ab9a09afbffb294c4ca",
+      "source_file_id": "source_file_ac00e610f52c6885bd91",
+      "source_rows": 2489,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2021/2021.xlsx",
+      "year": 2021
+    },
+    {
+      "sha256": "9feaa1567783cb063e23b6f2d653d4c97210a48b001373eb367eb2d8b6a60a86",
+      "source_file_id": "source_file_20c4a2103912c2799827",
+      "source_rows": 2632,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2022/2022.xlsx",
+      "year": 2022
+    },
+    {
+      "sha256": "5789a33720cbd5da9c7909713cfca131927eedaf305ab2b111ec6f8dda842b29",
+      "source_file_id": "source_file_1415bc98965c65e8b7c6",
+      "source_rows": 2703,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2023/2023.xlsx",
+      "year": 2023
+    },
+    {
+      "sha256": "d92a4d4167cfece60b624e81ba8d6724d90a4704637341bb0bc87539a36c746a",
+      "source_file_id": "source_file_1c26d29fa19c9d738312",
+      "source_rows": 2703,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2024/2024.xlsx",
+      "year": 2024
+    },
+    {
+      "sha256": "941aaa1abc49131f51e1f7f6eee93dac829dd72578ca10b341dfc4c9d41ba013",
+      "source_file_id": "source_file_af1621aa02e76cb76254",
+      "source_rows": 2644,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2025/2025.xlsx",
+      "year": 2025
+    },
+    {
+      "sha256": "14b4451ed20801b79d9b5a30ea05be7fe7eab0c8669cbf3a1de7202d5bd7c00f",
+      "source_file_id": "source_file_8ac043dcacd4e342ed5d",
+      "source_rows": 1593,
+      "tour": "atp",
+      "url": "http://www.tennis-data.co.uk/2026/2026.xlsx",
+      "year": 2026
+    },
+    {
+      "sha256": "276b61366afe8016eb5b5822e0f83efe33b8449743ffc07781f0be48e2b8aa1a",
+      "source_file_id": "source_file_949360f23365f2ebe78d",
+      "source_rows": 2491,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2007w/2007.xlsx",
+      "year": 2007
+    },
+    {
+      "sha256": "eb745d440250d321f02353c135b91bc1fcb39d2c30757d116f60fd0f6a8902d9",
+      "source_file_id": "source_file_33ea50c103e30f6fc612",
+      "source_rows": 2404,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2008w/2008.xlsx",
+      "year": 2008
+    },
+    {
+      "sha256": "20c2b846a5d20f4c297d5ea058503b12c8f8bfd9994ec298bdb64615e0f3234f",
+      "source_file_id": "source_file_f80f6d85ade3cae129bc",
+      "source_rows": 2433,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2009w/2009.xlsx",
+      "year": 2009
+    },
+    {
+      "sha256": "9eb750c4e8d17ea0255a9b9144f8e77460bd0926fdae992f5f47a650d8259039",
+      "source_file_id": "source_file_353645905f903e8459ec",
+      "source_rows": 2448,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2010w/2010.xlsx",
+      "year": 2010
+    },
+    {
+      "sha256": "bfa3c9803c8e2b4bc512f9d1a3938d0aed4a3079e0acc404f7f737359a4190f8",
+      "source_file_id": "source_file_9c1f28d45d2a3bbe3191",
+      "source_rows": 2468,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2011w/2011.xlsx",
+      "year": 2011
+    },
+    {
+      "sha256": "204e823154e57723ea8b7c00dd837e6eb319485373d59f82e41439abf8f87111",
+      "source_file_id": "source_file_ff96313d279586b7508d",
+      "source_rows": 2407,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2012w/2012.xlsx",
+      "year": 2012
+    },
+    {
+      "sha256": "94b8c1033b45ebe01b25e6faf2f86a052c4c991ae1950d7100e1bb29d97ab492",
+      "source_file_id": "source_file_27ad0df19c1e6b91d2dd",
+      "source_rows": 2442,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2013w/2013.xlsx",
+      "year": 2013
+    },
+    {
+      "sha256": "0e1ae9ad8d781825ca79df0be18ebf861383b9f2b3630e4bcc0166a8adc9f047",
+      "source_file_id": "source_file_c15ae391d7a01492ecf8",
+      "source_rows": 2476,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2014w/2014.xlsx",
+      "year": 2014
+    },
+    {
+      "sha256": "f2625eb24820743514a635f2daf57945d40d0108c5aafd244345df8368197648",
+      "source_file_id": "source_file_2e9325ac7b2559fceaee",
+      "source_rows": 2521,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2015w/2015.xlsx",
+      "year": 2015
+    },
+    {
+      "sha256": "810ec9c7fe558614331cac2d9b328545ea6d3c0c840863ad5653efa0bbd9a40a",
+      "source_file_id": "source_file_bae1ba5131ce0d10a7a9",
+      "source_rows": 2522,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2016w/2016.xlsx",
+      "year": 2016
+    },
+    {
+      "sha256": "5476fa98ea38a885a5f7141e6aa6c4979dfb2d7f93715f7d13b46a17c1f140e0",
+      "source_file_id": "source_file_fed5522bd5a5859be610",
+      "source_rows": 2500,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2017w/2017.xlsx",
+      "year": 2017
+    },
+    {
+      "sha256": "e96cc8317a634f0238c51f375896bfc47f53de96554adb0291003cc9b26c7278",
+      "source_file_id": "source_file_194f31621153e30ea602",
+      "source_rows": 2469,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2018w/2018.xlsx",
+      "year": 2018
+    },
+    {
+      "sha256": "3302aa2b04e4873cd1079ef470d8b63778b35b9b821d2ca52621b933f88a567d",
+      "source_file_id": "source_file_79a1b1b4c2909aba02b0",
+      "source_rows": 2472,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2019w/2019.xlsx",
+      "year": 2019
+    },
+    {
+      "sha256": "f7dd7c632d8fc3a02c259983ab2dfd83a2e4516a3011d9b70caef6cd49c3eae1",
+      "source_file_id": "source_file_dfac64ee8165db80f066",
+      "source_rows": 1055,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2020w/2020.xlsx",
+      "year": 2020
+    },
+    {
+      "sha256": "a364ca800b49b6ffc770b6766b8b15cec50ecfa9baf850c7973076dc936b1cc3",
+      "source_file_id": "source_file_ba9ed6a65fe9db5f602e",
+      "source_rows": 2447,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2021w/2021.xlsx",
+      "year": 2021
+    },
+    {
+      "sha256": "d173f08e2607e2a3259448261f50cbe5bed6f298dd204427ea07b7795b4cc155",
+      "source_file_id": "source_file_bb04dd7ee427f3dd03b5",
+      "source_rows": 2369,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2022w/2022.xlsx",
+      "year": 2022
+    },
+    {
+      "sha256": "ea4c4556c841ad696cd417885015fe0c63b7a2414c94d856f9515a238f2fef2a",
+      "source_file_id": "source_file_7ad7ca9d75830cc33d82",
+      "source_rows": 2491,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2023w/2023.xlsx",
+      "year": 2023
+    },
+    {
+      "sha256": "0ce3a4e87c269253dd61e1ab4a3bbeb2d9acdd512f316189e5ad872c86c67b53",
+      "source_file_id": "source_file_9d779da0601d3b732390",
+      "source_rows": 2490,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2024w/2024.xlsx",
+      "year": 2024
+    },
+    {
+      "sha256": "aac890b7465d0c74812578b2a962b4e5cb4c76455dccb6cece2efa5067448c13",
+      "source_file_id": "source_file_4eba3b7201439978598d",
+      "source_rows": 2505,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2025w/2025.xlsx",
+      "year": 2025
+    },
+    {
+      "sha256": "f4753f06eb5899e68180a2735e5bf70cd044e9bd06fc5d2868313664e2d9a79b",
+      "source_file_id": "source_file_b2c7fa2aadd9d74202f3",
+      "source_rows": 1549,
+      "tour": "wta",
+      "url": "http://www.tennis-data.co.uk/2026w/2026.xlsx",
+      "year": 2026
+    }
+  ],
+  "source_policy": "day-precision match evidence only; no tournament fallback",
+  "status": "passed",
+  "validation_errors": []
+}

@@ -14,18 +14,20 @@ Query data: [https://ryantjx.github.io/tennis-match-data/](https://ryantjx.githu
 
 ## Direct Parquet downloads
 
-These rolling files contain completed singles matches only. They are
-regenerated after validated data updates.
+These rolling files contain the exact-dated subset of completed singles
+matches. Canonical repository history remains complete when an exact day is
+unavailable; those nullable rows are intentionally absent from downloads.
+The files are regenerated after validated data updates.
 `mens.parquet` is an alias of `atp.parquet`; `womens.parquet` is an alias of
 `wta.parquet`.
 
 | Dataset | Download URL | Contents |
 | --- | --- | --- |
-| Men's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/mens.parquet> | All ATP completed matches |
-| Women's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/womens.parquet> | All WTA completed matches |
-| ATP | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/atp.parquet> | All ATP completed matches |
-| WTA | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet> | All WTA completed matches |
-| All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Combined ATP and WTA completed matches |
+| Men's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/mens.parquet> | Exact-dated ATP completed matches |
+| Women's matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/womens.parquet> | Exact-dated WTA completed matches |
+| ATP | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/atp.parquet> | Exact-dated ATP completed matches |
+| WTA | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/wta.parquet> | Exact-dated WTA completed matches |
+| All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Combined exact-dated ATP and WTA completed matches |
 | Tournaments | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/tournaments.parquet> | Annual ATP/WTA tournament editions |
 | Provenance | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/provenance.parquet> | Match-to-source-file mappings |
 | Ambiguities | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/ambiguities.parquet> | Ambiguous source observations and candidate match IDs |
@@ -176,6 +178,7 @@ data/
   tournaments/tour=atp/year=2025/tournaments.parquet
   match_stats/tour=atp/year=2025/match-stats.parquet
   observations/tour=atp/year=2025/observations.parquet
+  date_observations/tour=atp/year=2025/date-observations.parquet
   rankings/tour=atp/year=2025/rankings.parquet
   players/tour=atp/players.parquet
   fixtures/tour=atp/current.parquet
@@ -192,8 +195,10 @@ and pinned source revision.
 The `matches` and `fixtures` tables use the same v3.2 match schema. Tournament
 classification, surface, location, and date range live once in the
 `tournaments` table; its canonical name is deliberately copied into match rows.
-`observations` is a compact match-to-source crosswalk;
-file-level revision, URL, checksum, licence, and reconciliation totals live in
+`observations` is a compact match-to-source crosswalk. Internal
+`date_observations` records each accepted day-precision assertion and the
+reconciliation method; unresolved or conflicting assertions stay quarantined.
+File-level revision, URL, checksum, licence, and reconciliation totals live in
 `source-audit.parquet`.
 
 ## Coverage and semantics
@@ -205,7 +210,9 @@ file-level revision, URL, checksum, licence, and reconciliation totals live in
 - Match statistics where the source publishes them.
 - Reusable Wikimedia completed results and best-effort fixture draw slots.
 - Tournament `start_date` and `end_date` provide edition context. Match `date`
-  is nullable and is never inferred from the tournament window.
+  is nullable, requires accepted day-precision evidence, and is never inferred
+  from the tournament window. Completed releases contain only that exact-dated
+  subset; the canonical partitions retain unresolved historical rows.
 
 Coverage means complete ingestion of the approved available source files, not
 proof that every tennis match ever played is represented. Inspect

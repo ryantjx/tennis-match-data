@@ -66,6 +66,7 @@ perform a live source rebuild.
 | `test_model_scores.py` | Text normalization, slugs, canonical player/match identifiers, round aliases, semantic matching, Sackmann scores, bracket scores, tiebreaks, and retirements. |
 | `test_wikimedia.py` | Men's and women's result parsing, Unicode names, qualifying draws, tour-specific page discovery, tentative future draw slots, and unsupported future-page titles. All parser inputs come from `tests/fixtures/`. |
 | `test_dataset.py` | Year parsing, ingestion classification, quarantine precedence, complete repository validation, deliberately corrupted datasets, catalog accounting, partition-pruned queries, repeated tournament identity, statistics/date semantics, extracts, unified release downloads, strict future filtering, schema metadata, and deterministic corrections. |
+| `test_exact_dates.py` | XLS/XLSX handling, Excel/string dates, cross-year rows, participant aliases, rematches, conflicts, contextual source IDs, and WTA API/Tennis TV completed-row parsing. |
 | `test_data_quality.py` | The checked-in or `OPEN_TENNIS_DATA_ROOT` dataset. It requires every ATP and WTA year from 1968 through catalog `as_of`, checks required match, tournament, and observation partitions, enforces match cleanliness, verifies documented ranking coverage, and restricts quarantine reasons. These tests never skip when the repository dataset is missing. |
 | `test_cli.py` | Successful and failing CLI behavior for `build`, `bootstrap`, `validate`, `query`, `extract`, `add-correction`, `refresh-wikimedia`, `refresh-current`, `refresh-fixtures`, `audit-retroactive`, `promote`, both `downloads` modes, and the interactive `shell`. Network-heavy handlers are mocked here and exercised live in CI. |
 | `test_audit_workflow.py` | Revision-gated weekly audit orchestration: upstream changes with no semantic delta, match/fixture/tournament field corrections, multiple source changes, isolated staging, promotion exactly once after validation, JSON/Markdown artifacts, and failed rebuilds that never promote. |
@@ -92,10 +93,12 @@ The validation and yearly tests jointly enforce these rules:
   won exceeding first serves in or break points saved exceeding break points faced.
 - Every source match row is classified exactly once. Rejected rows use
   `duplicate_source_row`, `invalid_participants`, `invalid_statistics`, or
-  `ambiguous_source_mapping`, and source
+  `ambiguous_source_mapping`; exact-date sources additionally use explicit
+  invalid, unmatched, ambiguous, or conflicting date reasons. Source
   reconciliation must satisfy `source_rows = normalized_rows + quarantined_rows`.
-- Completed match dates are required; the exact match day falls back to the
-  source tournament start date. Tournament metadata, future fixture dates,
+- Canonical completed match dates are nullable and require accepted
+  `date_precision=day` evidence; tournament dates are never substituted.
+  Completed downloads contain only the exact-dated subset. Tournament metadata, future fixture dates,
   optional statistics, fixture participants, and player biography values may
   remain null. The 303 completed results whose source lacks a score remain
   valid with `score=null`.
