@@ -92,7 +92,7 @@ class ScriptTests(unittest.TestCase):
                 check=False,
             )
             self.assertNotEqual(auxiliary_missing.returncode, 0)
-            for filename in ("provenance.parquet", "sources.parquet"):
+            for filename in ("provenance.parquet", "ambiguities.parquet", "sources.parquet"):
                 (downloads / filename).touch()
             for path in downloads.iterdir():
                 (release_state / path.name).write_bytes(b"old-" + path.name.encode())
@@ -110,7 +110,7 @@ class ScriptTests(unittest.TestCase):
             for filename in (
                 "mens.parquet", "womens.parquet", "atp.parquet", "wta.parquet",
                 "all-matches.parquet", "tournaments.parquet", "provenance.parquet",
-                "sources.parquet",
+                "ambiguities.parquet", "sources.parquet",
             ):
                 self.assertIn(str(downloads / filename), arguments)
 

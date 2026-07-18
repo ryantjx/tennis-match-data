@@ -28,7 +28,8 @@ singles-only, while validators and synthetic tests support doubles.
 Completed rows require both participant slots. A terminal winner must exactly
 equal one participant ID list. The 303 source-declared completed results whose
 provenance has no score remain `status=completed, score=null`; validation never
-invents a score. Historical `date` is null unless the exact match date is known.
+invents a score. Completed rows prefer an exact match date and otherwise use
+the source tournament start date; terminal rows cannot be published undated.
 
 Fixtures use `status=fixture`, keep `winner_id` and `score` null, and may have a
 null `date` or unresolved participant slot. Their lifecycle-stable `match_id`
@@ -62,8 +63,22 @@ match it exactly.
 match_id, tour, year, source_file_id, source_match_id
 ```
 
+Release `ambiguities.parquet` contains source observations that cannot be
+truthfully assigned to one canonical match:
+
+```text
+tour, year, source_file_id, source_match_id, candidate_match_ids, reason
+```
+
+Every released match has either direct provenance or appears in an ambiguity
+candidate list. Ambiguity rows use `reason=ambiguous_source_mapping` and never
+select a candidate on the source's behalf.
+
 `source-audit.parquet` and release `sources.parquet` store URLs, revisions,
 checksums, licences, and reconciliation totals once per referenced source file.
+`source_file_id` hashes source label, URL, revision, content checksum, role, and
+tour, so each source record is unique even when one page serves multiple roles
+or tours.
 Match-shaped rows never contain `source_url`.
 
 `quarantine.parquet` contains:

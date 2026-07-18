@@ -7,7 +7,7 @@ repository=${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}
 script_directory=$(cd "$(dirname "$0")" && pwd)
 filenames=()
 while IFS= read -r filename; do filenames+=("$filename"); done < "$script_directory/release-assets.txt"
-test "${#filenames[@]}" -eq 8
+test "${#filenames[@]}" -eq 9
 
 assets=()
 for filename in "${filenames[@]}"; do

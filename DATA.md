@@ -49,6 +49,7 @@ reference.
 | All matches | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/all-matches.parquet> | Rolling, CI-validated release | Combined ATP and WTA file; the most convenient source for cross-tour queries. |
 | Tournaments | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/tournaments.parquet> | Rolling, CI-validated release | Annual tournament editions referenced by the match files. |
 | Provenance | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/provenance.parquet> | Rolling, CI-validated release | Compact match-to-source mappings. |
+| Ambiguities | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/ambiguities.parquet> | Rolling, CI-validated release | Source observations with multiple possible canonical match IDs; no candidate is selected without evidence. |
 | Sources | <https://github.com/ryantjx/tennis-match-data/releases/download/data-latest/sources.parquet> | Rolling, CI-validated release | Referenced source-file URLs, revisions, checksums, licences, and reconciliation totals. |
 
 The rolling assets are replaced only after schema, integrity, reconciliation,
@@ -70,6 +71,7 @@ included `tournaments.parquet` by `tournament_id`.
 | All future matches | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/all-matches.parquet> | Best effort; CI-validated | Combined ATP and WTA fixtures. |
 | Tournaments | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/tournaments.parquet> | Best effort; CI-validated | Annual editions referenced by fixtures. |
 | Provenance | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/provenance.parquet> | Best effort; CI-validated | Fixture-to-source mappings. |
+| Ambiguities | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/ambiguities.parquet> | Best effort; CI-validated | Ambiguous source evidence for released fixtures; normally an empty typed asset. |
 | Sources | <https://github.com/ryantjx/tennis-match-data/releases/download/future-latest/sources.parquet> | Best effort; CI-validated | Referenced source-file records. |
 
 Rows with a known `date` are retained when that date is on or after the
@@ -143,13 +145,18 @@ ORDER BY tour, year, level, draw;
 
 - Coverage means complete ingestion of approved available sources, not proof
   that every tennis match ever played is present.
-- Tournament dates describe the edition, not the exact match day.
+- A completed match `date` is the exact match day when available and otherwise
+  the source tournament start date; join tournament metadata when that
+  distinction matters.
 - Tournament and player names are display attributes, not identity keys. Use the
   canonical IDs for joins.
-- Statistics, rankings, biographical attributes, match dates, and some
-  participants are nullable because source availability varies.
+- Statistics, rankings, biographical attributes, future fixture dates, and
+  some future participants are nullable because source availability varies.
 - Source licences remain attached to file-level provenance records. See
   [DATA_LICENSE.md](DATA_LICENSE.md) before redistribution or commercial use.
+- Rankings are intentionally reported as `stale` when the latest approved
+  snapshot is more than 14 days behind catalog `as_of`; the threshold is not
+  relaxed to conceal an upstream coverage gap.
 
 ## Update cadence
 

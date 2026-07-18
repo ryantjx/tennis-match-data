@@ -16,6 +16,9 @@ Last reviewed: 2026-07-16.
 - Source URLs, revisions, checksums, and licences are stored once in source-file
   records and linked to matches through compact provenance; match rows contain
   no source URL.
+- Source-file identity includes provider label, URL, immutable revision,
+  checksum, ingestion role, and tour. This distinguishes a shared page used for
+  multiple roles or tour-specific records without duplicating an identity.
 
 The direct origin should be restored automatically when it becomes reachable
 and its content hashes reconcile with the fallback.
@@ -28,6 +31,8 @@ and its content hashes reconcile with the fallback.
 - Licence: CC BY-SA 4.0, with page URL, revision ID, and content checksum.
 - Limitation: community maintained; fixtures may lack exact dates and are not a
   complete schedule service.
+- Tournament metadata is filled only from recorded immutable page revisions;
+  a tournament window is never substituted for an exact fixture date.
 
 ## Community corrections
 

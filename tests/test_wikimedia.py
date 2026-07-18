@@ -98,6 +98,35 @@ class WikimediaTests(unittest.TestCase):
         self.assertEqual((parsed["city"], parsed["country"]), ("Iași", "Romania"))
         self.assertEqual(parsed["surface"], "clay")
 
+    def test_tennis_event_info_extracts_cross_month_date_window(self):
+        tournament_page = {
+            "title": "2026 Wimbledon Championships",
+            "page_id": 2026,
+            "wikidata_id": "Q2026",
+            "content": """
+                {{TennisEventInfo|2026|Wimbledon Championships
+                | date = 29 June – 12 July 2026
+                | location = Wimbledon, London, England
+                | surface = Grass / outdoor
+                }}
+            """,
+        }
+        parsed = parse_tournament_page(tournament_page, "wta", 2026)
+        self.assertEqual(parsed["start_date"], date(2026, 6, 29))
+        self.assertEqual(parsed["end_date"], date(2026, 7, 12))
+        self.assertEqual(parsed["surface"], "grass")
+
+    def test_tournament_page_extracts_cross_year_date_window(self):
+        tournament_page = {
+            "title": "2026 United Cup",
+            "page_id": 2027,
+            "wikidata_id": "Q2027",
+            "content": "{{TennisEventInfo|date=28 December – 4 January 2026}}",
+        }
+        parsed = parse_tournament_page(tournament_page, "atp", 2026)
+        self.assertEqual(parsed["start_date"], date(2025, 12, 28))
+        self.assertEqual(parsed["end_date"], date(2026, 1, 4))
+
     def test_mens_page_keeps_completed_and_walkover_not_live(self):
         players = {}
         event = parse_page(
