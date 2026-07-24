@@ -4,6 +4,12 @@ This is the operational index for the published tennis data: what each file
 contains, where to obtain it, how to assess its health, and which limitations
 matter when querying it. All structured data artifacts are Parquet.
 
+> **Current contract:** these instructions describe the legacy v3.2 data.
+> Completed `date` values may be tournament start dates when an exact played
+> day is unavailable. Do not treat the current release as uniformly
+> exact-dated. The exact-date daily replacement is specified in
+> [OBJECTIVE.md](OBJECTIVE.md) and is not implemented yet.
+
 ## Health
 
 [![Validate data](https://github.com/ryantjx/tennis-match-data/actions/workflows/ci.yml/badge.svg)](https://github.com/ryantjx/tennis-match-data/actions/workflows/ci.yml)
@@ -145,9 +151,9 @@ ORDER BY tour, year, level, draw;
 
 - Coverage means complete ingestion of approved available sources, not proof
   that every tennis match ever played is present.
-- A completed match `date` is the exact match day when available and otherwise
-  the source tournament start date; join tournament metadata when that
-  distinction matters.
+- In legacy v3.2, a completed match `date` is the exact match day when
+  available and otherwise the source tournament start date. The shared match
+  row does not distinguish those cases, so it must not be assumed exact.
 - Tournament and player names are display attributes, not identity keys. Use the
   canonical IDs for joins.
 - Statistics, rankings, biographical attributes, future fixture dates, and

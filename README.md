@@ -6,6 +6,13 @@ matches and future fixtures share one 19-column Parquet contract and are
 published as separate lifecycle views. Annual tournament editions and compact
 provenance remain auxiliary tables so match rows stay lean.
 
+> **Legacy date notice:** the current v3.2 completed-match `date` uses an exact
+> played day when available and otherwise falls back to the source tournament
+> start date. It is not a uniformly exact match-date dataset. The approved v4
+> direction removes that fallback, builds historical results and future
+> fixtures together each day, and is documented in [OBJECTIVE.md](OBJECTIVE.md).
+> v4 is not implemented yet.
+
 Repository: https://github.com/ryantjx/tennis-match-data
 
 Dataset inventory, health, file URLs, and notes: [DATA.md](DATA.md)
@@ -204,8 +211,9 @@ file-level revision, URL, checksum, licence, and reconciliation totals live in
 - Historical ATP rankings from 1973 and WTA rankings from 1984.
 - Match statistics where the source publishes them.
 - Reusable Wikimedia completed results and best-effort fixture draw slots.
-- Tournament `start_date` and `end_date` provide edition context. Match `date`
-  is nullable and is never inferred from the tournament window.
+- Tournament `start_date` and `end_date` provide edition context. In legacy
+  v3.2, a completed match `date` is the exact day when available and otherwise
+  the source tournament start date. Future fixture dates remain nullable.
 
 Coverage means complete ingestion of the approved available source files, not
 proof that every tennis match ever played is represented. Inspect
@@ -251,5 +259,6 @@ read [DATA_LICENSE.md](DATA_LICENSE.md) and [docs/SOURCES.md](docs/SOURCES.md).
 
 Use `open-tennis-data add-correction --help` to append a sourced CC0 proposal to
 `contributions/corrections.parquet`. Collector, identity, and schema changes
-must include offline tests and documentation. See
+must include offline tests and documentation. See the target direction in
+[OBJECTIVE.md](OBJECTIVE.md) and contribution process in
 [CONTRIBUTING.md](CONTRIBUTING.md).

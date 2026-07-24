@@ -1,6 +1,15 @@
 # Sources and collection policy
 
-Last reviewed: 2026-07-16.
+Last reviewed: 2026-07-24.
+
+This document describes sources enabled in legacy v3.2. The approved v4
+source-policy registry, exact-date evidence rules, permission gates, and daily
+historical/future build are specified in [`OBJECTIVE.md`](../OBJECTIVE.md) and
+are not implemented yet.
+
+The current production collectors are limited to the Sackmann/Tennis Abstract
+archive and Wikimedia. There is no production tennis-data.co.uk, official
+order-of-play, ATP, WTA, ITF, Grand Slam, WTA Data API, or ATP/TDI adapter.
 
 ## Sackmann / Tennis Abstract archive
 
@@ -19,6 +28,9 @@ Last reviewed: 2026-07-16.
 - Source-file identity includes provider label, URL, immutable revision,
   checksum, ingestion role, and tour. This distinguishes a shared page used for
   multiple roles or tour-specific records without duplicating an identity.
+- `tourney_date` is normally a tournament week or start date. It is not
+  match-level day evidence. Legacy v3.2 may expose it as the completed match
+  `date`; v4 must not.
 
 The direct origin should be restored automatically when it becomes reachable
 and its content hashes reconcile with the fallback.
@@ -33,6 +45,8 @@ and its content hashes reconcile with the fallback.
   complete schedule service.
 - Tournament metadata is filled only from recorded immutable page revisions;
   a tournament window is never substituted for an exact fixture date.
+- A Wikimedia date is match-level evidence only when the source explicitly
+  states the individual match day or published schedule day.
 
 ## Community corrections
 

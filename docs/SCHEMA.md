@@ -1,5 +1,10 @@
 # Parquet schemas
 
+This document describes the implemented legacy v3.2 contract. In v3.2,
+completed `date` falls back to the source tournament start date when an exact
+played day is unavailable. The exact-evidence v4 target is documented in
+[`OBJECTIVE.md`](../OBJECTIVE.md) and is not implemented yet.
+
 Open Tennis Data v3.2 publishes one match contract for completed results,
 future fixtures, extracts, and rolling release assets. Every match-shaped file
 has metadata `open_tennis_data_schema_version=3.2` and these 19 columns in this
