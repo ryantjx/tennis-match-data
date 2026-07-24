@@ -1,0 +1,78 @@
+{
+  "product_version": "3",
+  "policy_revision": "v3-2026-07-24",
+  "sources": [
+    {
+      "source": "sackmann",
+      "policy_state": "public_research",
+      "terms_url": "https://github.com/JeffSackmann/tennis_atp",
+      "allowed_uses": ["identity_crosscheck", "result_crosscheck", "public_research_release"],
+      "allowed_fields": ["identity", "participants", "round", "result", "score", "tournament"],
+      "attribution": "Jeff Sackmann / Tennis Abstract; CC BY-NC-SA 4.0",
+      "rate_limit": "immutable bulk revision",
+      "parser_version": "3.2",
+      "reviewed_at": "2026-07-24",
+      "policy_revision": "v3-2026-07-24"
+    },
+    {
+      "source": "tennis-data.co.uk",
+      "policy_state": "public_research",
+      "terms_url": "https://www.tennis-data.co.uk/data.php",
+      "allowed_uses": ["match_date", "result", "public_research_release"],
+      "allowed_fields": ["date", "participants", "round", "result", "score", "tournament"],
+      "attribution": "Tennis-Data.co.uk public season files; source terms apply",
+      "rate_limit": "one request per season file per build",
+      "parser_version": "3.2",
+      "reviewed_at": "2026-07-24",
+      "policy_revision": "v3-2026-07-24"
+    },
+    {
+      "source": "wikimedia",
+      "policy_state": "public_research",
+      "terms_url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+      "allowed_uses": ["identity", "fixture", "result", "match_date", "public_research_release"],
+      "allowed_fields": ["date", "participants", "round", "result", "score", "tournament"],
+      "attribution": "Wikimedia contributors; applicable page licence and revision",
+      "rate_limit": "batched MediaWiki API requests with backoff",
+      "parser_version": "3.2",
+      "reviewed_at": "2026-07-24",
+      "policy_revision": "v3-2026-07-24"
+    },
+    {
+      "source": "wta-api",
+      "policy_state": "blocked",
+      "terms_url": "https://www.wtatennis.com/terms-and-conditions",
+      "allowed_uses": [],
+      "allowed_fields": ["date", "participants", "round", "result", "score", "tournament"],
+      "attribution": "Not publishable without separate written WTA permission",
+      "rate_limit": "collection disabled by source policy",
+      "parser_version": "3.2",
+      "reviewed_at": "2026-07-24",
+      "policy_revision": "v3-2026-07-24"
+    },
+    {
+      "source": "tennis-tv",
+      "policy_state": "blocked",
+      "terms_url": "https://www.tennistv.com/terms-and-conditions",
+      "allowed_uses": [],
+      "allowed_fields": ["date", "participants", "round", "result", "score", "tournament"],
+      "attribution": "Not publishable without separate written ATP Media permission",
+      "rate_limit": "collection disabled by source policy",
+      "parser_version": "3.2",
+      "reviewed_at": "2026-07-24",
+      "policy_revision": "v3-2026-07-24"
+    },
+    {
+      "source": "community",
+      "policy_state": "approved",
+      "terms_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "allowed_uses": ["correction", "public_research_release"],
+      "allowed_fields": ["sourced_correction"],
+      "attribution": "Community correction dedicated to CC0 1.0",
+      "rate_limit": "not applicable",
+      "parser_version": "3.2",
+      "reviewed_at": "2026-07-24",
+      "policy_revision": "v3-2026-07-24"
+    }
+  ]
+}

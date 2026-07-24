@@ -1,0 +1,13 @@
+matches.parquet
+completed.parquet
+fixtures.parquet
+tournaments.parquet
+players.parquet
+provenance.parquet
+sources.parquet
+coverage.parquet
+health.parquet
+quarantine.parquet
+catalog.parquet
+manifest.json
+SHA256SUMS

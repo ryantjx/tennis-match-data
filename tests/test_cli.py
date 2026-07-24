@@ -133,6 +133,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(
                 build.call_args.kwargs["wikimedia_source_audit"], Path("snapshot.parquet")
             )
+            self.assertFalse(build.call_args.kwargs["include_legacy_auxiliary"])
 
         with patch("open_tennis_data.cli.refresh_wikimedia_dataset") as refresh:
             refresh.return_value = {
@@ -204,6 +205,92 @@ class CliTests(unittest.TestCase):
         self.assertIn("value", output)
         self.assertIn("1", output)
         self.assertIn("error:", error)
+
+    def test_v3_release_selection_matches_filters_and_verification(self) -> None:
+        result, output, error = self.invoke(
+            "matches",
+            "--data",
+            str(DATA),
+            "--tour",
+            "atp",
+            "--years",
+            "2025",
+            "--status",
+            "completed",
+            "--player",
+            "Sinner",
+            "--limit",
+            "2",
+            "--format",
+            "jsonl",
+        )
+        self.assertEqual((result, error), (0, ""))
+        self.assertLessEqual(len(output.splitlines()), 2)
+
+        manifest = {
+            "product_version": "3",
+            "schema_version": "3.2",
+            "assets": [
+                {"name": "matches.parquet", "url": "matches.parquet"},
+                {"name": "completed.parquet", "url": "completed.parquet"},
+                {"name": "fixtures.parquet", "url": "fixtures.parquet"},
+            ],
+        }
+        with patch(
+            "open_tennis_data.cli.load_release_manifest",
+            return_value=manifest,
+        ) as loader, patch(
+            "open_tennis_data.cli.query_release",
+            return_value=(["rows"], [(12,)]),
+        ):
+            result, output, error = self.invoke(
+                "query",
+                "--release",
+                "data-v3-test",
+                "--repository",
+                "owner/repository",
+                "--sql",
+                "SELECT count(*) rows FROM matches",
+                "--format",
+                "json",
+            )
+        self.assertEqual((result, error), (0, ""))
+        self.assertIn('"rows": 12', output)
+        self.assertEqual(loader.call_args.args[0], "data-v3-test")
+        self.assertEqual(loader.call_args.kwargs["repository"], "owner/repository")
+
+        with patch(
+            "open_tennis_data.cli.create_v3_release",
+            return_value={
+                "release_status": "preview",
+                "release_tag": "data-v3-test",
+                "assets": [{}] * 11,
+            },
+        ):
+            result, output, error = self.invoke(
+                "release",
+                "--data",
+                str(DATA),
+                "--output",
+                "dist/release",
+                "--tag",
+                "data-v3-test",
+            )
+        self.assertEqual((result, error), (0, ""))
+        self.assertIn("v3 preview release", output)
+
+        with patch(
+            "open_tennis_data.cli.validate_v3_release",
+            return_value=["release is preview"],
+        ):
+            result, _, error = self.invoke(
+                "verify-release",
+                "--directory",
+                "dist/release",
+                "--require-complete",
+            )
+        self.assertEqual(result, 1)
+        self.assertIn("release is preview", error)
 
 
 if __name__ == "__main__":

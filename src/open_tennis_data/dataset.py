@@ -176,10 +176,16 @@ def resolve_archive_revision() -> str:
     return revision
 
 
-def _match_specs(years: Sequence[int]) -> Iterator[tuple[str, int, str, str]]:
+def _match_specs(
+    years: Sequence[int],
+    *,
+    top_level_only: bool = False,
+) -> Iterator[tuple[str, int, str, str]]:
     for tour in TOURS:
         for year in years:
             yield tour, year, "tour", f"{tour}/{tour}_matches_{year}.csv"
+            if top_level_only:
+                continue
             if tour == "atp" and year >= 1978:
                 yield tour, year, "qual_chall", f"atp/atp_matches_qual_chall_{year}.csv"
             if tour == "atp" and year >= 1991:
@@ -189,13 +195,20 @@ def _match_specs(years: Sequence[int]) -> Iterator[tuple[str, int, str, str]]:
 
 
 def _source_specs(
-    years: Sequence[int], include_rankings: bool, current_rankings_only: bool = False
+    years: Sequence[int],
+    include_rankings: bool,
+    current_rankings_only: bool = False,
+    top_level_only: bool = False,
 ) -> list[tuple[str, str, int | None, str, str]]:
     specs: list[tuple[str, str, int | None, str, str]] = [
         ("players", tour, None, "players", f"{tour}/{tour}_players.csv") for tour in TOURS
     ]
     specs.extend(
-        ("matches", tour, year, label, path) for tour, year, label, path in _match_specs(years)
+        ("matches", tour, year, label, path)
+        for tour, year, label, path in _match_specs(
+            years,
+            top_level_only=top_level_only,
+        )
     )
     if include_rankings:
         for tour in TOURS:
@@ -213,11 +226,17 @@ def download_sources(
     current_rankings_only: bool = False,
     workers: int = 12,
     revision: str | None = None,
+    top_level_only: bool = False,
 ) -> tuple[list[SourceFile], str]:
     revision = revision or resolve_archive_revision()
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("source revision must be a 40-character lowercase Git SHA")
-    specs = _source_specs(years, include_rankings, current_rankings_only)
+    specs = _source_specs(
+        years,
+        include_rankings,
+        current_rankings_only,
+        top_level_only,
+    )
     temporary.mkdir(parents=True, exist_ok=True)
 
     def download(spec: tuple[str, str, int | None, str, str]) -> SourceFile:
@@ -704,7 +723,6 @@ def _ingest_wikimedia(
     from open_tennis_data.model import normalize_text
     from open_tennis_data.sources.wikimedia import (
         discover_pages,
-        fetch_page,
         fetch_pages_at_revisions,
         fetch_pages_optional,
         parse_page,
@@ -758,14 +776,18 @@ def _ingest_wikimedia(
 
     pages: list[tuple[str, int, dict[str, Any]]] = []
     if source_audit is None:
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {
-                executor.submit(fetch_page, title): (tour, page_year)
-                for tour, page_year, title, _ in tasks
-            }
-            for future in as_completed(futures):
-                tour, page_year = futures[future]
-                pages.append((tour, page_year, future.result()))
+        draw_tasks_by_title: dict[str, list[tuple[str, int]]] = {}
+        for tour, page_year, title, _ in tasks:
+            draw_tasks_by_title.setdefault(title, []).append((tour, page_year))
+        fetched_pages = fetch_pages_optional(
+            sorted(draw_tasks_by_title),
+            batch_size=10,
+        )
+        for title, page in fetched_pages.items():
+            pages.extend(
+                (tour, page_year, page)
+                for tour, page_year in draw_tasks_by_title[title]
+            )
     else:
         revisions_by_title = {title: str(revision) for _, _, title, revision in tasks}
         snapshot_pages = fetch_pages_at_revisions(revisions_by_title)
@@ -1321,6 +1343,19 @@ def _create_ranking_tables(
     connection: duckdb.DuckDBPyConnection, sources: Sequence[SourceFile]
 ) -> None:
     ranking_sources = [item for item in sources if item.kind == "rankings"]
+    if not ranking_sources:
+        connection.execute("CREATE TABLE raw_rankings (source_path VARCHAR)")
+        connection.execute(
+            """
+            CREATE TABLE rankings (
+              tour VARCHAR, year SMALLINT, ranking_date DATE, player_id VARCHAR,
+              rank INTEGER, points INTEGER, tournaments_played INTEGER,
+              source VARCHAR, source_path VARCHAR, source_url VARCHAR,
+              revision VARCHAR, source_sha256 VARCHAR
+            )
+            """
+        )
+        return
     connection.execute(
         f"""
         CREATE TABLE raw_rankings AS
@@ -1531,6 +1566,9 @@ def _ingest_exact_match_dates(
         exact_rows.extend(parsed)
         rejects.extend(invalid)
     if include_live_apis and as_of.year in years:
+        from open_tennis_data.source_policy import SourcePolicyRegistry
+
+        SourcePolicyRegistry.load().require_publishable({"wta-api", "tennis-tv"})
         for source, parsed, invalid in fetch_live_completed_sources(as_of.year, as_of):
             sources.append(source)
             exact_rows.extend(parsed)
@@ -2314,7 +2352,7 @@ def _create_catalog(
 ) -> None:
     records: list[tuple[Any, ...]] = []
     for path in sorted(output.rglob("*.parquet")):
-        if path.name == "catalog.parquet":
+        if path.name == "catalog.parquet" or re.search(r" \d+\.parquet$", path.name):
             continue
         relative = path.relative_to(output).as_posix()
         table = _table_name_for_path(path, output)
@@ -2364,6 +2402,7 @@ def build_dataset(
     source_revision: str | None = None,
     wikimedia_source_audit: Path | None = None,
     include_live_exact_date_apis: bool = False,
+    include_legacy_auxiliary: bool = False,
 ) -> dict[str, Any]:
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -2372,6 +2411,8 @@ def build_dataset(
         sources, revision = download_sources(
             temporary / "sources",
             years,
+            include_rankings=include_legacy_auxiliary,
+            top_level_only=True,
             workers=workers,
             current_rankings_only=current_rankings_only,
             revision=source_revision,
@@ -2383,6 +2424,8 @@ def build_dataset(
         connection.execute("SET threads = 4")
         _create_source_file_table(connection, sources)
         _create_match_tables(connection, sources, as_of)
+        if not include_legacy_auxiliary:
+            connection.execute("DELETE FROM match_stats")
         _create_player_tables(connection, sources)
         wikimedia = _ingest_wikimedia(
             connection,
@@ -2469,7 +2512,7 @@ def bootstrap_dataset(
     as_of: date,
     workers: int = 12,
 ) -> dict[str, Any]:
-    """Build complete history only when the destination is uninitialized."""
+    """Build the v3 2020+ history only when the destination is uninitialized."""
     output = output.resolve()
     if (output / "catalog" / "catalog.parquet").exists() or any(
         output.rglob("*.parquet")
@@ -2477,7 +2520,7 @@ def bootstrap_dataset(
         raise ValueError("bootstrap requires an empty, uninitialized data directory")
     return build_dataset(
         output,
-        list(range(1968, through_year + 1)),
+        list(range(2020, through_year + 1)),
         as_of=as_of,
         workers=workers,
     )
@@ -2839,7 +2882,8 @@ def _refresh_years(
             as_of=as_of,
             workers=workers,
             current_rankings_only=True,
-            include_live_exact_date_apis=True,
+            include_live_exact_date_apis=False,
+            include_legacy_auxiliary=True,
         )
         _reuse_tournament_ids(
             generated, root, [*years, as_of.year + 1]
@@ -3229,9 +3273,10 @@ def audit_retroactive_dataset(
     *,
     as_of: date,
     workers: int = 12,
+    years: Sequence[int] | None = None,
 ) -> dict[str, Any]:
     """Audit upstream revisions in isolation and emit machine/human reports."""
-    years = [as_of.year - 1, as_of.year]
+    years = sorted(set(years or range(2020, as_of.year + 1)))
     fixture_years = [as_of.year, as_of.year + 1]
     root = root.resolve()
     base_report: dict[str, Any] = {
@@ -3716,6 +3761,30 @@ def register_views(
     tours: Sequence[str] = (),
     years: Sequence[int] | None = None,
 ) -> None:
+    registered: set[str] = set()
+    empty_auxiliary = {
+        "match_stats": (
+            'SELECT NULL::VARCHAR match_id,NULL::VARCHAR tour,NULL::SMALLINT AS "year",'
+            "NULL::INTEGER duration_minutes,NULL::INTEGER player1_aces,"
+            "NULL::INTEGER player1_double_faults,NULL::INTEGER player1_service_points,"
+            "NULL::INTEGER player1_first_serves_in,NULL::INTEGER player1_first_serves_won,"
+            "NULL::INTEGER player1_second_serves_won,NULL::INTEGER player1_service_games,"
+            "NULL::INTEGER player1_break_points_saved,NULL::INTEGER player1_break_points_faced,"
+            "NULL::INTEGER player2_aces,NULL::INTEGER player2_double_faults,"
+            "NULL::INTEGER player2_service_points,NULL::INTEGER player2_first_serves_in,"
+            "NULL::INTEGER player2_first_serves_won,NULL::INTEGER player2_second_serves_won,"
+            "NULL::INTEGER player2_service_games,NULL::INTEGER player2_break_points_saved,"
+            "NULL::INTEGER player2_break_points_faced WHERE false"
+        ),
+        "rankings": (
+            'SELECT NULL::VARCHAR AS tour,NULL::SMALLINT AS "year",'
+            "NULL::DATE AS ranking_date,NULL::VARCHAR AS player_id,"
+            'NULL::INTEGER AS "rank",NULL::INTEGER AS points,'
+            "NULL::INTEGER AS tournaments_played,NULL::VARCHAR AS \"source\","
+            "NULL::VARCHAR AS source_path,NULL::VARCHAR AS source_url,"
+            "NULL::VARCHAR AS revision,NULL::VARCHAR AS source_sha256 WHERE false"
+        ),
+    }
     for table in (
         "matches",
         "tournaments",
@@ -3728,10 +3797,29 @@ def register_views(
     ):
         files = _data_files(root, table, tours, years if table != "players" else None)
         if not files:
+            if table in empty_auxiliary:
+                connection.execute(
+                    f"CREATE OR REPLACE VIEW {table} AS {empty_auxiliary[table]}"
+                )
+                registered.add(table)
             continue
         connection.execute(
             f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM read_parquet("
             f"{_sql_list(files)}, union_by_name=true, hive_partitioning=false)"
+        )
+        registered.add(table)
+    if {"matches", "fixtures"}.issubset(registered):
+        connection.execute(
+            "CREATE OR REPLACE VIEW all_matches AS "
+            "SELECT * FROM matches UNION ALL SELECT * FROM fixtures"
+        )
+    elif "matches" in registered:
+        connection.execute(
+            "CREATE OR REPLACE VIEW all_matches AS SELECT * FROM matches"
+        )
+    elif "fixtures" in registered:
+        connection.execute(
+            "CREATE OR REPLACE VIEW all_matches AS SELECT * FROM fixtures"
         )
 
 
@@ -4278,10 +4366,11 @@ def validate_dataset(
     catalog_as_of = next(iter(catalog_dates), None)
     if len(paths) != len(set(paths)):
         errors.append("catalog contains duplicate paths")
+    finder_duplicate = re.compile(r" \d+\.parquet$")
     actual_paths = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*.parquet")
-        if path != catalog
+        if path != catalog and not finder_duplicate.search(path.name)
     }
     catalog_paths = set(paths)
     for relative_path in sorted(actual_paths - catalog_paths):

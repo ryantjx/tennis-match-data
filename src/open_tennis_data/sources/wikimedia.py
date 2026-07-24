@@ -53,7 +53,7 @@ MONTHS = {
 }
 
 
-def api(params: Mapping[str, Any], attempts: int = 3) -> dict[str, Any]:
+def api(params: Mapping[str, Any], attempts: int = 5) -> dict[str, Any]:
     query = {"format": "json", "formatversion": 2, "maxlag": 5, **params}
     request = urllib.request.Request(
         f"{API_URL}?{urllib.parse.urlencode(query)}", headers={"User-Agent": USER_AGENT}
@@ -62,10 +62,18 @@ def api(params: Mapping[str, Any], attempts: int = 3) -> dict[str, Any]:
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 return json.load(response)
+        except urllib.error.HTTPError as exc:
+            if attempt + 1 == attempts:
+                raise
+            if exc.code not in {429, 500, 502, 503, 504}:
+                raise
+            retry_after = exc.headers.get("Retry-After")
+            delay = float(retry_after) if retry_after and retry_after.isdigit() else 5 * 2**attempt
+            time.sleep(min(delay, 60))
         except (urllib.error.URLError, TimeoutError):
             if attempt + 1 == attempts:
                 raise
-            time.sleep(2**attempt)
+            time.sleep(min(5 * 2**attempt, 60))
     raise RuntimeError("unreachable")
 
 
@@ -276,21 +284,29 @@ def _date_range(value: str, year: int) -> tuple[date | None, date | None]:
     plain = _plain(value).replace("–", "-").replace("—", "-")
     plain = re.sub(r"(\d)(?:st|nd|rd|th)\b", r"\1", plain, flags=re.I)
     cross_month = re.search(
-        r"(?P<start>\d{1,2})\s+(?P<start_month>[A-Za-z]+)\s*-\s*"
+        r"(?P<start>\d{1,2})\s+(?P<start_month>[A-Za-z]+)"
+        r"(?:\s*,?\s*(?P<start_year>\d{4}))?\s*-\s*"
         r"(?P<end>\d{1,2})\s+(?P<end_month>[A-Za-z]+)"
-        r"(?:\s*,?\s*(?P<year>\d{4}))?",
+        r"(?:\s*,?\s*(?P<end_year>\d{4}))?",
         plain,
     ) or re.search(
-        r"(?P<start_month>[A-Za-z]+)\s+(?P<start>\d{1,2})\s*-\s*"
+        r"(?P<start_month>[A-Za-z]+)\s+(?P<start>\d{1,2})"
+        r"(?:\s*,?\s*(?P<start_year>\d{4}))?\s*-\s*"
         r"(?P<end_month>[A-Za-z]+)\s+(?P<end>\d{1,2})"
-        r"(?:\s*,?\s*(?P<year>\d{4}))?",
+        r"(?:\s*,?\s*(?P<end_year>\d{4}))?",
         plain,
     )
     if cross_month:
         start_month = MONTHS.get(cross_month.group("start_month").lower())
         end_month = MONTHS.get(cross_month.group("end_month").lower())
-        end_year = int(cross_month.group("year") or year)
-        start_year = end_year - 1 if start_month and end_month and start_month > end_month else end_year
+        end_year = int(cross_month.group("end_year") or year)
+        start_year = (
+            int(cross_month.group("start_year"))
+            if cross_month.group("start_year")
+            else end_year - 1
+            if start_month and end_month and start_month > end_month
+            else end_year
+        )
         if start_month and end_month:
             try:
                 return (

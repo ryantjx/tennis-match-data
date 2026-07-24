@@ -33,6 +33,9 @@ open-tennis-data = "open_tennis_data.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+open_tennis_data = ["sources.json"]
+
 [tool.ruff]
 line-length = 100
 

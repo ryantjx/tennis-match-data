@@ -16,11 +16,13 @@ from open_tennis_data.dataset import (
     _copy_parquet,
     _create_catalog,
     _create_match_tables,
+    _create_ranking_tables,
     _create_source_file_table,
     _remote_audit_revisions,
     _reuse_match_ids,
     _reuse_player_ids,
     _reuse_tournament_ids,
+    _source_specs,
     _write_audit_report,
     add_correction,
     audit_retroactive_dataset,
@@ -69,6 +71,41 @@ class DatasetTests(unittest.TestCase):
                 download_sources(
                     Path(temporary), [2026], revision="moving-main", workers=1
                 )
+
+    def test_v3_build_creates_typed_empty_legacy_auxiliary_tables(self) -> None:
+        connection = duckdb.connect()
+        _create_ranking_tables(connection, [])
+        self.assertEqual(
+            connection.execute(
+                "SELECT (SELECT count(*) FROM raw_rankings),"
+                "(SELECT count(*) FROM rankings)"
+            ).fetchone(),
+            (0, 0),
+        )
+        self.assertEqual(
+            connection.execute("DESCRIBE rankings").fetchall()[0][:2],
+            ("tour", "VARCHAR"),
+        )
+        connection.close()
+
+    def test_v3_source_plan_excludes_lower_tours_and_rankings(self) -> None:
+        sources = _source_specs(
+            [2025],
+            include_rankings=False,
+            top_level_only=True,
+        )
+        self.assertEqual(
+            {
+                (kind, tour, label)
+                for kind, tour, _, label, _ in sources
+            },
+            {
+                ("players", "atp", "players"),
+                ("players", "wta", "players"),
+                ("matches", "atp", "tour"),
+                ("matches", "wta", "tour"),
+            },
+        )
 
     def test_bootstrap_refuses_an_initialized_repository(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

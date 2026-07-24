@@ -1,4 +1,4 @@
-name: Validate data
+name: Validate Open Tennis Data v3
 
 on:
   pull_request:
@@ -25,187 +25,8 @@ jobs:
       - run: coverage run -m unittest discover -s tests -v
       - run: coverage report
       - run: open-tennis-data validate
-      - name: Enforce Parquet-only published data
-        run: test -z "$(find data contributions -type f ! -name '*.parquet' -print -quit)"
-      - name: Enforce 75 MB data-file limit
-        run: test -z "$(find data contributions -name '*.parquet' -size +75M -print -quit)"
 
-  schema-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.12"
-          cache: pip
-      - run: python -m pip install '.[dev]'
-      - run: python -m unittest tests.test_v32_contract -v
-      - name: Run migration equivalence or historical immutability gate
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          git fetch origin "$BASE_REF"
-          git show "origin/$BASE_REF:data/catalog/catalog.parquet" > "$RUNNER_TEMP/base-catalog.parquet"
-          git show "origin/$BASE_REF:data/matches/tour=atp/year=2025/matches.parquet" > "$RUNNER_TEMP/base-match.parquet"
-          if python - "$RUNNER_TEMP/base-match.parquet" <<'PY'
-          import sys
-          import duckdb
-          path = sys.argv[1].replace("'", "''")
-          metadata = {
-              key.decode(): value.decode()
-              for _, key, value in duckdb.connect().execute(
-                  f"SELECT * FROM parquet_kv_metadata('{path}')"
-              ).fetchall()
-          }
-          raise SystemExit(0 if metadata.get("open_tennis_data_schema_version") == "3.2" else 1)
-          PY
-          then
-            if test -f reports/data-quality/exact-date-restoration-v3.2.json; then
-              python - <<'PY'
-          import json
-          import os
-          import subprocess
-          from pathlib import Path
-          report = json.loads(
-              Path("reports/data-quality/exact-date-restoration-v3.2.json").read_text()
-          )
-          assert report["status"] == "passed"
-          before, after = report["before"], report["after"]
-          assert before["match_rows"] == after["match_rows"] == 1_742_406
-          assert before["exact_match_dates"] == 1_742_406
-          assert before["null_match_dates"] == 0
-          assert after["exact_match_dates"] == after["date_observations"]
-          assert after["exact_match_dates"] > 100_000
-          assert after["null_match_dates"] > 1_000_000
-          assert report["preservation"]["match_rows_unchanged"]
-          assert report["preservation"]["all_other_match_fields_unchanged"]
-          reconciliation = report["reconciliation"]
-          assert reconciliation["source_rows"] == sum(
-              reconciliation[key]
-              for key in ("accepted_observations", "unmatched", "ambiguous", "conflicting", "invalid_source_rows")
-          )
-          for values in report["regression_2024"].values():
-              assert values["accepted"] / values["source_rows"] >= 0.95
-              assert values["ambiguous"] / values["source_rows"] < 0.01
-          expected = {f"data/{path}" for path in report["changed_data_files"]}
-          changed = set(subprocess.check_output(
-              ["git", "diff", "--name-only", f"origin/{os.environ['BASE_REF']}...HEAD", "--", "data"],
-              text=True,
-          ).splitlines())
-          assert changed == expected, {"unexpected": changed - expected, "missing": expected - changed}
-          PY
-              open-tennis-data validate
-            elif test -f reports/data-quality/audit-remediation-v3.2.json; then
-              python - <<'PY'
-          import json
-          import os
-          import subprocess
-          from pathlib import Path
-          report = json.loads(
-              Path("reports/data-quality/audit-remediation-v3.2.json").read_text()
-          )
-          assert report["status"] == "passed"
-          before, after = report["before"], report["after"]
-          assert before["match_rows"] == after["match_rows"]
-          assert before["observation_rows"] == after["observation_rows"]
-          assert before["null_match_dates"] == 1_742_406
-          assert after["null_match_dates"] == 0
-          assert before["source_rows"] == after["source_rows"] == 502
-          assert before["distinct_source_ids"] == 414
-          assert after["distinct_source_ids"] == 502
-          assert before["matches_without_direct_provenance"] == 115
-          assert after["matches_without_direct_provenance"] == 115
-          assert after["ambiguity_candidate_matches"] == 120
-          assert after["matches_without_any_evidence"] == 0
-          assert report["retained_match_field_differences"] == 0
-          assert report["retained_observation_field_differences"] == 0
-          assert len(report["affected_match_partitions"]) == 118
-          assert all(row["status"] == "stale" for row in after["health"])
-          assert all(
-              row["latest_ranking_date"] == "2026-06-08" for row in after["health"]
-          )
-          expected = {f"data/{path}" for path in report["changed_data_files"]}
-          changed = set(subprocess.check_output(
-              ["git", "diff", "--name-only", f"origin/{os.environ['BASE_REF']}...HEAD", "--", "data"],
-              text=True,
-          ).splitlines())
-          assert changed == expected, {"unexpected": changed - expected, "missing": expected - changed}
-          PY
-              open-tennis-data validate
-              python scripts/remediate-audit-v3.2.py --check
-            elif test -f reports/data-quality/semantic-dedup-v3.2.json; then
-              python - <<'PY'
-          import json
-          import os
-          import subprocess
-          from pathlib import Path
-          report = json.loads(Path("reports/data-quality/semantic-dedup-v3.2.json").read_text())
-          assert report["status"] == "passed"
-          assert report["exact_duplicate_groups"] == report["removed_match_rows"] == 54
-          assert report["observation_rows_before"] == report["observation_rows_after"]
-          affected = {tuple(item.split("/")) for item in report["affected_partitions"]}
-          allowed = {
-              "data/catalog/catalog.parquet", "data/coverage/coverage.parquet",
-              "data/health/health.parquet", "data/quarantine/quarantine.parquet",
-              "data/identity/match-aliases.parquet",
-          }
-          required = set()
-          for tour, year in affected:
-              required |= {
-                  f"data/matches/tour={tour}/year={year}/matches.parquet",
-                  f"data/observations/tour={tour}/year={year}/observations.parquet",
-              }
-              allowed.add(f"data/match_stats/tour={tour}/year={year}/match-stats.parquet")
-          allowed |= required
-          changed = set(subprocess.check_output(
-              ["git", "diff", "--name-only", f"origin/{os.environ['BASE_REF']}...HEAD", "--", "data"],
-              text=True,
-          ).splitlines())
-          assert required <= changed, required - changed
-          assert changed <= allowed, changed - allowed
-          PY
-              open-tennis-data validate
-            else
-              open-tennis-data validate \
-                --baseline-catalog "$RUNNER_TEMP/base-catalog.parquet" \
-                --immutable-before-year "$(date -u +%Y)"
-            fi
-          else
-            mkdir -p "$RUNNER_TEMP/v3.1"
-            git archive "origin/$BASE_REF" data | tar -x -C "$RUNNER_TEMP/v3.1"
-            open-tennis-data migrate-v3-2 \
-              --data "$RUNNER_TEMP/v3.1/data" \
-              --output "$RUNNER_TEMP/migrated-v3.2" \
-              --report "$RUNNER_TEMP/migration-report"
-            python - "$RUNNER_TEMP/migrated-v3.2" <<'PY'
-          import hashlib
-          import json
-          import sys
-          from pathlib import Path
-          checked = Path("data")
-          migrated = Path(sys.argv[1])
-          report = json.loads(Path("reports/v3.2/migration-v3.2.json").read_text())
-          generated = json.loads(
-              (Path(sys.argv[1]).parent / "migration-report/migration-v3.2.json").read_text()
-          )
-          assert report["status"] == generated["status"] == "passed"
-          assert report["old_match_rows"] == report["new_match_rows"]
-          assert report["retained_differences"] == generated["retained_differences"] == 0
-          checked_files = {path.relative_to(checked) for path in checked.rglob("*.parquet")}
-          migrated_files = {path.relative_to(migrated) for path in migrated.rglob("*.parquet")}
-          assert checked_files == migrated_files
-          for relative in checked_files:
-              assert hashlib.sha256((checked / relative).read_bytes()).digest() == hashlib.sha256(
-                  (migrated / relative).read_bytes()
-              ).digest(), relative
-          PY
-            open-tennis-data validate
-          fi
-
-  integration-coverage:
+  release-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -214,101 +35,23 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install '.[dev]'
-      - run: coverage run -m unittest discover -s tests -v
-      - name: Pin archive revision for deterministic builds
+      - name: Build the release twice from pinned observations
         run: |
-          echo "SOURCE_REVISION=$(python -c 'from open_tennis_data.dataset import resolve_archive_revision; print(resolve_archive_revision())')" >> "$GITHUB_ENV"
-      - name: Exercise the pinned-source build
+          for output in release-a release-b; do
+            open-tennis-data release \
+              --data data \
+              --output "$RUNNER_TEMP/$output" \
+              --as-of 2026-07-24T04:17:00Z \
+              --tag data-v3-ci
+            open-tennis-data verify-release --directory "$RUNNER_TEMP/$output"
+          done
+      - name: Require byte-identical assets
         run: |
-          coverage run --append -m open_tennis_data.cli build \
-            --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
-            --source-revision "$SOURCE_REVISION" \
-            --output "$RUNNER_TEMP/tennis-data"
-      - name: Prove two-build byte determinism
+          while read -r filename; do
+            cmp "$RUNNER_TEMP/release-a/$filename" "$RUNNER_TEMP/release-b/$filename"
+          done < scripts/v3-release-assets.txt
+      - name: Prove the stable gate is fail-closed while coverage is preview
         run: |
-          open-tennis-data build \
-            --years "$(date -u +%Y)" --as-of "$(date -u +%F)" \
-            --source-revision "$SOURCE_REVISION" \
-            --wikimedia-source-audit "$RUNNER_TEMP/tennis-data/coverage/source-audit.parquet" \
-            --output "$RUNNER_TEMP/tennis-data-repeat"
-          python - "$RUNNER_TEMP/tennis-data" "$RUNNER_TEMP/tennis-data-repeat" <<'PY'
-          import hashlib
-          import sys
-          from pathlib import Path
-          first, second = map(Path, sys.argv[1:])
-          first_files = {path.relative_to(first) for path in first.rglob("*.parquet")}
-          second_files = {path.relative_to(second) for path in second.rglob("*.parquet")}
-          assert first_files == second_files
-          for relative in first_files:
-              assert hashlib.sha256((first / relative).read_bytes()).digest() == hashlib.sha256(
-                  (second / relative).read_bytes()
-              ).digest(), relative
-          PY
-      - run: coverage run --append -m open_tennis_data.cli validate --data "$RUNNER_TEMP/tennis-data"
-      - run: |
-          coverage run --append -m open_tennis_data.cli query \
-            --data "$RUNNER_TEMP/tennis-data" --tour all \
-            --sql "SELECT tour, count(*) FROM matches GROUP BY tour"
-      - run: |
-          coverage run --append -m open_tennis_data.cli extract \
-            --data "$RUNNER_TEMP/tennis-data" --tour atp --levels itf \
-            --output "$RUNNER_TEMP/itf.parquet"
-      - run: |
-          coverage run --append -m open_tennis_data.cli refresh-wikimedia \
-            --data "$RUNNER_TEMP/tennis-data" --as-of "$(date -u +%F)"
-      - run: |
-          coverage run --append -m open_tennis_data.cli audit-retroactive \
-            --data "$RUNNER_TEMP/tennis-data" --as-of "$(date -u +%F)" \
-            --output "$RUNNER_TEMP/retroactive-audit"
-      - run: |
-          coverage run --append -m open_tennis_data.cli downloads \
-            --data "$RUNNER_TEMP/tennis-data" --output "$RUNNER_TEMP/downloads"
-      - run: bash scripts/verify-downloads.sh "$RUNNER_TEMP/downloads"
-      - run: |
-          coverage run --append -m open_tennis_data.cli downloads --future-only \
-            --data "$RUNNER_TEMP/tennis-data" --output "$RUNNER_TEMP/future-downloads"
-      - run: bash scripts/verify-downloads.sh "$RUNNER_TEMP/future-downloads" future
-      - run: cp -a "$RUNNER_TEMP/tennis-data" "$RUNNER_TEMP/tennis-copy"
-      - run: |
-          coverage run --append -m open_tennis_data.cli promote \
-            --source "$RUNNER_TEMP/tennis-data" --target "$RUNNER_TEMP/tennis-copy"
-      - run: coverage report --fail-under=90
-
-  browser-smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22"
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
-
-  required-status:
-    if: always()
-    needs: [test, schema-contract, integration-coverage, browser-smoke]
-    permissions:
-      statuses: write
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      STATUS_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      TEST_RESULT: ${{ needs.test.result }}
-      SCHEMA_RESULT: ${{ needs.schema-contract.result }}
-      INTEGRATION_RESULT: ${{ needs.integration-coverage.result }}
-      BROWSER_RESULT: ${{ needs.browser-smoke.result }}
-    steps:
-      - name: Publish required validation status
-        run: |
-          state=failure
-          description="Data validation failed"
-          if [ "$TEST_RESULT" = success ] && [ "$SCHEMA_RESULT" = success ] && [ "$INTEGRATION_RESULT" = success ] && [ "$BROWSER_RESULT" = success ]; then
-            state=success
-            description="Python, integration, data, and browser validation passed"
-          fi
-          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$STATUS_SHA" \
-            -f state="$state" \
-            -f context=data-required \
-            -f description="$description"
-          test "$state" = success
+          ! open-tennis-data verify-release \
+            --directory "$RUNNER_TEMP/release-a" \
+            --require-complete

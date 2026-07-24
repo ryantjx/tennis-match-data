@@ -1,21 +1,19 @@
-name: Daily refresh of current tennis data
+name: Daily Open Tennis Data v3 release
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "17 4 * * *"
 
 permissions:
   contents: write
-  pull-requests: write
-  statuses: write
 
 concurrency:
-  group: tennis-data-writer
+  group: tennis-v3-release
   cancel-in-progress: false
 
 jobs:
-  refresh:
+  release:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -28,37 +26,27 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install .
-      - name: Refresh Wikimedia results and fixtures, source files, rankings, and affected partitions
-        run: open-tennis-data refresh-current --as-of "$(date -u +%F)"
-      - run: open-tennis-data validate
-      - name: Test every checked-in year
-        run: python -m unittest tests.test_data_quality -v
-      - run: |
-          bash scripts/commit-data.sh "data: refresh current results, fixtures, sources, and rankings"
-      - name: Build rolling direct downloads
-        run: open-tennis-data downloads --output "$RUNNER_TEMP/downloads"
-      - run: bash scripts/verify-downloads.sh "$RUNNER_TEMP/downloads"
-      - name: Publish rolling direct downloads
-        run: bash scripts/publish-downloads.sh "$RUNNER_TEMP/downloads"
-      - name: Verify published rolling downloads
+      - name: Build a fresh 2020+ staging dataset
         run: |
-          mkdir "$RUNNER_TEMP/published-downloads"
-          gh release download data-latest --pattern '*.parquet' \
-            --dir "$RUNNER_TEMP/published-downloads" --clobber
-          bash scripts/verify-downloads.sh "$RUNNER_TEMP/published-downloads"
-      - name: Build rolling future-only downloads
+          open-tennis-data bootstrap \
+            --through-year "$(date -u +%Y)" \
+            --as-of "$(date -u +%F)" \
+            --output "$RUNNER_TEMP/staged-data"
+      - name: Validate staging
+        run: open-tennis-data validate --data "$RUNNER_TEMP/staged-data"
+      - name: Build deterministic v3 assets
+        id: release
         run: |
-          open-tennis-data downloads --future-only \
-            --output "$RUNNER_TEMP/future-downloads"
-      - run: bash scripts/verify-downloads.sh "$RUNNER_TEMP/future-downloads" future
-      - name: Publish rolling future-only downloads
+          timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+          tag="data-v3-$timestamp"
+          open-tennis-data release \
+            --data "$RUNNER_TEMP/staged-data" \
+            --output "$RUNNER_TEMP/v3-release" \
+            --as-of "$(date -u +%FT%TZ)" \
+            --tag "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Verify, upload, redownload, and publish atomically
         run: |
-          bash scripts/publish-downloads.sh \
-            "$RUNNER_TEMP/future-downloads" future-latest
-      - name: Verify published future-only downloads
-        run: |
-          mkdir "$RUNNER_TEMP/published-future-downloads"
-          gh release download future-latest --pattern '*.parquet' \
-            --dir "$RUNNER_TEMP/published-future-downloads" --clobber
-          bash scripts/verify-downloads.sh \
-            "$RUNNER_TEMP/published-future-downloads" future
+          scripts/publish-v3-release.sh \
+            "$RUNNER_TEMP/v3-release" \
+            "${{ steps.release.outputs.tag }}"

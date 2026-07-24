@@ -141,6 +141,7 @@ class YearlyDataQualityTests(unittest.TestCase):
                 "unmatched_exact_date",
                 "ambiguous_exact_date",
                 "conflicting_exact_date",
+                "tournament_date_not_match_date",
             },
         )
 
