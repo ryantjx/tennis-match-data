@@ -55,6 +55,8 @@ played. v4 changes that definition rather than weakening the word "exact."
 - Publish completed-only, future-only, and combined lifecycle views using one
   physical match schema.
 - Update and publish by 06:00 UTC each day.
+- Commit validated scheduled data-refresh outputs directly to `main`; routine
+  workflow runs must not open pull requests for generated data changes.
 - Preserve every accepted source observation, schedule revision, retrieval
   time, content hash, licence, and reconciliation decision.
 - Retain unresolved evidence outside completed-match tables so later sources
@@ -356,6 +358,10 @@ are published so the gates are reproducible.
 - Build completed, future, and combined assets for both licence tiers.
 - Validate all lifecycle, evidence, licence, coverage, checksum, freshness,
   and deterministic-output rules before an atomic release.
+- Let the scheduled workflow commit validated generated data and release
+  metadata directly to `main` without opening a pull request. This exception
+  does not bypass review for collector code, schema, source-policy, or
+  hand-authored documentation changes.
 - Publish by 06:00 UTC and alert on the 30-hour freshness threshold.
 
 ### 5. Default cutover
@@ -381,6 +387,8 @@ The v4 objective is achieved when:
   completed-match tables;
 - all source rows reconcile to accepted plus quarantined outcomes;
 - match identities survive fixture changes and fixture-to-result conversion;
+- routine scheduled data refreshes commit atomically to `main` without opening
+  pull requests;
 - daily publication meets the 06:00 UTC target and 30-hour freshness alert;
 - identical snapshots reproduce byte-identical releases; and
 - the published coverage manifests prove both legacy-retirement gates.
