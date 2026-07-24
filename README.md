@@ -117,7 +117,8 @@ row group. See [DuckDB HTTP(S) support](https://duckdb.org/docs/lts/core_extensi
 
 More examples, including integrity, provenance, coverage, health, and
 quarantine checks, are collected in
-[`docs/QUERIES.md`](docs/QUERIES.md).
+[`docs/QUERIES.md`](docs/QUERIES.md). A runnable Polars version is available
+in [`notebooks/open_tennis_data_v3_polars.ipynb`](notebooks/open_tennis_data_v3_polars.ipynb).
 
 ## Direct DuckDB query
 

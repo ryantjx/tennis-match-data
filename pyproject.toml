@@ -26,6 +26,10 @@ dev = [
   "mypy>=1.15,<3",
   "ruff>=0.12,<1",
 ]
+notebook = [
+  "jupyterlab>=4,<5",
+  "polars>=1.20,<2",
+]
 
 [project.scripts]
 open-tennis-data = "open_tennis_data.cli:main"

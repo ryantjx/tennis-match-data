@@ -5,6 +5,10 @@ and downloaded Parquet assets. Replace `TAG` with an immutable release tag
 while v3 remains preview. Use `latest` only after the manifest reports
 `release_status=stable`.
 
+For equivalent lazy Python/Polars examples, open
+[`notebooks/open_tennis_data_v3_polars.ipynb`](../notebooks/open_tennis_data_v3_polars.ipynb).
+Install its optional dependencies with `python -m pip install '.[notebook]'`.
+
 ## Download and verify a release
 
 Download the release contract first:
