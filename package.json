@@ -1,0 +1,11 @@
+{
+  "name": "open-tennis-data-explorer",
+  "private": true,
+  "scripts": {
+    "prepare:test-data": "python3 scripts/prepare-site-data.py --output site/data --tag data-v3-20260724T164801Z",
+    "test:browser": "npm run prepare:test-data && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
+  }
+}

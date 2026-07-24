@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ScriptTests(unittest.TestCase):
-    def test_backend_only_workflows_do_not_commit_data_or_deploy_pages(self) -> None:
+    def test_release_workflows_do_not_commit_data_and_pages_follows_releases(self) -> None:
         daily = (ROOT / ".github/workflows/live-results.yml").read_text(
             encoding="utf-8"
         )
@@ -28,10 +28,14 @@ class ScriptTests(unittest.TestCase):
             self.assertNotIn("git commit", workflow)
             self.assertNotIn("pull-request", workflow)
             self.assertNotIn("rankings", workflow)
-        self.assertFalse((ROOT / ".github/workflows/pages.yml").exists())
-        self.assertFalse((ROOT / "site").exists())
-        self.assertFalse((ROOT / "package.json").exists())
-        self.assertFalse((ROOT / "playwright.config.js").exists())
+        pages = (ROOT / ".github/workflows/pages.yml").read_text(encoding="utf-8")
+        self.assertIn('workflows: ["Daily Open Tennis Data v3 release"]', pages)
+        self.assertIn("scripts/prepare-site-data.py --output site/data", pages)
+        self.assertIn("actions/deploy-pages", pages)
+        self.assertNotIn("git commit", pages)
+        self.assertTrue((ROOT / "site/index.html").exists())
+        self.assertTrue((ROOT / "package.json").exists())
+        self.assertTrue((ROOT / "playwright.config.js").exists())
 
     def test_release_asset_manifest_matches_the_python_contract(self) -> None:
         manifest = tuple(

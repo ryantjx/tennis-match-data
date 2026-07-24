@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Explore ATP and WTA match results and fixtures from Open Tennis Data.">
+  <meta name="theme-color" content="#f3efe5">
+  <title>Open Tennis Data Explorer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#match-results">Skip to match results</a>
+
+  <header class="site-header">
+    <a class="wordmark" href="./" aria-label="Open Tennis Data Explorer home">
+      <span class="wordmark-mark" aria-hidden="true"></span>
+      <span>Open Tennis Data</span>
+    </a>
+    <a class="header-link" href="https://github.com/ryantjx/tennis-match-data">
+      Dataset &amp; methodology <span aria-hidden="true">↗</span>
+    </a>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-copy">
+        <p class="eyebrow">A COURT-SIDE VIEW OF THE DATA</p>
+        <h1 id="page-title">Every match,<br><em>ready to explore.</em></h1>
+        <p class="hero-intro">
+          Browse the players and tournaments that are actually in the latest release.
+          Choose from the lists, combine filters, and inspect source-attributed results
+          without writing a query.
+        </p>
+      </div>
+      <div class="hero-court" aria-hidden="true">
+        <span class="court-ball"></span>
+        <span class="court-line court-line-horizontal"></span>
+        <span class="court-line court-line-vertical"></span>
+      </div>
+    </section>
+
+    <section class="release-banner" id="release-banner" aria-live="polite">
+      <div class="release-status-wrap">
+        <span class="release-dot" aria-hidden="true"></span>
+        <div>
+          <strong id="release-status">Loading release…</strong>
+          <span id="release-meta">Preparing the latest verified snapshot.</span>
+        </div>
+      </div>
+      <details class="scope-details">
+        <summary>About this data</summary>
+        <div class="scope-popover">
+          <p id="scope-copy">Release scope is loading.</p>
+          <ul id="preview-reasons"></ul>
+          <a id="release-link" href="https://github.com/ryantjx/tennis-match-data/releases">View release ↗</a>
+        </div>
+      </details>
+    </section>
+
+    <section class="summary-grid" aria-label="Dataset summary">
+      <article class="summary-card">
+        <span class="summary-label">Matches</span>
+        <strong id="summary-matches">—</strong>
+        <span id="summary-lifecycle">Results and fixtures</span>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">Players</span>
+        <strong id="summary-players">—</strong>
+        <span>Referenced identities</span>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">Tournaments</span>
+        <strong id="summary-tournaments">—</strong>
+        <span>Annual editions</span>
+      </article>
+      <article class="summary-card summary-card-accent">
+        <span class="summary-label">Seasons</span>
+        <strong id="summary-years">—</strong>
+        <span>ATP and WTA</span>
+      </article>
+    </section>
+
+    <section class="explorer" aria-labelledby="explorer-heading">
+      <div class="section-intro">
+        <div>
+          <p class="eyebrow">MATCH EXPLORER</p>
+          <h2 id="explorer-heading">Find your angle</h2>
+        </div>
+        <p>All options come directly from this release and update as you narrow the field.</p>
+      </div>
+
+      <div class="explorer-layout">
+        <aside class="filter-panel" id="filter-panel" aria-label="Match filters">
+          <div class="filter-panel-heading">
+            <div>
+              <span class="filter-title">Filters</span>
+              <span class="filter-note" id="filter-note">Explore all available matches</span>
+            </div>
+            <button class="clear-all" id="clear-filters" type="button">Clear all</button>
+          </div>
+
+          <fieldset class="filter-group tour-filter">
+            <legend>Tour</legend>
+            <div class="segmented-control" id="tour-filter">
+              <button class="segment is-active" type="button" data-value="" aria-pressed="true">All</button>
+              <button class="segment" type="button" data-value="atp" aria-pressed="false">ATP</button>
+              <button class="segment" type="button" data-value="wta" aria-pressed="false">WTA</button>
+            </div>
+          </fieldset>
+
+          <label class="field" for="year-filter">
+            <span>Season</span>
+            <select id="year-filter" disabled>
+              <option value="">All seasons</option>
+            </select>
+          </label>
+
+          <label class="field" for="lifecycle-filter">
+            <span>Match type</span>
+            <select id="lifecycle-filter">
+              <option value="">Results &amp; fixtures</option>
+              <option value="completed">Completed results</option>
+              <option value="fixture">Upcoming fixtures</option>
+            </select>
+          </label>
+
+          <div class="combobox field" id="player-combobox">
+            <label for="player-filter">Player</label>
+            <div class="combobox-control">
+              <input
+                id="player-filter"
+                type="text"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="player-options"
+                placeholder="All players"
+                autocomplete="off"
+                disabled
+              >
+              <button class="combo-clear" type="button" aria-label="Clear player filter" hidden>×</button>
+            </div>
+            <div class="option-list" id="player-options" role="listbox" hidden></div>
+          </div>
+
+          <div class="combobox field" id="tournament-combobox">
+            <label for="tournament-filter">Tournament</label>
+            <div class="combobox-control">
+              <input
+                id="tournament-filter"
+                type="text"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="tournament-options"
+                placeholder="All tournaments"
+                autocomplete="off"
+                disabled
+              >
+              <button class="combo-clear" type="button" aria-label="Clear tournament filter" hidden>×</button>
+            </div>
+            <div class="option-list" id="tournament-options" role="listbox" hidden></div>
+          </div>
+
+          <div class="filter-pair">
+            <label class="field" for="level-filter">
+              <span>Level</span>
+              <select id="level-filter" disabled>
+                <option value="">All levels</option>
+              </select>
+            </label>
+            <label class="field" for="surface-filter">
+              <span>Surface</span>
+              <select id="surface-filter" disabled>
+                <option value="">All surfaces</option>
+              </select>
+            </label>
+          </div>
+        </aside>
+
+        <div class="results-panel" id="match-results" aria-busy="true">
+          <div class="results-toolbar">
+            <div>
+              <p class="results-count" id="results-count" role="status">Loading the match index…</p>
+              <p class="results-context" id="results-context">Queries run locally in your browser.</p>
+            </div>
+            <label class="sort-field" for="sort-filter">
+              <span>Sort</span>
+              <select id="sort-filter">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="tournament">Tournament A–Z</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="loading-state" id="loading-state">
+            <span class="loading-ball" aria-hidden="true"></span>
+            <strong>Warming up the match index</strong>
+            <span>Loading the verified release into your browser.</span>
+          </div>
+
+          <div class="error-state" id="error-state" hidden>
+            <strong>The match index could not be loaded.</strong>
+            <span id="error-message">Please try again.</span>
+            <button class="primary-button" id="retry-button" type="button">Try again</button>
+          </div>
+
+          <div class="empty-state" id="empty-state" hidden>
+            <span class="empty-mark" aria-hidden="true">0</span>
+            <strong>No matches meet every filter.</strong>
+            <span>Clear a filter or broaden the season to get back on court.</span>
+            <button class="secondary-button" id="empty-clear" type="button">Clear all filters</button>
+          </div>
+
+          <div class="table-shell" id="table-shell" hidden>
+            <table class="matches-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Tournament</th>
+                  <th>Match</th>
+                  <th>Round</th>
+                  <th>Score</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody id="results-table"></tbody>
+            </table>
+          </div>
+          <div class="match-cards" id="match-cards" hidden></div>
+
+          <nav class="pagination" id="pagination" aria-label="Match result pages" hidden>
+            <button class="page-button" id="previous-page" type="button">← Previous</button>
+            <span id="page-info">Page 1 of 1</span>
+            <button class="page-button" id="next-page" type="button">Next →</button>
+          </nav>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      <strong>Open Tennis Data</strong>
+      <span>A source-attributed research dataset.</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/ryantjx/tennis-match-data/blob/main/DATA_LICENSE.md">Data terms</a>
+      <a href="https://github.com/ryantjx/tennis-match-data/blob/main/docs/SCHEMA.md">Schema</a>
+      <a href="https://github.com/ryantjx/tennis-match-data">GitHub ↗</a>
+    </div>
+  </footer>
+
+  <noscript>This explorer needs JavaScript to query the local Parquet snapshot.</noscript>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

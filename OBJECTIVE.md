@@ -1,4 +1,4 @@
-# Open Tennis Data v3 backend
+# Open Tennis Data v3 and read-only explorer
 
 Status: implemented as a fail-closed preview.
 
@@ -6,14 +6,16 @@ Last reviewed: 2026-07-24.
 
 ## Mission
 
-Open Tennis Data v3 is a backend-only, self-updating research dataset for
-ATP/WTA top-level main-draw singles from 2020 onward. It distributes
-deterministic Parquet assets through GitHub Releases and supports local or
-remote DuckDB queries through one small CLI.
+Open Tennis Data v3 is a self-updating research dataset for ATP/WTA top-level
+main-draw singles from 2020 onward. It distributes deterministic Parquet assets
+through GitHub Releases, supports local or remote DuckDB queries through one
+small CLI, and offers a read-only browser explorer for guided discovery.
 
-The repository does not provide a website or hosted query API. Software is MIT
-licensed; data retains its source terms and is not represented as commercially
-reusable.
+The browser explorer packages a checksum-verified snapshot of the newest
+published release with GitHub Pages and runs its queries locally. It is not a
+hosted query API, and GitHub Releases remain the canonical data contract.
+Software is MIT licensed; data retains its source terms and is not represented
+as commercially reusable.
 
 ## Public scope
 
@@ -107,6 +109,8 @@ parser/policy versions, and reconciliation method.
 - Daily at 04:17 UTC: build a fresh staged dataset from 2020 through the
   current season, validate it, build deterministic release assets, and run the
   atomic publisher.
+- After a successful daily release: verify and package the newest manifest,
+  matches, tournaments, and players assets into the read-only Pages explorer.
 - Weekly: rebuild/audit every season from 2020 through the current season,
   retain reports as workflow artifacts, and never commit generated Parquet or
   open a data pull request.
