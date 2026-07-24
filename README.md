@@ -115,6 +115,10 @@ DuckDB’s `httpfs` extension uses Parquet metadata, filter/projection pushdown,
 and HTTP range requests, so remote queries need not download every column or
 row group. See [DuckDB HTTP(S) support](https://duckdb.org/docs/lts/core_extensions/httpfs/https).
 
+More examples, including integrity, provenance, coverage, health, and
+quarantine checks, are collected in
+[`docs/QUERIES.md`](docs/QUERIES.md).
+
 ## Direct DuckDB query
 
 ```sql
