@@ -387,4 +387,3 @@ open-tennis-data extract \
   --levels grand_slam,wta_1000 \
   --output wta-major-events.parquet
 ```
-
