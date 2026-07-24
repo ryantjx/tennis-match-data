@@ -13,6 +13,7 @@ authors = [{name = "Open Tennis Data contributors"}]
 dependencies = [
   "duckdb==1.5.4",
   "mwparserfromhell==0.7.2",
+  "python-calamine==0.8.2",
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -22,7 +23,7 @@ classifiers = [
 [project.optional-dependencies]
 dev = [
   "coverage[toml]>=7,<8",
-  "mypy>=1.15,<2",
+  "mypy>=1.15,<3",
   "ruff>=0.12,<1",
 ]
 

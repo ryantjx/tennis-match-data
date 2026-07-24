@@ -371,7 +371,7 @@ class DatasetTests(unittest.TestCase):
                 matches,
                 f"WITH numbered AS (SELECT *,row_number() OVER (ORDER BY match_id) rn "
                 f"FROM read_parquet('{matches}')) SELECT * EXCLUDE(rn) REPLACE ("
-                "player1_id AS player2_id,CASE WHEN rn=1 THEN NULL::DATE ELSE date END AS date) "
+                "player1_id AS player2_id,CASE WHEN rn=1 THEN DATE '1969-01-01' ELSE date END AS date) "
                 "FROM numbered",
             )
             self.replace_test_parquet(
@@ -389,7 +389,7 @@ class DatasetTests(unittest.TestCase):
             self.assertTrue(
                 any(error.startswith("matches invalid participants atp/1969:") for error in errors)
             )
-            self.assertIn("matches without dates: 1", errors)
+            self.assertIn("canonical dates without exact evidence: 1", errors)
             self.assertTrue(
                 any(error.startswith("statistics invalid values atp/1991:") for error in errors)
             )
@@ -658,10 +658,18 @@ class DatasetTests(unittest.TestCase):
                     / "year=2026"
                     / "observations.parquet"
                 )
+                date_observation_output = (
+                    root
+                    / "date_observations"
+                    / f"tour={tour}"
+                    / "year=2026"
+                    / "date-observations.parquet"
+                )
                 match_output.parent.mkdir(parents=True, exist_ok=True)
                 fixture_output.parent.mkdir(parents=True, exist_ok=True)
                 tournament_output.parent.mkdir(parents=True, exist_ok=True)
                 observation_output.parent.mkdir(parents=True, exist_ok=True)
+                date_observation_output.parent.mkdir(parents=True, exist_ok=True)
                 connection.execute(
                     f"COPY (SELECT * FROM read_parquet('{DATA / 'matches' / f'tour={tour}' / 'year=2026' / 'matches.parquet'}') LIMIT 10) "
                     f"TO '{match_output}' (FORMAT PARQUET)"
@@ -682,6 +690,14 @@ class DatasetTests(unittest.TestCase):
                 shutil.copy2(
                     DATA / "observations" / f"tour={tour}" / "year=2026" / "observations.parquet",
                     observation_output,
+                )
+                shutil.copy2(
+                    DATA
+                    / "date_observations"
+                    / f"tour={tour}"
+                    / "year=2026"
+                    / "date-observations.parquet",
+                    date_observation_output,
                 )
             (root / "catalog").mkdir(parents=True)
             (root / "coverage").mkdir(parents=True)

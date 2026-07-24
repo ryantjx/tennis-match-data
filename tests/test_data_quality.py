@@ -80,7 +80,6 @@ class YearlyDataQualityTests(unittest.TestCase):
                     f"""
                     SELECT count(*) FROM read_parquet('{files['matches']}')
                     WHERE player1_id IS NULL OR player2_id IS NULL
-                      OR date IS NULL
                       OR player1_id=player2_id
                       OR winner_id NOT IN (player1_id, player2_id)
                       OR len(player1_id)<>1 OR len(player2_id)<>1
@@ -138,6 +137,10 @@ class YearlyDataQualityTests(unittest.TestCase):
                 "invalid_participants",
                 "invalid_statistics",
                 "ambiguous_source_mapping",
+                "invalid_exact_date_source_row",
+                "unmatched_exact_date",
+                "ambiguous_exact_date",
+                "conflicting_exact_date",
             },
         )
 

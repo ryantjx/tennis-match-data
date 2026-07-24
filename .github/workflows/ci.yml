@@ -63,7 +63,42 @@ jobs:
           raise SystemExit(0 if metadata.get("open_tennis_data_schema_version") == "3.2" else 1)
           PY
           then
-            if test -f reports/data-quality/audit-remediation-v3.2.json; then
+            if test -f reports/data-quality/exact-date-restoration-v3.2.json; then
+              python - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+          report = json.loads(
+              Path("reports/data-quality/exact-date-restoration-v3.2.json").read_text()
+          )
+          assert report["status"] == "passed"
+          before, after = report["before"], report["after"]
+          assert before["match_rows"] == after["match_rows"] == 1_742_406
+          assert before["exact_match_dates"] == 1_742_406
+          assert before["null_match_dates"] == 0
+          assert after["exact_match_dates"] == after["date_observations"]
+          assert after["exact_match_dates"] > 100_000
+          assert after["null_match_dates"] > 1_000_000
+          assert report["preservation"]["match_rows_unchanged"]
+          assert report["preservation"]["all_other_match_fields_unchanged"]
+          reconciliation = report["reconciliation"]
+          assert reconciliation["source_rows"] == sum(
+              reconciliation[key]
+              for key in ("accepted_observations", "unmatched", "ambiguous", "conflicting", "invalid_source_rows")
+          )
+          for values in report["regression_2024"].values():
+              assert values["accepted"] / values["source_rows"] >= 0.95
+              assert values["ambiguous"] / values["source_rows"] < 0.01
+          expected = {f"data/{path}" for path in report["changed_data_files"]}
+          changed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", f"origin/{os.environ['BASE_REF']}...HEAD", "--", "data"],
+              text=True,
+          ).splitlines())
+          assert changed == expected, {"unexpected": changed - expected, "missing": expected - changed}
+          PY
+              open-tennis-data validate
+            elif test -f reports/data-quality/audit-remediation-v3.2.json; then
               python - <<'PY'
           import json
           import os
@@ -243,7 +278,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
       - run: npm ci

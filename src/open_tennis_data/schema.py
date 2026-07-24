@@ -60,4 +60,7 @@ SOURCE_LICENSES = {
     "sackmann": "CC-BY-NC-SA-4.0",
     "wikimedia": "CC-BY-SA-4.0",
     "community": "CC0-1.0",
+    "tennis-data.co.uk": "Tennis-Data redistribution terms",
+    "wta-api": "WTA data terms",
+    "tennis-tv": "Tennis TV data terms",
 }

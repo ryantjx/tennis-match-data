@@ -1,5 +1,12 @@
 # Parquet schemas
 
+This document describes the implemented, interim v3.2 exact-date remediation.
+The pre-remediation v3.2 dataset fell back to the source tournament start date;
+the remediated canonical table instead leaves unresolved completed dates null
+and completed downloads contain only the exact-dated subset. The full v4
+source-policy, licensing, atomic historical/future, and release target is
+documented in [`OBJECTIVE.md`](../OBJECTIVE.md) and is not implemented yet.
+
 Open Tennis Data v3.2 publishes one match contract for completed results,
 future fixtures, extracts, and rolling release assets. Every match-shaped file
 has metadata `open_tennis_data_schema_version=3.2` and these 19 columns in this
@@ -25,11 +32,13 @@ Participant IDs and names and `winner_id` are always lists in Parquet. Singles
 use one-element lists; doubles use two-element lists. Current ingestion remains
 singles-only, while validators and synthetic tests support doubles.
 
-Completed rows require both participant slots. A terminal winner must exactly
+Canonical completed rows require both participant slots. A terminal winner must exactly
 equal one participant ID list. The 303 source-declared completed results whose
 provenance has no score remain `status=completed, score=null`; validation never
-invents a score. Completed rows prefer an exact match date and otherwise use
-the source tournament start date; terminal rows cannot be published undated.
+invents a score. Their `date` is nullable and can be populated only by accepted
+day-precision match evidence. Tournament start/end dates are never used as a
+fallback. Completed release assets filter to the exact-dated subset, so every
+released terminal row is dated without removing unresolved canonical history.
 
 Fixtures use `status=fixture`, keep `winner_id` and `score` null, and may have a
 null `date` or unresolved participant slot. Their lifecycle-stable `match_id`
@@ -63,6 +72,21 @@ match it exactly.
 match_id, tour, year, source_file_id, source_match_id
 ```
 
+Internal `date_observations` partitions contain:
+
+```text
+match_id, tour, year, played_on, source_file_id, source_match_id,
+date_precision, match_method, row_fingerprint
+```
+
+Every accepted row has `date_precision=day`. A non-null canonical match date
+must equal at least one accepted observation, and all accepted observations for
+that match must agree. Unmatched, ambiguous, malformed, and conflicting source
+rows are quarantined rather than assigned by schedule inference.
+Completed `provenance.parquet` projects these accepted date observations onto
+the unchanged five-column provenance schema, so every released row references
+at least one `sources.parquet` record with `kind=match_dates`.
+
 Release `ambiguities.parquet` contains source observations that cannot be
 truthfully assigned to one canonical match:
 
@@ -88,9 +112,9 @@ tour, year, source_label, source_path, source_file_id, source_match_id,
 row_fingerprint, candidate_match_ids, reason
 ```
 
-`candidate_match_ids` is nullable and is populated only for
-`ambiguous_source_mapping` evidence. Those rows preserve every ambiguous source
-observation without selecting a canonical identity that the source does not prove.
+`candidate_match_ids` is nullable and is populated for ambiguous source
+identity/date evidence and conflicting date evidence. Those rows preserve every
+candidate without selecting an identity or day that the source does not prove.
 
 `identity/match-aliases.parquet` resolves retired exact-duplicate IDs through:
 
