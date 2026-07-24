@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+node_modules/
 dist/
 build/
 *.egg-info/
@@ -13,3 +14,6 @@ build/
 * 2.parquet
 .coverage
 htmlcov/
+playwright-report/
+test-results/
+site/data/
