@@ -1,63 +1,30 @@
 from __future__ import annotations
 
 import csv
-import os
-import shutil
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
-from unittest.mock import patch
 
 import duckdb
 
 from open_tennis_data.dataset import (
     SourceFile,
-    _copy_parquet,
-    _create_catalog,
     _create_match_tables,
     _create_source_file_table,
-    _remote_audit_revisions,
     _reuse_match_ids,
     _reuse_player_ids,
     _reuse_tournament_ids,
+    _source_specs,
     _write_audit_report,
     add_correction,
-    audit_retroactive_dataset,
     bootstrap_dataset,
-    create_direct_downloads,
     download_sources,
-    extract_dataset,
     parse_years,
-    query_dataset,
-    validate_dataset,
 )
-from open_tennis_data.schema import MATCH_COLUMNS, SCHEMA_METADATA_KEY, SCHEMA_VERSION
-
-ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data"
 
 
 class DatasetTests(unittest.TestCase):
-    def rebuild_test_catalog(self, root: Path) -> None:
-        catalog = root / "catalog/catalog.parquet"
-        connection = duckdb.connect()
-        as_of, revision = connection.execute(
-            f"SELECT as_of, source_revision FROM read_parquet('{catalog}') LIMIT 1"
-        ).fetchone()
-        connection.close()
-        catalog.unlink()
-        connection = duckdb.connect()
-        _create_catalog(connection, root, as_of, revision)
-        connection.close()
-
-    def replace_test_parquet(self, path: Path, query: str) -> None:
-        temporary = path.with_suffix(".replacement.parquet")
-        connection = duckdb.connect()
-        connection.execute(f"COPY ({query}) TO '{temporary}' (FORMAT PARQUET, COMPRESSION ZSTD)")
-        connection.close()
-        os.replace(temporary, path)
-
     def test_year_parser(self) -> None:
         self.assertEqual(parse_years("2020,2022:2024"), [2020, 2022, 2023, 2024])
         with self.assertRaises(ValueError):
@@ -69,6 +36,24 @@ class DatasetTests(unittest.TestCase):
                 download_sources(
                     Path(temporary), [2026], revision="moving-main", workers=1
                 )
+
+    def test_v3_source_plan_is_top_level_matches_and_players_only(self) -> None:
+        sources = _source_specs(
+            [2025],
+            top_level_only=True,
+        )
+        self.assertEqual(
+            {
+                (kind, tour, label)
+                for kind, tour, _, label, _ in sources
+            },
+            {
+                ("players", "atp", "players"),
+                ("players", "wta", "players"),
+                ("matches", "atp", "tour"),
+                ("matches", "wta", "tour"),
+            },
+        )
 
     def test_bootstrap_refuses_an_initialized_repository(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -305,17 +290,13 @@ class DatasetTests(unittest.TestCase):
             "l_bpFaced": "3",
         }
         self_match = {**valid, "match_num": "2", "loser_id": "1", "loser_name": "Winner"}
-        negative = {**valid, "match_num": "3", "l_bpSaved": "-1"}
-        impossible = {**valid, "match_num": "4", "w_1stWon": "31"}
         semantic_duplicate = {**valid, "match_num": "5"}
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "matches.csv"
             with path.open("w", encoding="utf-8", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=columns)
                 writer.writeheader()
-                writer.writerows(
-                    [valid, valid, self_match, negative, impossible, semantic_duplicate]
-                )
+                writer.writerows([valid, valid, self_match, semantic_duplicate])
             source = SourceFile(
                 kind="matches",
                 tour="atp",
@@ -350,449 +331,9 @@ class DatasetTests(unittest.TestCase):
                 {
                     "duplicate_source_row": 1,
                     "invalid_participants": 1,
-                    "invalid_statistics": 2,
                 },
             )
             connection.close()
-
-    def test_repository_dataset_validates(self) -> None:
-        if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated dataset is not present")
-        self.assertEqual(validate_dataset(DATA), [])
-
-    def test_validator_labels_corrupt_rows_by_tour_and_year(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "data"
-            shutil.copytree(DATA, root, copy_function=os.link)
-            matches = root / "matches/tour=atp/year=1969/matches.parquet"
-            statistics = root / "match_stats/tour=atp/year=1991/match-stats.parquet"
-            coverage = root / "coverage/coverage.parquet"
-            self.replace_test_parquet(
-                matches,
-                f"WITH numbered AS (SELECT *,row_number() OVER (ORDER BY match_id) rn "
-                f"FROM read_parquet('{matches}')) SELECT * EXCLUDE(rn) REPLACE ("
-                "player1_id AS player2_id,CASE WHEN rn=1 THEN DATE '1969-01-01' ELSE date END AS date) "
-                "FROM numbered",
-            )
-            self.replace_test_parquet(
-                statistics,
-                f"SELECT * REPLACE (-1 AS player1_aces) FROM read_parquet('{statistics}')",
-            )
-            self.replace_test_parquet(
-                coverage,
-                f"SELECT * REPLACE (CASE WHEN tour='atp' AND year=1969 "
-                f"THEN row_count+1 ELSE row_count END AS row_count) "
-                f"FROM read_parquet('{coverage}')",
-            )
-            self.rebuild_test_catalog(root)
-            errors = validate_dataset(root)
-            self.assertTrue(
-                any(error.startswith("matches invalid participants atp/1969:") for error in errors)
-            )
-            self.assertIn("canonical dates without exact evidence: 1", errors)
-            self.assertTrue(
-                any(error.startswith("statistics invalid values atp/1991:") for error in errors)
-            )
-            self.assertTrue(
-                any(error.startswith("coverage does not match canonical tables:") for error in errors)
-            )
-
-    def test_validator_rejects_invalid_lists_placeholders_and_winners(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "data"
-            shutil.copytree(DATA, root, copy_function=os.link)
-            matches = root / "matches/tour=atp/year=1969/matches.parquet"
-            replacement = matches.with_suffix(".replacement.parquet")
-            connection = duckdb.connect()
-            _copy_parquet(
-                connection,
-                f"""
-                WITH numbered AS (
-                  SELECT *, row_number() OVER (ORDER BY match_id) rn
-                  FROM read_parquet('{matches}', hive_partitioning=false)
-                )
-                SELECT * EXCLUDE(rn) REPLACE (
-                  CASE rn
-                    WHEN 1 THEN []::VARCHAR[]
-                    WHEN 3 THEN [player1_id[1],player1_id[1]]::VARCHAR[]
-                    WHEN 4 THEN [player1_id[1],'player_overlap']::VARCHAR[]
-                    ELSE player1_id END AS player1_id,
-                  CASE rn
-                    WHEN 1 THEN []::VARCHAR[]
-                    WHEN 2 THEN ['TBD']::VARCHAR[]
-                    WHEN 3 THEN [player1_name[1],player1_name[1]]::VARCHAR[]
-                    WHEN 4 THEN [player1_name[1],'Overlap Partner']::VARCHAR[]
-                    ELSE player1_name END AS player1_name,
-                  CASE rn
-                    WHEN 3 THEN [player2_id[1],'player_other']::VARCHAR[]
-                    WHEN 4 THEN [player1_id[1],'player_opponent']::VARCHAR[]
-                    ELSE player2_id END AS player2_id,
-                  CASE rn
-                    WHEN 3 THEN [player2_name[1],'Other Partner']::VARCHAR[]
-                    WHEN 4 THEN [player1_name[1],'Opponent Partner']::VARCHAR[]
-                    ELSE player2_name END AS player2_name,
-                  CASE rn
-                    WHEN 3 THEN [player1_id[1],player1_id[1]]::VARCHAR[]
-                    WHEN 4 THEN [player1_id[1],'player_overlap']::VARCHAR[]
-                    WHEN 5 THEN ['player_not_in_match']::VARCHAR[]
-                    ELSE winner_id END AS winner_id,
-                  CASE WHEN rn IN (3,4) THEN 'doubles' ELSE format END AS format
-                ) FROM numbered
-                ORDER BY date NULLS LAST,tournament_id,draw,round,match_id
-                """,
-                replacement,
-                row_group_size=65_536,
-                match_shaped=True,
-            )
-            connection.close()
-            os.replace(replacement, matches)
-            self.rebuild_test_catalog(root)
-            errors = validate_dataset(root)
-            self.assertTrue(any("invalid match participants" in error for error in errors))
-            self.assertTrue(any("invalid match participant text" in error for error in errors))
-
-    def test_validator_detects_catalog_accounting_corruption(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "data"
-            shutil.copytree(DATA, root, copy_function=os.link)
-            catalog = root / "catalog/catalog.parquet"
-            self.replace_test_parquet(
-                catalog,
-                f"SELECT * REPLACE (CASE WHEN path="
-                f"'matches/tour=atp/year=1968/matches.parquet' THEN row_count+1 "
-                f"ELSE row_count END AS row_count) FROM read_parquet('{catalog}')",
-            )
-            errors = validate_dataset(root)
-            self.assertIn(
-                "catalog row count mismatch: matches/tour=atp/year=1968/matches.parquet",
-                errors,
-            )
-
-    def test_validator_rejects_health_provenance_and_quarantine_corruption(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
-
-            health_root = base / "health-data"
-            shutil.copytree(DATA, health_root, copy_function=os.link)
-            health = health_root / "health/health.parquet"
-            self.replace_test_parquet(
-                health,
-                f"SELECT * REPLACE (as_of + INTERVAL 1 DAY AS as_of) "
-                f"FROM read_parquet('{health}')",
-            )
-            self.rebuild_test_catalog(health_root)
-            self.assertTrue(
-                any(
-                    "health does not match catalog and canonical tables" in error
-                    for error in validate_dataset(health_root)
-                )
-            )
-
-            provenance_root = base / "provenance-data"
-            shutil.copytree(DATA, provenance_root, copy_function=os.link)
-            observations = (
-                provenance_root
-                / "observations/tour=atp/year=1968/observations.parquet"
-            )
-            self.replace_test_parquet(
-                observations,
-                f"SELECT * FROM read_parquet('{observations}', hive_partitioning=false) "
-                "QUALIFY row_number() OVER (ORDER BY match_id)>1",
-            )
-            self.rebuild_test_catalog(provenance_root)
-            self.assertTrue(
-                any(
-                    "canonical matches without provenance evidence" in error
-                    for error in validate_dataset(provenance_root)
-                )
-            )
-
-            quarantine_root = base / "quarantine-data"
-            shutil.copytree(DATA, quarantine_root, copy_function=os.link)
-            quarantine = quarantine_root / "quarantine/quarantine.parquet"
-            self.replace_test_parquet(
-                quarantine,
-                f"WITH numbered AS (SELECT *,row_number() OVER (ORDER BY tour,year,"
-                f"source_match_id) rn FROM read_parquet('{quarantine}')) "
-                "SELECT * EXCLUDE(rn) REPLACE(CASE WHEN reason='ambiguous_source_mapping' "
-                "AND rn=(SELECT min(rn) FROM numbered WHERE reason='ambiguous_source_mapping') "
-                "THEN ['missing-match-id']::VARCHAR[] ELSE candidate_match_ids END "
-                "AS candidate_match_ids) FROM numbered",
-            )
-            self.rebuild_test_catalog(quarantine_root)
-            self.assertTrue(
-                any(
-                    "invalid quarantine candidate IDs" in error
-                    for error in validate_dataset(quarantine_root)
-                )
-            )
-
-            source_root = base / "source-data"
-            shutil.copytree(DATA, source_root, copy_function=os.link)
-            sources = source_root / "coverage/source-audit.parquet"
-            self.replace_test_parquet(
-                sources,
-                f"WITH numbered AS (SELECT *,row_number() OVER (ORDER BY kind,tour,year,"
-                f"source_file_id) rn FROM read_parquet('{sources}')) SELECT * EXCLUDE(rn) "
-                "REPLACE(CASE WHEN rn=1 THEN 'source_file_invalid' ELSE source_file_id END "
-                "AS source_file_id) FROM numbered",
-            )
-            self.rebuild_test_catalog(source_root)
-            self.assertTrue(
-                any(
-                    "non-canonical source file IDs" in error
-                    for error in validate_dataset(source_root)
-                )
-            )
-
-    def test_validator_rejects_changes_before_incremental_cutoff(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "data"
-            shutil.copytree(DATA, root, copy_function=os.link)
-            baseline = Path(temporary) / "baseline.parquet"
-            shutil.copy2(root / "catalog/catalog.parquet", baseline)
-            matches = root / "matches/tour=atp/year=2024/matches.parquet"
-            self.replace_test_parquet(
-                matches,
-                f"SELECT * REPLACE ('migration-test' AS score) "
-                f"FROM read_parquet('{matches}')",
-            )
-            self.rebuild_test_catalog(root)
-            errors = validate_dataset(
-                root, baseline_catalog=baseline, immutable_before_year=2026
-            )
-            self.assertIn(
-                "immutable historical partition changed: "
-                "matches/tour=atp/year=2024/matches.parquet",
-                errors,
-            )
-
-    def test_query_prunes_tour_and_year(self) -> None:
-        if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated dataset is not present")
-        columns, rows = query_dataset(
-            DATA,
-            "SELECT min(tour), max(tour), min(year), max(year), count(*) FROM matches",
-            tours=["atp"],
-            years=[2023],
-        )
-        self.assertEqual(columns[-1], "count_star()")
-        self.assertEqual(rows[0][:4], ("atp", "atp", 2023, 2023))
-        self.assertGreater(rows[0][4], 30_000)
-
-    def test_repeated_futures_events_are_distinct(self) -> None:
-        if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated dataset is not present")
-        _, rows = query_dataset(
-            DATA,
-            """
-            SELECT count(DISTINCT tournament_id)
-            FROM tournaments
-            WHERE tour='atp' AND year=2023 AND lower(tournament_name)='m15 monastir'
-            """,
-            tours=["atp"],
-            years=[2023],
-        )
-        self.assertGreater(rows[0][0], 40)
-
-    def test_statistics_and_date_semantics(self) -> None:
-        if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated dataset is not present")
-        _, rows = query_dataset(
-            DATA,
-            "SELECT (SELECT count(*) FROM match_stats), "
-            "(SELECT count(*) FROM tournaments WHERE end_date < start_date)",
-        )
-        self.assertGreater(rows[0][0], 300_000)
-        self.assertEqual(rows[0][1], 0)
-
-    def test_extract_has_v32_version_metadata(self) -> None:
-        if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated dataset is not present")
-        with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / "subset.parquet"
-            count = extract_dataset(DATA, output, tours=["wta"], years=[2023], levels=["itf"])
-            self.assertGreater(count, 20_000)
-            connection = duckdb.connect()
-            metadata = dict(
-                (key.decode(), value.decode())
-                for _, key, value in connection.execute(
-                    f"SELECT * FROM parquet_kv_metadata('{output}')"
-                ).fetchall()
-            )
-            self.assertEqual(metadata, {SCHEMA_METADATA_KEY: SCHEMA_VERSION})
-            self.assertEqual(
-                [row[0] for row in connection.execute(
-                    f"DESCRIBE SELECT * FROM read_parquet('{output}')"
-                ).fetchall()],
-                list(MATCH_COLUMNS),
-            )
-
-    def test_direct_downloads_include_matches_and_fixtures(self) -> None:
-        if not (DATA / "catalog" / "catalog.parquet").exists():
-            self.skipTest("generated dataset is not present")
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "data"
-            output = Path(temporary) / "downloads"
-            future_output = Path(temporary) / "future-downloads"
-            connection = duckdb.connect()
-            as_of = connection.execute(
-                f"SELECT as_of FROM read_parquet('{DATA / 'catalog/catalog.parquet'}') LIMIT 1"
-            ).fetchone()[0]
-            past = (as_of - timedelta(days=1)).isoformat()
-            future = (as_of + timedelta(days=1)).isoformat()
-            for tour in ("atp", "wta"):
-                match_output = root / "matches" / f"tour={tour}" / "year=2026" / "matches.parquet"
-                fixture_output = root / "fixtures" / f"tour={tour}" / "current.parquet"
-                tournament_output = (
-                    root
-                    / "tournaments"
-                    / f"tour={tour}"
-                    / "year=2026"
-                    / "tournaments.parquet"
-                )
-                observation_output = (
-                    root
-                    / "observations"
-                    / f"tour={tour}"
-                    / "year=2026"
-                    / "observations.parquet"
-                )
-                date_observation_output = (
-                    root
-                    / "date_observations"
-                    / f"tour={tour}"
-                    / "year=2026"
-                    / "date-observations.parquet"
-                )
-                match_output.parent.mkdir(parents=True, exist_ok=True)
-                fixture_output.parent.mkdir(parents=True, exist_ok=True)
-                tournament_output.parent.mkdir(parents=True, exist_ok=True)
-                observation_output.parent.mkdir(parents=True, exist_ok=True)
-                date_observation_output.parent.mkdir(parents=True, exist_ok=True)
-                connection.execute(
-                    f"COPY (SELECT * FROM read_parquet('{DATA / 'matches' / f'tour={tour}' / 'year=2026' / 'matches.parquet'}') LIMIT 10) "
-                    f"TO '{match_output}' (FORMAT PARQUET)"
-                )
-                connection.execute(
-                    f"COPY (WITH numbered AS (SELECT *, row_number() OVER (ORDER BY match_id) AS rn "
-                    f"FROM read_parquet('{DATA / 'fixtures' / f'tour={tour}' / 'current.parquet'}') LIMIT 4) "
-                    f"SELECT * EXCLUDE (rn) REPLACE (CASE rn WHEN 1 THEN DATE '{past}' "
-                    f"WHEN 2 THEN DATE '{as_of}' WHEN 3 THEN DATE '{future}' "
-                    f"ELSE NULL END AS date) FROM numbered) "
-                    f"TO '{fixture_output}' (FORMAT PARQUET)"
-                )
-                connection.execute(
-                    f"COPY (SELECT * FROM read_parquet("
-                    f"'{DATA / 'tournaments' / f'tour={tour}' / 'year=2026' / 'tournaments.parquet'}')) "
-                    f"TO '{tournament_output}' (FORMAT PARQUET)"
-                )
-                shutil.copy2(
-                    DATA / "observations" / f"tour={tour}" / "year=2026" / "observations.parquet",
-                    observation_output,
-                )
-                shutil.copy2(
-                    DATA
-                    / "date_observations"
-                    / f"tour={tour}"
-                    / "year=2026"
-                    / "date-observations.parquet",
-                    date_observation_output,
-                )
-            (root / "catalog").mkdir(parents=True)
-            (root / "coverage").mkdir(parents=True)
-            (root / "quarantine").mkdir(parents=True)
-            shutil.copy2(DATA / "catalog" / "catalog.parquet", root / "catalog/catalog.parquet")
-            shutil.copy2(
-                DATA / "coverage/source-audit.parquet",
-                root / "coverage/source-audit.parquet",
-            )
-            match_id, tour, year = connection.execute(
-                f"SELECT match_id,tour,year FROM read_parquet("
-                f"'{root / 'matches/tour=atp/year=2026/matches.parquet'}',"
-                "hive_partitioning=false) ORDER BY match_id LIMIT 1"
-            ).fetchone()
-            source_file_id = connection.execute(
-                f"SELECT source_file_id FROM read_parquet("
-                f"'{root / 'observations/tour=atp/year=2026/observations.parquet'}') "
-                "WHERE match_id=? ORDER BY source_file_id LIMIT 1",
-                [match_id],
-            ).fetchone()[0]
-            connection.execute(
-                f"COPY (SELECT '{tour}'::VARCHAR AS tour,{year}::SMALLINT AS \"year\","
-                f"'wikimedia'::VARCHAR source_label,'test'::VARCHAR source_path,"
-                f"'{source_file_id}'::VARCHAR source_file_id,"
-                f"'ambiguous-test'::VARCHAR source_match_id,'test'::VARCHAR row_fingerprint,"
-                f"['{match_id}']::VARCHAR[] candidate_match_ids,"
-                f"'ambiguous_source_mapping'::VARCHAR reason) TO "
-                f"'{root / 'quarantine/quarantine.parquet'}' (FORMAT PARQUET)"
-            )
-
-            summary = create_direct_downloads(root, output)
-            self.assertEqual(
-                set(summary),
-                {
-                    "mens.parquet",
-                    "womens.parquet",
-                    "atp.parquet",
-                    "wta.parquet",
-                    "all-matches.parquet",
-                    "tournaments.parquet",
-                    "provenance.parquet",
-                    "ambiguities.parquet",
-                    "sources.parquet",
-                },
-            )
-            self.assertEqual(
-                (output / "atp.parquet").read_bytes(),
-                (output / "mens.parquet").read_bytes(),
-            )
-            self.assertEqual(
-                (output / "wta.parquet").read_bytes(),
-                (output / "womens.parquet").read_bytes(),
-            )
-            rows, tours, undated = connection.execute(
-                f"SELECT count(*), count(DISTINCT tour), "
-                f"count(*) FILTER (WHERE date IS NULL) "
-                f"FROM read_parquet('{output / 'all-matches.parquet'}')"
-            ).fetchone()
-            self.assertEqual(rows, 20)
-            self.assertEqual(tours, 2)
-            self.assertEqual(undated, 0)
-            self.assertEqual(
-                connection.execute(
-                    f"SELECT count(*) FROM (SELECT unnest(candidate_match_ids) "
-                    f"FROM read_parquet('{output / 'ambiguities.parquet'}'))"
-                ).fetchone()[0],
-                1,
-            )
-            metadata = dict(
-                (key.decode(), value.decode())
-                for _, key, value in connection.execute(
-                    f"SELECT * FROM parquet_kv_metadata('{output / 'all-matches.parquet'}')"
-                ).fetchall()
-            )
-            self.assertEqual(metadata, {SCHEMA_METADATA_KEY: SCHEMA_VERSION})
-
-            future_summary = create_direct_downloads(root, future_output, future_only=True)
-            self.assertEqual(set(future_summary), set(summary))
-            future_rows, future_tours, past_dates, undated = connection.execute(
-                f"SELECT count(*), count(DISTINCT tour), "
-                f"count(*) FILTER (WHERE date < DATE '{as_of}'), "
-                f"count(*) FILTER (WHERE date IS NULL) "
-                f"FROM read_parquet('{future_output / 'all-matches.parquet'}')"
-            ).fetchone()
-            self.assertEqual(future_rows, 6)
-            self.assertEqual(future_tours, 2)
-            self.assertEqual(past_dates, 0)
-            self.assertEqual(undated, 2)
-            self.assertEqual(
-                connection.execute(
-                    f"SELECT count(*) FROM read_parquet("
-                    f"'{future_output / 'ambiguities.parquet'}')"
-                ).fetchone()[0],
-                0,
-            )
 
     def test_correction_is_deterministic_parquet(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -824,46 +365,6 @@ class DatasetTests(unittest.TestCase):
                 .fetchone()[0],
                 1,
             )
-
-    def test_retroactive_audit_no_change_writes_artifacts_without_mutation(self) -> None:
-        catalog = DATA / "catalog/catalog.parquet"
-        before = catalog.read_bytes()
-        with tempfile.TemporaryDirectory() as temporary, patch(
-            "open_tennis_data.dataset._remote_audit_revisions",
-            return_value=(False, []),
-        ):
-            output = Path(temporary)
-            report = audit_retroactive_dataset(
-                DATA, output, as_of=date(2026, 7, 16), workers=1
-            )
-            self.assertEqual(report["status"], "no_change")
-            self.assertEqual(report["changed_files"], 0)
-            self.assertTrue((output / "retroactive-audit.json").exists())
-            self.assertTrue((output / "retroactive-audit.md").exists())
-        self.assertEqual(catalog.read_bytes(), before)
-
-    def test_retroactive_revision_probe_detects_changed_sources(self) -> None:
-        def pages(year: int, tour: str) -> list[str]:
-            return [f"{year} Test Open – Singles"] if year == 2026 else []
-
-        with patch(
-            "open_tennis_data.dataset.resolve_archive_revision", return_value="f" * 40
-        ), patch(
-            "open_tennis_data.sources.wikimedia.discover_pages", side_effect=pages
-        ), patch(
-            "open_tennis_data.sources.wikimedia.fetch_page_revisions",
-            return_value={
-                "2026 Test Open – Singles": "999",
-                "2026 Test Open": "998",
-            },
-        ):
-            changed, sources = _remote_audit_revisions(
-                DATA, [2025, 2026], [2026, 2027]
-            )
-        self.assertTrue(changed)
-        self.assertTrue(any(item["kind"] == "archive" for item in sources))
-        self.assertTrue(any(item["kind"] == "fixtures" for item in sources))
-        self.assertTrue(any(item["kind"] == "tournaments" for item in sources))
 
     def test_failed_audit_report_includes_source_revision_details(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

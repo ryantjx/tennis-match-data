@@ -1,10 +1,12 @@
 import unittest
+import urllib.error
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
 from open_tennis_data.fixtures import parse_wikimedia_fixture_page
 from open_tennis_data.sources.wikimedia import (
+    api,
     discover_pages,
     fetch_page_revision,
     fetch_pages_at_revisions,
@@ -27,6 +29,22 @@ def page(title, fixture, revision=123):
 
 
 class WikimediaTests(unittest.TestCase):
+    def test_mediawiki_rate_limits_back_off_before_failing(self):
+        limited = urllib.error.HTTPError(
+            "https://example.test",
+            429,
+            "rate limited",
+            {"Retry-After": "7"},
+            None,
+        )
+        with patch(
+            "open_tennis_data.sources.wikimedia.urllib.request.urlopen",
+            side_effect=limited,
+        ), patch("open_tennis_data.sources.wikimedia.time.sleep") as sleep:
+            with self.assertRaises(urllib.error.HTTPError):
+                api({"action": "query"}, attempts=2)
+        sleep.assert_called_once_with(7.0)
+
     @patch("open_tennis_data.sources.wikimedia.api")
     def test_fetch_page_revision_requires_the_recorded_revision(self, request):
         request.return_value = {
@@ -126,6 +144,20 @@ class WikimediaTests(unittest.TestCase):
         parsed = parse_tournament_page(tournament_page, "atp", 2026)
         self.assertEqual(parsed["start_date"], date(2025, 12, 28))
         self.assertEqual(parsed["end_date"], date(2026, 1, 4))
+
+    def test_tournament_page_keeps_explicit_years_on_both_range_ends(self):
+        tournament = {
+            "title": "2025 Brisbane International",
+            "page_id": 2025,
+            "wikidata_id": "Q2025",
+            "content": (
+                "{{TennisEventInfo|date=30 December 2024 – 5 January 2025"
+                "|location=Tennyson, Australia|surface=Hard}}"
+            ),
+        }
+        parsed = parse_tournament_page(tournament, "atp", 2025)
+        self.assertEqual(parsed["start_date"], date(2024, 12, 30))
+        self.assertEqual(parsed["end_date"], date(2025, 1, 5))
 
     def test_mens_page_keeps_completed_and_walkover_not_live(self):
         players = {}

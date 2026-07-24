@@ -1,6 +1,6 @@
 """Shared constants for the Parquet data model."""
 
-SCHEMA_VERSION = "3.2"
+SCHEMA_VERSION = "3.3"
 SCHEMA_METADATA_KEY = "open_tennis_data_schema_version"
 TOURS = ("atp", "wta")
 DRAWS = ("main", "qualifying")
@@ -34,6 +34,7 @@ MATCH_COLUMNS = (
     "status",
     "score",
     "best_of",
+    "source",
 )
 MATCH_SCHEMA = (
     ("date", "DATE"),
@@ -55,6 +56,7 @@ MATCH_SCHEMA = (
     ("status", "VARCHAR"),
     ("score", "VARCHAR"),
     ("best_of", "TINYINT"),
+    ("source", "VARCHAR[]"),
 )
 SOURCE_LICENSES = {
     "sackmann": "CC-BY-NC-SA-4.0",

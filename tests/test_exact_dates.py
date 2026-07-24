@@ -12,7 +12,9 @@ from open_tennis_data.exact_dates import (
     DateSource,
     fetch_live_completed_sources,
     fetch_tennis_data_file,
+    local_calendar_date,
     parse_excel_date,
+    parse_tennis_data_file,
     parse_tennis_tv_completed,
     parse_wta_api_completed,
     quarantine_conflicting_dates,
@@ -43,6 +45,19 @@ class ExactDateSourceTests(unittest.TestCase):
         self.assertIsNone(parse_excel_date(None))
         self.assertIsNone(parse_excel_date("malformed"))
 
+    def test_utc_timestamps_are_converted_to_the_venue_day(self) -> None:
+        self.assertEqual(
+            local_calendar_date(
+                "2024-06-09T00:30:00Z",
+                "America/Los_Angeles",
+            ),
+            date(2024, 6, 8),
+        )
+        self.assertIsNone(local_calendar_date("2024-06-09T00:30:00Z", None))
+        self.assertIsNone(
+            local_calendar_date("2024-06-09T00:30:00", "Europe/London")
+        )
+
     def test_source_id_is_contextual_and_stable(self) -> None:
         first = source()
         same = source()
@@ -64,6 +79,48 @@ class ExactDateSourceTests(unittest.TestCase):
             ):
                 path, _ = fetch_tennis_data_file("wta", 2007, destination)
                 self.assertEqual(path.suffix, ".xls")
+
+    def test_tennis_data_semantics_reject_tournament_dates_and_parse_walkovers(
+        self,
+    ) -> None:
+        rows = [
+            ["Date", "Tournament", "Location", "Round", "Winner", "Loser", "Comment"],
+            ["01/01/2002", "Test Open", "Sydney", "1st Round", "Winner A.", "Loser B.", "Walkover"],
+        ]
+        workbook = mock.Mock()
+        workbook.get_sheet_by_index.return_value.to_python.return_value = rows
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "source.xlsx"
+            path.write_bytes(b"offline tennis-data fixture")
+            with mock.patch(
+                "open_tennis_data.exact_dates.CalamineWorkbook.from_path",
+                return_value=workbook,
+            ):
+                _, parsed, rejected = parse_tennis_data_file(
+                    path,
+                    "atp",
+                    2002,
+                    "https://example.test/2002.xlsx",
+                )
+            self.assertFalse(parsed)
+            self.assertEqual(
+                {item["reason"] for item in rejected},
+                {"tournament_date_not_match_date"},
+            )
+
+            rows[1][0] = "01/01/2024"
+            with mock.patch(
+                "open_tennis_data.exact_dates.CalamineWorkbook.from_path",
+                return_value=workbook,
+            ):
+                _, parsed, rejected = parse_tennis_data_file(
+                    path,
+                    "wta",
+                    2024,
+                    "https://example.test/2024.xlsx",
+                )
+            self.assertFalse(rejected)
+            self.assertEqual(parsed[0].score, "W/O")
 
     def test_cross_year_exact_date_and_compound_names_reconcile(self) -> None:
         match = CanonicalMatch(
@@ -139,7 +196,11 @@ class ExactDateSourceTests(unittest.TestCase):
                     "MatchID": "wta-1",
                 }
             ],
-            tournament={"name": "Test Open", "city": "London"},
+            tournament={
+                "name": "Test Open",
+                "city": "London",
+                "timezone": "Europe/London",
+            },
             source=source("wta"),
         )
         self.assertEqual(wta_rows[0].played_on, date(2024, 6, 8))
@@ -165,7 +226,7 @@ class ExactDateSourceTests(unittest.TestCase):
                     },
                 }
             ],
-            tournament={"Name": "Test Open"},
+            tournament={"Name": "Test Open", "Timezone": "Europe/London"},
             source=source("atp"),
         )
         self.assertEqual(tv_rows[0].played_on, date(2024, 6, 9))
@@ -181,6 +242,7 @@ class ExactDateSourceTests(unittest.TestCase):
                             {
                                 "year": 2024,
                                 "name": "WTA Test",
+                                "timezone": "Europe/London",
                                 "tournamentGroup": {"id": 11},
                             }
                         ]
@@ -209,7 +271,15 @@ class ExactDateSourceTests(unittest.TestCase):
                 )
             if path == "/tournaments":
                 return (
-                    [{"id": 22, "year": 2024, "gender": "ATP", "Name": "ATP Test"}],
+                    [
+                        {
+                            "id": 22,
+                            "year": 2024,
+                            "gender": "ATP",
+                            "Name": "ATP Test",
+                            "Timezone": "Europe/London",
+                        }
+                    ],
                     base + path,
                     "c" * 64,
                 )

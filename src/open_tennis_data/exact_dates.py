@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from python_calamine import CalamineWorkbook
 
@@ -40,6 +41,8 @@ class DateSource:
     sha256: str
     license: str
     source_rows: int
+    parser_version: str = "3.3"
+    policy_revision: str = "v3-2026-07-24"
 
     @property
     def source_file_id(self) -> str:
@@ -70,6 +73,13 @@ class DateRow:
     source_file_id: str
     source_match_id: str
     row_fingerprint: str
+    observed_at: datetime | None = None
+    source_timezone: str | None = None
+    venue_timezone: str | None = None
+    date_role: str = "played"
+    date_precision: str = "day"
+    parser_version: str = "3.3"
+    policy_revision: str = "v3-2026-07-24"
 
 
 @dataclass(frozen=True)
@@ -238,6 +248,21 @@ def parse_tennis_data_file(
         source_match_id = f"tennis-data:{tour}:{year}:{ordinal}"
         played_on = parse_excel_date(record.get("Date"))
         required = (record.get("Winner"), record.get("Loser"), record.get("Tournament"))
+        if tour == "atp" and year < 2003:
+            rejected.append(
+                {
+                    "tour": tour,
+                    "year": year,
+                    "source_label": source.source_label,
+                    "source_path": source.source_path,
+                    "source_file_id": source.source_file_id,
+                    "source_match_id": source_match_id,
+                    "row_fingerprint": fingerprint,
+                    "candidate_match_ids": None,
+                    "reason": "tournament_date_not_match_date",
+                }
+            )
+            continue
         if played_on is None or not all(str(value or "").strip() for value in required):
             rejected.append(
                 {
@@ -270,6 +295,38 @@ def parse_tennis_data_file(
             )
         )
     return source, parsed, rejected
+
+
+def local_calendar_date(timestamp: Any, venue_timezone: str | None) -> date | None:
+    """Convert an aware source timestamp to the venue's local calendar day."""
+    if timestamp in (None, "") or not venue_timezone:
+        return None
+    text = str(timestamp).strip().replace("Z", "+00:00")
+    try:
+        instant = datetime.fromisoformat(text)
+        zone = ZoneInfo(venue_timezone)
+    except (ValueError, ZoneInfoNotFoundError):
+        return None
+    if instant.tzinfo is None:
+        return None
+    return instant.astimezone(zone).date()
+
+
+def _tournament_timezone(tournament: dict[str, Any]) -> str | None:
+    group = tournament.get("tournamentGroup") or {}
+    for container in (tournament, group, group.get("metadata") or {}):
+        for key in (
+            "venue_timezone",
+            "venueTimezone",
+            "timeZone",
+            "timezone",
+            "Timezone",
+            "TimeZone",
+        ):
+            value = container.get(key)
+            if value:
+                return str(value)
+    return None
 
 
 def _text(value: str) -> str:
@@ -460,15 +517,13 @@ def parse_wta_api_completed(
         or ""
     )
     location = str(tournament.get("city") or tournament.get("location") or "")
+    venue_timezone = _tournament_timezone(tournament)
     for ordinal, match in enumerate(matches, 1):
         if match.get("DrawMatchType") != "S" or match.get("MatchState") != "F":
             continue
         winner_side = str(match.get("Winner") or "")
-        timestamp = str(match.get("MatchTimeStamp") or "").replace("Z", "+00:00")
-        try:
-            played_on = datetime.fromisoformat(timestamp).date()
-        except ValueError:
-            played_on = None
+        timestamp = match.get("MatchTimeStamp")
+        played_on = local_calendar_date(timestamp, venue_timezone)
         player_a = " ".join(
             str(match.get(field) or "").strip()
             for field in ("PlayerNameLastA", "PlayerNameFirstA")
@@ -509,6 +564,10 @@ def parse_wta_api_completed(
                 source_file_id=source.source_file_id,
                 source_match_id=source_match_id,
                 row_fingerprint=fingerprint,
+                source_timezone="UTC",
+                venue_timezone=venue_timezone,
+                parser_version=source.parser_version,
+                policy_revision=source.policy_revision,
             )
         )
     return parsed, rejected
@@ -523,6 +582,7 @@ def parse_tennis_tv_completed(
     """Parse completed Tennis TV singles rows using ``MatchDate`` evidence."""
     parsed: list[DateRow] = []
     rejected: list[dict[str, Any]] = []
+    venue_timezone = _tournament_timezone(tournament)
 
     def player(team: dict[str, Any] | None) -> str:
         team = team or {}
@@ -541,11 +601,8 @@ def parse_tennis_tv_completed(
         team2 = match.get("PlayerTeam2") or {}
         if team1.get("PartnerId") or team2.get("PartnerId"):
             continue
-        timestamp = str(match.get("MatchDate") or "").replace("Z", "+00:00")
-        try:
-            played_on = datetime.fromisoformat(timestamp).date()
-        except ValueError:
-            played_on = None
+        timestamp = match.get("MatchDate")
+        played_on = local_calendar_date(timestamp, venue_timezone)
         first, second = player(team1), player(team2)
         winner_id = str(winner_value or "")
         first_id = str(team1.get("PlayerId") or "")
@@ -580,6 +637,10 @@ def parse_tennis_tv_completed(
                 source_file_id=source.source_file_id,
                 source_match_id=match_id,
                 row_fingerprint=fingerprint,
+                source_timezone="UTC",
+                venue_timezone=venue_timezone,
+                parser_version=source.parser_version,
+                policy_revision=source.policy_revision,
             )
         )
     return parsed, rejected

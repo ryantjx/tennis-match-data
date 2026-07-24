@@ -2,81 +2,72 @@
 
 Last reviewed: 2026-07-24.
 
-This document describes the implemented v3.2 and interim exact-date
-remediation sources. The approved v4 source-policy registry, permission gates,
-licence tiers, and atomic daily historical/future build are specified in
-[`OBJECTIVE.md`](../OBJECTIVE.md) and are not implemented yet.
+The machine-readable registry is
+[`src/open_tennis_data/sources.json`](../src/open_tennis_data/sources.json).
+Release generation fails when
+a referenced source is missing, blocked, lacks
+`public_research_release` in `allowed_uses`, or lacks required attribution and
+policy metadata.
 
-The production v3.2 collectors use the Sackmann/Tennis Abstract archive and
-Wikimedia. The interim exact-date remediation also contains Tennis-Data.co.uk,
-WTA API, and Tennis TV parsers. Their presence in code or research-tier
-evidence is not v4 approval for public or commercial redistribution. There is
-no official order-of-play, ATP, ITF, Grand Slam, or ATP/TDI adapter.
+## Tennis-Data.co.uk
 
-## Sackmann / Tennis Abstract archive
+Season XLS/XLSX files provide match-level historical date candidates for the
+2020+ backfill. Each source file is content-hashed and each row receives a
+native ID and row fingerprint.
 
-- Primary origin: Jeff Sackmann's ATP and WTA repositories.
-- Current transport fallback: the pinned `Aneeshers/tennis-sackmann-archive`
-  Hugging Face revision because the original repositories were unavailable
-  during the initial source rebuild.
-- Coverage: tour singles, qualifying, Challenger, ATP Futures, WTA ITF,
-  players, statistics, and historical rankings.
-- Licence: CC BY-NC-SA 4.0.
-- Every downloaded file is pinned to one repository revision, checksummed, and
-  reconciled as `source rows = normalized observations + quarantined rows`.
-- Source URLs, revisions, checksums, and licences are stored once in source-file
-  records and linked to matches through compact provenance; match rows contain
-  no source URL.
-- Source-file identity includes provider label, URL, immutable revision,
-  checksum, ingestion role, and tour. This distinguishes a shared page used for
-  multiple roles or tour-specific records without duplicating an identity.
-- `tourney_date` is normally a tournament week or start date. It is not
-  match-level day evidence. Pre-remediation v3.2 exposed it as the completed
-  match `date`; the interim remediation and v4 must not.
+ATP files before 2003 use unsupported tournament-date semantics and are
+quarantined as `tournament_date_not_match_date`. Malformed dates, participants,
+and tournament names are also quarantined.
 
-The direct origin should be restored automatically when it becomes reachable
-and its content hashes reconcile with the fallback.
+The registry describes these as research-use inputs under the publisher’s
+source notice. No commercial redistribution grant is claimed.
 
 ## Wikimedia
 
-- Access: English Wikipedia MediaWiki API.
-- Coverage: maintained current ATP/WTA main and qualifying singles draw pages.
-- Uses: fresh completed results plus best-effort unplayed draw slots.
-- Licence: CC BY-SA 4.0, with page URL, revision ID, and content checksum.
-- Limitation: community maintained; fixtures may lack exact dates and are not a
-  complete schedule service.
-- Tournament metadata is filled only from recorded immutable page revisions;
-  a tournament window is never substituted for an exact fixture date.
-- A Wikimedia date is match-level evidence only when the source explicitly
-  states the individual match day or published schedule day.
+Pinned MediaWiki page revisions supply tournament/draw identity, explicit
+results, future draw slots, and match or schedule dates when the page actually
+states them. Applicable page licences and revision attribution remain attached.
+
+A tournament range or page publication timestamp is not match-day evidence.
+Community-maintained future data may be incomplete or rescheduled.
+
+## Sackmann / Tennis Abstract
+
+The pinned bulk archive is retained for identity/result cross-checking and
+enrichment in the research dataset under CC BY-NC-SA 4.0.
+
+`tourney_date` is a tournament date and never qualifies as evidence for the
+public match `date`. Qualifying, Challenger, WTA 125, ITF/Futures, doubles,
+rankings, and statistics from the archive are outside the v3 release scope.
+
+## WTA and Tennis TV
+
+Offline parser coverage remains for timestamp conversion, participant/result
+normalization, walkovers, missing fields, and source changes. Automated
+collection and public release are blocked in the registry: the public WTA
+terms prohibit automated harvesting/access, and Tennis TV terms prohibit
+automated scraping/extraction for third-party products.
+
+These adapters may be enabled only after separate written automated-access and
+redistribution permission is recorded in a new reviewed policy revision.
 
 ## Community corrections
 
-Contributors dedicate factual corrections to CC0 and provide a public source.
-Corrections must not be copied from a protected database or gathered in breach
-of access terms. Proposals identify `entity_type` and `entity_id`; the
-deprecated `--match-id` shorthand remains available for one release cycle.
+Corrections require a public supporting URL and are dedicated by contributors
+to CC0 1.0. A correction never overrides source policy or makes an unsupported
+date exact.
 
-## Interim exact-date adapters
+## Failure behavior
 
-- Tennis-Data.co.uk yearly ATP/WTA files supply historical day-level candidate
-  observations to the v3.2 remediation.
-- WTA API and Tennis TV parsers supply current completed-match candidate
-  observations.
-- Raw URLs, hashes, parser results, reconciliation outcomes, and source labels
-  remain auditable.
-- These adapters are research-tier or internal-evaluation inputs until written
-  automated-access and redistribution permission is recorded in the v4 source
-  registry. They must not qualify an open-tier v4 row by themselves.
+The collector/release path quarantines or rejects:
 
-## Excluded automation
+- missing or invalid venue timezones for timestamps;
+- tournament-only, imprecise, or malformed dates;
+- ambiguous player/tournament identities;
+- conflicting exact dates;
+- unmatched source rows;
+- duplicates and malformed lifecycle rows; and
+- unregistered or policy-blocked sources.
 
-ATP, WTA, ITF, Tennis TV, commercial livescore sites, odds feeds, and similar
-APIs are not approved v4 publication sources without written automated-access
-and bulk-redistribution permission. Public visibility or a free API tier is not
-a redistribution licence.
-
-The official ATP and WTA adapters therefore remain disabled. Enabling either
-requires recording written permission in this policy before adding credentials
-or automation. See the [ATP terms](https://www.atptour.com/en/terms-and-conditions)
-and [WTA terms](https://www.wtatennis.com/terms-and-conditions).
+The pipeline does not bypass authentication, paywalls, rate limits, robots
+controls, or access restrictions. Public visibility is not a licence.

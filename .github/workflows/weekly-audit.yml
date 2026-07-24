@@ -1,4 +1,4 @@
-name: Weekly retroactive audit
+name: Weekly 2020+ retroactive audit
 
 on:
   workflow_dispatch:
@@ -6,44 +6,43 @@ on:
     - cron: "41 7 * * 1"
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
-  group: tennis-data-writer
+  group: tennis-v3-audit
   cancel-in-progress: false
 
 jobs:
   audit:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install .
-      - name: Audit previous/current results and future fixtures
+      - name: Build a fresh 2020+ audit dataset
+        run: |
+          open-tennis-data bootstrap \
+            --through-year "$(date -u +%Y)" \
+            --as-of "$(date -u +%F)" \
+            --output "$RUNNER_TEMP/data"
+      - name: Audit every v3 result season and current/future fixtures
         run: |
           open-tennis-data audit-retroactive \
+            --data "$RUNNER_TEMP/data" \
+            --years "2020:$(date -u +%Y)" \
             --as-of "$(date -u +%F)" \
             --output "$RUNNER_TEMP/retroactive-audit"
-      - name: Validate the assembled repository
-        run: open-tennis-data validate
-      - name: Test every historical partition
-        run: python -m unittest tests.test_data_quality -v
-      - name: Upload audit reports
+      - name: Validate the audited staging state
+        run: open-tennis-data validate --data "$RUNNER_TEMP/data"
+      - name: Upload the immutable audit report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: retroactive-audit-${{ github.run_id }}
           path: ${{ runner.temp }}/retroactive-audit/
           if-no-files-found: error
-      - name: Open a review-only data pull request when needed
-        run: |
-          bash scripts/open-audit-pr.sh \
-            "$RUNNER_TEMP/retroactive-audit/retroactive-audit.md"

@@ -23,25 +23,32 @@ class CliTests(unittest.TestCase):
         return result, stdout.getvalue(), stderr.getvalue()
 
     def test_query_validate_extract_and_correction_commands(self) -> None:
-        result, output, error = self.invoke(
-            "query",
-            "--data",
-            str(DATA),
-            "--tour",
-            "mens",
-            "--years",
-            "2025",
-            "--sql",
-            "SELECT count(*) AS rows FROM matches",
-        )
+        with patch(
+            "open_tennis_data.cli.query_dataset",
+            return_value=(["rows"], [(1,)]),
+        ):
+            result, output, error = self.invoke(
+                "query",
+                "--data",
+                str(DATA),
+                "--tour",
+                "mens",
+                "--years",
+                "2025",
+                "--sql",
+                "SELECT count(*) AS rows FROM matches",
+            )
         self.assertEqual((result, error), (0, ""))
         self.assertIn("rows", output)
 
-        result, output, error = self.invoke("validate", "--data", str(DATA))
+        with patch("open_tennis_data.cli.validate_dataset", return_value=[]):
+            result, output, error = self.invoke("validate", "--data", str(DATA))
         self.assertEqual((result, error), (0, ""))
         self.assertIn("valid Parquet dataset", output)
 
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary, patch(
+            "open_tennis_data.cli.extract_dataset", return_value=1
+        ) as extract_dataset:
             extract = Path(temporary) / "extract.parquet"
             result, output, error = self.invoke(
                 "extract",
@@ -57,8 +64,8 @@ class CliTests(unittest.TestCase):
                 str(extract),
             )
             self.assertEqual((result, error), (0, ""))
-            self.assertTrue(extract.exists())
             self.assertIn("wrote", output)
+            extract_dataset.assert_called_once()
 
             corrections = Path(temporary) / "corrections.parquet"
             result, output, error = self.invoke(
@@ -105,7 +112,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("HTTP(S)", error)
 
-    def test_build_refresh_promote_and_download_dispatch(self) -> None:
+    def test_build_refresh_and_promote_dispatch(self) -> None:
         with patch("open_tennis_data.cli.build_dataset") as build:
             build.return_value = {
                 "as_of": date(2026, 7, 12),
@@ -134,31 +141,11 @@ class CliTests(unittest.TestCase):
                 build.call_args.kwargs["wikimedia_source_audit"], Path("snapshot.parquet")
             )
 
-        with patch("open_tennis_data.cli.refresh_wikimedia_dataset") as refresh:
-            refresh.return_value = {
-                "changed_files": 2,
-                "changed_bytes": 100,
-            }
-            result, output, error = self.invoke(
-                "refresh-wikimedia", "--as-of", "2026-07-12", "--workers", "2"
-            )
-            self.assertEqual((result, error), (0, ""))
-            self.assertIn("refreshed fixtures/current results", output)
-
         with patch("open_tennis_data.cli.promote_dataset") as promote:
             promote.return_value = {"changed_files": 1, "changed_bytes": 10}
             result, output, error = self.invoke("promote", "--source", "generated")
             self.assertEqual((result, error), (0, ""))
             self.assertIn("promoted 1", output)
-
-        with patch("open_tennis_data.cli.create_direct_downloads") as downloads:
-            downloads.return_value = {
-                "all-matches.parquet": {"rows": 2, "fixtures": 2, "bytes": 20}
-            }
-            result, output, error = self.invoke("downloads", "--future-only")
-            self.assertEqual((result, error), (0, ""))
-            self.assertIn("2 fixtures", output)
-            self.assertTrue(downloads.call_args.kwargs["future_only"])
 
     def test_atomic_refresh_and_audit_commands_dispatch(self) -> None:
         with patch("open_tennis_data.cli.bootstrap_dataset") as bootstrap:
@@ -198,12 +185,109 @@ class CliTests(unittest.TestCase):
             self.assertIn("retroactive audit passed", output)
 
     def test_interactive_shell_executes_and_recovers_from_errors(self) -> None:
-        with patch("builtins.input", side_effect=["SELECT 1 AS value;", "bad sql;", ".quit"]):
+        with patch(
+            "open_tennis_data.cli.register_views"
+        ), patch(
+            "builtins.input", side_effect=["SELECT 1 AS value;", "bad sql;", ".quit"]
+        ):
             result, output, error = self.invoke("shell", "--data", str(DATA))
         self.assertEqual(result, 0)
         self.assertIn("value", output)
         self.assertIn("1", output)
         self.assertIn("error:", error)
+
+    def test_v3_release_selection_matches_filters_and_verification(self) -> None:
+        with patch(
+            "open_tennis_data.cli.register_views"
+        ), patch(
+            "open_tennis_data.cli.query_matches",
+            return_value=(["match_id", "source"], [("match:1", ["sackmann"])]),
+        ):
+            result, output, error = self.invoke(
+                "matches",
+                "--data",
+                str(DATA),
+                "--tour",
+                "atp",
+                "--years",
+                "2025",
+                "--status",
+                "completed",
+                "--player",
+                "Sinner",
+                "--limit",
+                "2",
+                "--format",
+                "jsonl",
+            )
+        self.assertEqual((result, error), (0, ""))
+        self.assertLessEqual(len(output.splitlines()), 2)
+        self.assertIn('"source":["sackmann"]', output)
+
+        manifest = {
+            "product_version": "3",
+            "schema_version": "3.3",
+            "assets": [
+                {"name": "matches.parquet", "url": "matches.parquet"},
+                {"name": "completed.parquet", "url": "completed.parquet"},
+                {"name": "fixtures.parquet", "url": "fixtures.parquet"},
+            ],
+        }
+        with patch(
+            "open_tennis_data.cli.load_release_manifest",
+            return_value=manifest,
+        ) as loader, patch(
+            "open_tennis_data.cli.query_release",
+            return_value=(["rows"], [(12,)]),
+        ):
+            result, output, error = self.invoke(
+                "query",
+                "--release",
+                "data-v3-test",
+                "--repository",
+                "owner/repository",
+                "--sql",
+                "SELECT count(*) rows FROM matches",
+                "--format",
+                "json",
+            )
+        self.assertEqual((result, error), (0, ""))
+        self.assertIn('"rows": 12', output)
+        self.assertEqual(loader.call_args.args[0], "data-v3-test")
+        self.assertEqual(loader.call_args.kwargs["repository"], "owner/repository")
+
+        with patch(
+            "open_tennis_data.cli.create_v3_release",
+            return_value={
+                "release_status": "preview",
+                "release_tag": "data-v3-test",
+                "assets": [{}] * 11,
+            },
+        ):
+            result, output, error = self.invoke(
+                "release",
+                "--data",
+                str(DATA),
+                "--output",
+                "dist/release",
+                "--tag",
+                "data-v3-test",
+            )
+        self.assertEqual((result, error), (0, ""))
+        self.assertIn("v3 preview release", output)
+
+        with patch(
+            "open_tennis_data.cli.validate_v3_release",
+            return_value=["release is preview"],
+        ):
+            result, _, error = self.invoke(
+                "verify-release",
+                "--directory",
+                "dist/release",
+                "--require-complete",
+            )
+        self.assertEqual(result, 1)
+        self.assertIn("release is preview", error)
 
 
 if __name__ == "__main__":

@@ -1,22 +1,34 @@
-# Data licensing
+# Data terms
 
-The software is MIT licensed. Data is licensed per observation; consult the
-`license` column in the Parquet observation and correction tables.
+The repository software is MIT licensed. That licence does not cover the
+published tennis facts or waive source-specific conditions.
 
-- Sackmann / Tennis Abstract: **CC BY-NC-SA 4.0**. Attribution is required,
-  commercial use is prohibited, and adaptations must use the same licence.
-- Wikimedia: **CC BY-SA 4.0**, retaining page URL and revision attribution.
-- Tennis-Data.co.uk yearly ATP/WTA files: the publisher describes the data as
-  free to use. The repository retains the yearly URL, retrieval content hash,
-  source notice (`Tennis-Data redistribution terms`), and reconciliation
-  totals. This description is not confirmation of public or commercial
-  redistribution rights.
-- WTA API and Tennis TV completed-match observations: governed by the
-  respective provider terms recorded in `source-audit.parquet`; URLs and
-  response content hashes are retained. Their presence in the interim
-  research-tier remediation does not approve them for a v4 open release.
-- Direct community corrections: **CC0 1.0**.
+Open Tennis Data v3 is a source-attributed research dataset and is not
+represented as commercially reusable. Every release includes
+`sources.parquet`, which records the applicable source URL, terms URL,
+attribution, allowed uses, policy state, parser version, review date, and
+content checksum.
 
-When observations are reconciled, all applicable source licences remain. A
-record with a Sackmann observation remains non-commercial and ShareAlike.
-This policy summary is not legal advice.
+Current source roles:
+
+- Sackmann/Tennis Abstract: CC BY-NC-SA 4.0 research-only identity/result
+  cross-checking. Attribution and ShareAlike apply; commercial use is not
+  permitted.
+- Wikimedia: applicable CC BY-SA terms and page-revision attribution.
+- Tennis-Data.co.uk: public season files used under the source notice recorded
+  in the registry. This repository does not claim a commercial redistribution
+  grant.
+- Community corrections: contributors dedicate the factual correction to CC0
+  1.0.
+- WTA and Tennis TV automation/publication: blocked by policy unless separate
+  written permission is recorded.
+
+An observation is excluded if its source is unregistered, policy-blocked, or
+does not explicitly allow the research-release use. Public visibility, a free
+account, or an accessible endpoint is not permission to automate or
+redistribute.
+
+This summary is not legal advice. Consumers are responsible for reviewing
+`sources.parquet`,
+[`src/open_tennis_data/sources.json`](src/open_tennis_data/sources.json), and the linked
+terms before using or redistributing the data.

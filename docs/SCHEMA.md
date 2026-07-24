@@ -1,139 +1,114 @@
-# Parquet schemas
+# Open Tennis Data v3 schema
 
-This document describes the implemented, interim v3.2 exact-date remediation.
-The pre-remediation v3.2 dataset fell back to the source tournament start date;
-the remediated canonical table instead leaves unresolved completed dates null
-and completed downloads contain only the exact-dated subset. The full v4
-source-policy, licensing, atomic historical/future, and release target is
-documented in [`OBJECTIVE.md`](../OBJECTIVE.md) and is not implemented yet.
-
-Open Tennis Data v3.2 publishes one match contract for completed results,
-future fixtures, extracts, and rolling release assets. Every match-shaped file
-has metadata `open_tennis_data_schema_version=3.2` and these 19 columns in this
-exact order:
+Every match-shaped Parquet file has
+`open_tennis_data_schema_version=3.3` and these 20 columns in exact order:
 
 ```text
 date, match_id, tournament_id, tournament_name, tour, year, draw, round,
 format, player1_id, player1_name, player1_seed,
 player2_id, player2_name, player2_seed,
-winner_id, status, score, best_of
+winner_id, status, score, best_of, source
 ```
 
-The physical DuckDB/Arrow types are:
+Physical DuckDB/Arrow types:
 
 ```text
 DATE, VARCHAR, VARCHAR, VARCHAR, VARCHAR, SMALLINT, VARCHAR, VARCHAR,
 VARCHAR, VARCHAR[], VARCHAR[], VARCHAR,
 VARCHAR[], VARCHAR[], VARCHAR,
-VARCHAR[], VARCHAR, VARCHAR, TINYINT
+VARCHAR[], VARCHAR, VARCHAR, TINYINT, VARCHAR[]
 ```
 
-Participant IDs and names and `winner_id` are always lists in Parquet. Singles
-use one-element lists; doubles use two-element lists. Current ingestion remains
-singles-only, while validators and synthetic tests support doubles.
+## Source attribution
 
-Canonical completed rows require both participant slots. A terminal winner must exactly
-equal one participant ID list. The 303 source-declared completed results whose
-provenance has no score remain `status=completed, score=null`; validation never
-invents a score. Their `date` is nullable and can be populated only by accepted
-day-precision match evidence. Tournament start/end dates are never used as a
-fallback. Completed release assets filter to the exact-dated subset, so every
-released terminal row is dated without removing unresolved canonical history.
+`source` is a sorted, duplicate-free, non-empty list of canonical labels. It
+captures every source that materially contributes to the public row:
 
-Fixtures use `status=fixture`, keep `winner_id` and `score` null, and may have a
-null `date` or unresolved participant slot. Their lifecycle-stable `match_id`
-survives conversion to a completed result. A match cannot be published in both
-completed and future data.
+- `sackmann`: identity or result cross-check;
+- `tennis-data.co.uk`: accepted exact match-day evidence;
+- `wikimedia`: draw, schedule, fixture, or result observation; and
+- `community`: an applied approved correction.
 
-The status domain is `fixture`, `completed`, `walkover`, `retired`, `defaulted`,
-`abandoned`, and `cancelled`. `best_of` accepts source values 1, 3, and 5.
-Missing singles values are backfilled as WTA 3, ATP Grand Slam main draw 5, and
-other ATP draws 3.
+The list form preserves attribution when one row combines evidence from
+several sources. Detailed native IDs, URLs, hashes, and policy information
+remain in `provenance.parquet` and `sources.parquet`.
 
-## Annual tournaments
+## Lifecycle semantics
 
-Tournament partitions and both rolling release families include:
+`completed.parquet` contains terminal statuses: `completed`, `walkover`,
+`retired`, `defaulted`, `abandoned`, or `cancelled`. Each row has a non-null
+`date` equal to accepted match-level evidence with day precision. Tournament
+dates never fill this field.
+
+`fixtures.parquet` contains only `status=fixture`. `winner_id` and `score` are
+null. The date and either participant list may also be null until a schedule or
+draw observation supplies them.
+
+`matches.parquet` is exactly:
+
+```sql
+SELECT * FROM completed
+UNION ALL
+SELECT * FROM fixtures
+```
+
+`match_id` is unique across the union and remains stable when a fixture becomes
+a terminal result.
+
+## Tournaments and players
+
+`tournaments.parquet`:
 
 ```text
 tournament_id, tour, year, tournament_name, level, surface, indoor,
 start_date, end_date, city, country, source_url
 ```
 
-One immutable ID represents an annual tour edition and is shared by main and
-qualifying draws. ATP and WTA editions remain distinct. `tournaments.parquet`
-is authoritative for `tournament_name`; copied names in every match row must
-match it exactly.
+`players.parquet` retains the compatible identity schema from the local
+dataset, filtered to players referenced by the release.
 
-## Provenance and auxiliary data
+## Provenance
 
-`observations` and release `provenance.parquet` contain only:
+`provenance.parquet` contains:
 
 ```text
-match_id, tour, year, source_file_id, source_match_id
+match_id, tour, year, source_file_id, source_match_id,
+observation_kind, retrieved_at, content_sha256,
+played_on, date_role, date_precision,
+source_timezone, venue_timezone,
+participants_side_1, participants_side_2, round, score,
+match_method, row_fingerprint, parser_version, policy_revision
 ```
 
-Internal `date_observations` partitions contain:
+Historical source rows can have `retrieved_at=null`; this is why the current
+release is preview. A stable release rejects missing retrieval timestamps.
+Every terminal match must have a `match_date` observation whose `played_on`
+equals the public date, `date_role=played`, and `date_precision=day`.
+
+`sources.parquet` adds policy fields to each source-file record:
 
 ```text
-match_id, tour, year, played_on, source_file_id, source_match_id,
-date_precision, match_method, row_fingerprint
+policy_source, policy_state, terms_url, allowed_uses, allowed_fields,
+attribution, rate_limit, parser_version, reviewed_at, policy_revision
 ```
 
-Every accepted row has `date_precision=day`. A non-null canonical match date
-must equal at least one accepted observation, and all accepted observations for
-that match must agree. Unmatched, ambiguous, malformed, and conflicting source
-rows are quarantined rather than assigned by schedule inference.
-Completed `provenance.parquet` projects these accepted date observations onto
-the unchanged five-column provenance schema, so every released row references
-at least one `sources.parquet` record with `kind=match_dates`.
+## Coverage and health
 
-Release `ambiguities.parquet` contains source observations that cannot be
-truthfully assigned to one canonical match:
+`coverage.parquet` groups row counts by tour, year, tournament level, and
+lifecycle. `coverage_status=preview` fails the stable gate;
+`coverage_status=complete` is allowed only after expected tournament and draw
+slots reconcile.
 
-```text
-tour, year, source_file_id, source_match_id, candidate_match_ids, reason
-```
+`health.parquet` records release `as_of`, completed/fixture counts, latest
+known dates, and status per tour.
 
-Every released match has either direct provenance or appears in an ambiguity
-candidate list. Ambiguity rows use `reason=ambiguous_source_mapping` and never
-select a candidate on the source's behalf.
+`catalog.parquet` records asset path, table name, row count, byte size,
+SHA-256, and `as_of`. `manifest.json` includes the catalog itself; the catalog
+does not hash itself, avoiding a checksum cycle.
 
-`source-audit.parquet` and release `sources.parquet` store URLs, revisions,
-checksums, licences, and reconciliation totals once per referenced source file.
-`source_file_id` hashes source label, URL, revision, content checksum, role, and
-tour, so each source record is unique even when one page serves multiple roles
-or tours.
-Match-shaped rows never contain `source_url`.
+## Deterministic layout
 
-`quarantine.parquet` contains:
-
-```text
-tour, year, source_label, source_path, source_file_id, source_match_id,
-row_fingerprint, candidate_match_ids, reason
-```
-
-`candidate_match_ids` is nullable and is populated for ambiguous source
-identity/date evidence and conflicting date evidence. Those rows preserve every
-candidate without selecting an identity or day that the source does not prove.
-
-`identity/match-aliases.parquet` resolves retired exact-duplicate IDs through:
-
-```text
-retired_match_id, canonical_match_id, reason, changed_on
-```
-
-Alias targets are live canonical matches. Retired IDs are absent from match tables;
-aliases are unique and cannot form chains or cycles.
-
-Players, rankings, match statistics, tournament/player source crosswalks,
-coverage, health, conflicts, quarantine, and corrections keep entity-specific
-schemas. Rankings remain available as an auxiliary archive even though public
-rank and rank-point columns were removed from match rows.
-
-## Physical layout
-
-Match-shaped files use DuckDB 1.5.4, Parquet V2, Zstandard level 19, 65,536-row
-groups, a 1 MiB dictionary page limit, one writer thread, stable ordering, and
-schema-version metadata. `open-tennis-data validate` checks the contract,
-metadata, checksums, row groups, identities, references, lifecycle rules,
-provenance, and the 75 MB file limit.
+Match assets use Parquet V2, Zstandard compression, 65,536-row groups, one
+writer thread, fixed column order, stable null-last ordering, and schema
+metadata. Identical pinned observations, release timestamp, repository, and
+tag must produce byte-identical assets.

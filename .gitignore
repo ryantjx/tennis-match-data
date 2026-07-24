@@ -10,8 +10,6 @@ build/
 *.duckdb
 *.parquet.tmp
 *.tmp.parquet
+* 2.parquet
 .coverage
 htmlcov/
-node_modules/
-playwright-report/
-test-results/
