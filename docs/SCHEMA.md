@@ -1,13 +1,13 @@
 # Open Tennis Data v3 schema
 
-V3 retains schema metadata version `3.2`. Every match-shaped Parquet file has
-`open_tennis_data_schema_version=3.2` and these 19 columns in exact order:
+Every match-shaped Parquet file has
+`open_tennis_data_schema_version=3.3` and these 20 columns in exact order:
 
 ```text
 date, match_id, tournament_id, tournament_name, tour, year, draw, round,
 format, player1_id, player1_name, player1_seed,
 player2_id, player2_name, player2_seed,
-winner_id, status, score, best_of
+winner_id, status, score, best_of, source
 ```
 
 Physical DuckDB/Arrow types:
@@ -16,8 +16,22 @@ Physical DuckDB/Arrow types:
 DATE, VARCHAR, VARCHAR, VARCHAR, VARCHAR, SMALLINT, VARCHAR, VARCHAR,
 VARCHAR, VARCHAR[], VARCHAR[], VARCHAR,
 VARCHAR[], VARCHAR[], VARCHAR,
-VARCHAR[], VARCHAR, VARCHAR, TINYINT
+VARCHAR[], VARCHAR, VARCHAR, TINYINT, VARCHAR[]
 ```
+
+## Source attribution
+
+`source` is a sorted, duplicate-free, non-empty list of canonical labels. It
+captures every source that materially contributes to the public row:
+
+- `sackmann`: identity or result cross-check;
+- `tennis-data.co.uk`: accepted exact match-day evidence;
+- `wikimedia`: draw, schedule, fixture, or result observation; and
+- `community`: an applied approved correction.
+
+The list form preserves attribution when one row combines evidence from
+several sources. Detailed native IDs, URLs, hashes, and policy information
+remain in `provenance.parquet` and `sources.parquet`.
 
 ## Lifecycle semantics
 
@@ -66,7 +80,7 @@ participants_side_1, participants_side_2, round, score,
 match_method, row_fingerprint, parser_version, policy_revision
 ```
 
-Historical bridge rows can have `retrieved_at=null`; this is why the current
+Historical source rows can have `retrieved_at=null`; this is why the current
 release is preview. A stable release rejects missing retrieval timestamps.
 Every terminal match must have a `match_date` observation whose `played_on`
 equals the public date, `date_role=played`, and `date_precision=day`.

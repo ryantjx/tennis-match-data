@@ -15,7 +15,6 @@ from open_tennis_data.dataset import (
     audit_retroactive_dataset,
     bootstrap_dataset,
     build_dataset,
-    create_direct_downloads,
     extract_dataset,
     format_rows,
     parse_years,
@@ -23,11 +22,9 @@ from open_tennis_data.dataset import (
     query_dataset,
     refresh_current_dataset,
     refresh_fixtures_dataset,
-    refresh_wikimedia_dataset,
     register_views,
     validate_dataset,
 )
-from open_tennis_data.migration import migrate_v31_to_v32
 from open_tennis_data.release import (
     DEFAULT_REPOSITORY,
     create_v3_release,
@@ -71,7 +68,6 @@ def command_build(args: argparse.Namespace) -> int:
         wikimedia_source_audit=(
             Path(args.wikimedia_source_audit) if args.wikimedia_source_audit else None
         ),
-        include_legacy_auxiliary=args.include_legacy_auxiliary,
     )
     print(
         f"built dataset as of {summary['as_of']}: {summary['catalog_rows']} files, "
@@ -287,19 +283,6 @@ def command_add_correction(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_refresh_wikimedia(args: argparse.Namespace) -> int:
-    summary = refresh_wikimedia_dataset(
-        Path(args.data),
-        as_of=date.fromisoformat(args.as_of),
-        workers=args.workers,
-    )
-    print(
-        f"refreshed fixtures/current results: {summary['changed_files']} changed files "
-        f"({summary['changed_bytes']} bytes)"
-    )
-    return 0
-
-
 def command_bootstrap(args: argparse.Namespace) -> int:
     summary = bootstrap_dataset(
         Path(args.output),
@@ -357,35 +340,12 @@ def command_promote(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_downloads(args: argparse.Namespace) -> int:
-    summary = create_direct_downloads(
-        Path(args.data), Path(args.output), future_only=args.future_only
-    )
-    for filename, details in summary.items():
-        print(
-            f"wrote {filename}: {details['rows']} rows, "
-            f"{details['fixtures']} fixtures, {details['bytes']} bytes"
-        )
-    return 0
-
-
-def command_migrate_v32(args: argparse.Namespace) -> int:
-    report = migrate_v31_to_v32(
-        Path(args.data), Path(args.output), Path(args.report)
-    )
-    print(
-        f"migrated v3.2: {report['new_match_rows']} matches, "
-        f"{report['fixture_rows']} fixtures"
-    )
-    return 0
-
-
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="open-tennis-data")
     commands = result.add_subparsers(dest="command", required=True)
 
     build = commands.add_parser(
-        "build", help="deprecated full rebuild; use bootstrap for initialization"
+        "build", help="full rebuild; use bootstrap for first-time initialization"
     )
     build.add_argument("--years", default=f"2020:{date.today().year}")
     build.add_argument("--as-of", default=date.today().isoformat())
@@ -398,11 +358,6 @@ def parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--wikimedia-source-audit",
         help="reuse exact Wikimedia page revisions from a prior source-audit.parquet",
-    )
-    build.add_argument(
-        "--include-legacy-auxiliary",
-        action="store_true",
-        help="retain legacy ranking/statistics partitions (not part of v3)",
     )
     build.set_defaults(handler=command_build)
 
@@ -491,14 +446,6 @@ def parser() -> argparse.ArgumentParser:
     correction.add_argument("--date", default=date.today().isoformat())
     correction.set_defaults(handler=command_add_correction)
 
-    refresh = commands.add_parser(
-        "refresh-wikimedia", help="deprecated alias for refresh-fixtures"
-    )
-    refresh.add_argument("--data", default="data")
-    refresh.add_argument("--as-of", default=date.today().isoformat())
-    refresh.add_argument("--workers", type=int, default=12)
-    refresh.set_defaults(handler=command_refresh_wikimedia)
-
     refresh_current = commands.add_parser(
         "refresh-current", help="atomically refresh only the current result year"
     )
@@ -530,18 +477,6 @@ def parser() -> argparse.ArgumentParser:
     promote.add_argument("--target", default="data")
     promote.set_defaults(handler=command_promote)
 
-    downloads = commands.add_parser(
-        "downloads", help="build rolling direct-download Parquet assets"
-    )
-    downloads.add_argument("--data", default="data")
-    downloads.add_argument("--output", default="dist/downloads")
-    downloads.add_argument(
-        "--future-only",
-        action="store_true",
-        help="emit current/future fixtures, retaining undated draw slots",
-    )
-    downloads.set_defaults(handler=command_downloads)
-
     release = commands.add_parser(
         "release", help="build the backend-only v3 release asset set"
     )
@@ -565,13 +500,6 @@ def parser() -> argparse.ArgumentParser:
     verify_release.add_argument("--max-age-hours", type=float)
     verify_release.set_defaults(handler=command_verify_release)
 
-    migrate = commands.add_parser(
-        "migrate-v3-2", help="stage the one-time offline v3.1 to v3.2 migration"
-    )
-    migrate.add_argument("--data", default="data")
-    migrate.add_argument("--output", required=True)
-    migrate.add_argument("--report", default="reports/v3.2")
-    migrate.set_defaults(handler=command_migrate_v32)
     return result
 
 

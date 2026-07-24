@@ -31,9 +31,9 @@ Excluded:
 - rankings and match statistics; and
 - any result whose only date evidence is a tournament week/start date.
 
-The physical match schema remains the compatible 19-column schema with
-`open_tennis_data_schema_version=3.2`. V3 is the product generation, not a
-schema-version reset.
+The physical match schema is version 3.3. It appends `source VARCHAR[]` to the
+existing column order so every public match and fixture carries direct,
+deterministic attribution. V3 remains the product generation.
 
 ## Date and lifecycle rules
 
@@ -112,11 +112,9 @@ parser/policy versions, and reconciliation method.
   open a data pull request.
 
 Generated release Parquet belongs in GitHub Releases, not new Git history.
-Legacy `data-latest` and `future-latest` assets are frozen and their date
-semantics are superseded. Existing tracked data remains temporarily because it
-is the bootstrap bridge and must not be removed until a verified stable v3
-release exists. History and legacy tags are preserved; shallow clones are
-recommended.
+The old `data-latest` and `future-latest` assets are frozen and their date
+semantics are superseded. Generated data has been removed from the current
+tree; history and old tags are preserved, so shallow clones are recommended.
 
 ## Preview exit gate
 
@@ -135,6 +133,6 @@ V3 remains preview until all of the following are true:
 - the first stable release passes redownload verification.
 
 The current implementation intentionally fails `open-tennis-data
-verify-release --require-complete`: the checked-in bridge lacks the complete
-closed-event inventory and historical retrieval timestamps. This prevents an
+verify-release --require-complete` until the complete closed-event inventory
+and historical retrieval timestamps are available. This prevents an
 incomplete preview from silently becoming the stable `latest` release.

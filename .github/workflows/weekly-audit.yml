@@ -24,14 +24,21 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install .
+      - name: Build a fresh 2020+ audit dataset
+        run: |
+          open-tennis-data bootstrap \
+            --through-year "$(date -u +%Y)" \
+            --as-of "$(date -u +%F)" \
+            --output "$RUNNER_TEMP/data"
       - name: Audit every v3 result season and current/future fixtures
         run: |
           open-tennis-data audit-retroactive \
+            --data "$RUNNER_TEMP/data" \
             --years "2020:$(date -u +%Y)" \
             --as-of "$(date -u +%F)" \
             --output "$RUNNER_TEMP/retroactive-audit"
       - name: Validate the audited staging state
-        run: open-tennis-data validate
+        run: open-tennis-data validate --data "$RUNNER_TEMP/data"
       - name: Upload the immutable audit report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

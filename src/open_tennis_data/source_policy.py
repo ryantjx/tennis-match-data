@@ -39,17 +39,7 @@ class SourcePolicy:
 
 class SourcePolicyRegistry:
     SOURCE_ALIASES = {
-        "70s": "sackmann",
-        "80s": "sackmann",
-        "90s": "sackmann",
-        "00s": "sackmann",
-        "10s": "sackmann",
-        "20s": "sackmann",
-        "current": "sackmann",
-        "futures": "sackmann",
         "players": "sackmann",
-        "qual_chall": "sackmann",
-        "qual_itf": "sackmann",
         "tour": "sackmann",
     }
 
@@ -88,7 +78,7 @@ class SourcePolicyRegistry:
             raise ValueError(f"sources are not publishable in the research release: {blocked}")
 
     def policy_rows(self) -> list[tuple[Any, ...]]:
-        """Return canonical and legacy-label rows suitable for a DuckDB join."""
+        """Return canonical and ingestion-label rows suitable for a DuckDB join."""
         labels = {source: source for source in self.policies}
         labels.update(self.SOURCE_ALIASES)
         rows: list[tuple[Any, ...]] = []

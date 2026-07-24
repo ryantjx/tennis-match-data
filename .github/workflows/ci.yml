@@ -24,7 +24,6 @@ jobs:
       - run: mypy src/open_tennis_data
       - run: coverage run -m unittest discover -s tests -v
       - run: coverage report
-      - run: open-tennis-data validate
 
   release-contract:
     runs-on: ubuntu-latest
@@ -35,23 +34,5 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install '.[dev]'
-      - name: Build the release twice from pinned observations
-        run: |
-          for output in release-a release-b; do
-            open-tennis-data release \
-              --data data \
-              --output "$RUNNER_TEMP/$output" \
-              --as-of 2026-07-24T04:17:00Z \
-              --tag data-v3-ci
-            open-tennis-data verify-release --directory "$RUNNER_TEMP/$output"
-          done
-      - name: Require byte-identical assets
-        run: |
-          while read -r filename; do
-            cmp "$RUNNER_TEMP/release-a/$filename" "$RUNNER_TEMP/release-b/$filename"
-          done < scripts/v3-release-assets.txt
-      - name: Prove the stable gate is fail-closed while coverage is preview
-        run: |
-          ! open-tennis-data verify-release \
-            --directory "$RUNNER_TEMP/release-a" \
-            --require-complete
+      - name: Verify deterministic source-attributed release contract
+        run: python -m unittest tests.test_release -v

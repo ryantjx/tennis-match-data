@@ -41,7 +41,7 @@ class DateSource:
     sha256: str
     license: str
     source_rows: int
-    parser_version: str = "3.2"
+    parser_version: str = "3.3"
     policy_revision: str = "v3-2026-07-24"
 
     @property
@@ -78,7 +78,7 @@ class DateRow:
     venue_timezone: str | None = None
     date_role: str = "played"
     date_precision: str = "day"
-    parser_version: str = "3.2"
+    parser_version: str = "3.3"
     policy_revision: str = "v3-2026-07-24"
 
 

@@ -15,8 +15,6 @@ from typing import Any
 import duckdb
 
 from open_tennis_data.dataset import (
-    DOWNLOAD_COMPRESSION_LEVEL,
-    DOWNLOAD_ROW_GROUP_SIZE,
     MATCH_ROW_GROUP_SIZE,
     OBSERVATION_ROW_GROUP_SIZE,
     _copy_parquet,
@@ -30,6 +28,8 @@ from open_tennis_data.source_policy import SourcePolicyRegistry
 
 DEFAULT_REPOSITORY = "ryantjx/tennis-match-data"
 RELEASE_START_YEAR = 2020
+RELEASE_COMPRESSION_LEVEL = 19
+RELEASE_ROW_GROUP_SIZE = MATCH_ROW_GROUP_SIZE
 PUBLIC_LEVELS = (
     "grand_slam",
     "masters_1000",
@@ -328,8 +328,8 @@ def _write_match_assets(
             f"SELECT * FROM {table} "
             "ORDER BY date NULLS LAST,tournament_id,draw,round,match_id",
             output / filename,
-            row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
-            compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+            row_group_size=RELEASE_ROW_GROUP_SIZE,
+            compression_level=RELEASE_COMPRESSION_LEVEL,
             match_shaped=True,
         )
     _copy_parquet(
@@ -337,8 +337,8 @@ def _write_match_assets(
         "SELECT * FROM v3_completed UNION ALL SELECT * FROM v3_fixtures "
         "ORDER BY date NULLS LAST,tournament_id,draw,round,match_id",
         output / "matches.parquet",
-        row_group_size=DOWNLOAD_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        row_group_size=RELEASE_ROW_GROUP_SIZE,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
         match_shaped=True,
     )
     _copy_parquet(
@@ -349,7 +349,7 @@ def _write_match_assets(
         "USING(tournament_id,tour,year) ORDER BY tour,year,start_date,tournament_id",
         output / "tournaments.parquet",
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
     )
 
 
@@ -401,7 +401,7 @@ def _write_supporting_assets(
         "ORDER BY tour,player_id",
         output / "players.parquet",
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
     )
     _copy_parquet(
         connection,
@@ -433,7 +433,7 @@ def _write_supporting_assets(
         "ORDER BY o.tour,o.year,o.source_file_id,o.source_match_id,o.observation_kind",
         output / "provenance.parquet",
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
     )
     _copy_parquet(
         connection,
@@ -446,7 +446,7 @@ def _write_supporting_assets(
         "USING(source_file_id) ORDER BY kind,tour,year,source_label,source_file_id",
         output / "sources.parquet",
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
     )
     _copy_parquet(
         connection,
@@ -455,7 +455,7 @@ def _write_supporting_assets(
         f"WHERE year >= {RELEASE_START_YEAR} ORDER BY tour,year,source_label,source_match_id",
         output / "quarantine.parquet",
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
     )
     _copy_parquet(
         connection,
@@ -489,7 +489,7 @@ def _write_supporting_assets(
         """,
         output / "coverage.parquet",
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
     )
     _copy_parquet(
         connection,
@@ -510,7 +510,7 @@ def _write_supporting_assets(
         """,
         output / "health.parquet",
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
     )
 
 
@@ -562,7 +562,7 @@ def _write_catalog_and_manifest(
         f"FROM (VALUES {values}) ORDER BY path",
         output / "catalog.parquet",
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
-        compression_level=DOWNLOAD_COMPRESSION_LEVEL,
+        compression_level=RELEASE_COMPRESSION_LEVEL,
     )
     catalog = output / "catalog.parquet"
     asset_rows.append(
@@ -583,7 +583,7 @@ def _write_catalog_and_manifest(
     manifest = {
         "product": "Open Tennis Data",
         "product_version": "3",
-        "collector_version": "3.2.0",
+        "collector_version": "3.3.0",
         "schema_version": SCHEMA_VERSION,
         "source_policy_revisions": list(policy_revisions),
         "release_status": "preview",
@@ -600,7 +600,7 @@ def _write_catalog_and_manifest(
         },
         "preview_reasons": [
             "expected closed-event tournament/draw inventory is not populated",
-            "legacy observations do not record their original retrieval timestamps",
+            "source observations do not record their original retrieval timestamps",
         ],
         "assets": sorted(asset_rows, key=lambda item: str(item["name"])),
     }
@@ -793,7 +793,7 @@ def validate_v3_release(
                 ).fetchall()
             ]
             if columns != list(MATCH_COLUMNS):
-                errors.append(f"{name}: incompatible 19-column match schema")
+                errors.append(f"{name}: incompatible 20-column match schema")
             metadata = {
                 (
                     key.decode() if isinstance(key, bytes) else str(key)
@@ -803,7 +803,7 @@ def validate_v3_release(
                 ).fetchall()
             }
             if metadata.get("open_tennis_data_schema_version") != SCHEMA_VERSION:
-                errors.append(f"{name}: missing schema 3.2 Parquet metadata")
+                errors.append(f"{name}: missing schema {SCHEMA_VERSION} Parquet metadata")
 
         matches = _quoted(directory / "matches.parquet")
         completed = _quoted(directory / "completed.parquet")
@@ -822,6 +822,26 @@ def validate_v3_release(
         )
         if lifecycle_errors:
             errors.append(f"invalid lifecycle rows: {lifecycle_errors}")
+        source_errors = int(
+            _required_row(connection.execute(
+                f"""
+                SELECT count(*) FROM read_parquet({matches})
+                WHERE source IS NULL OR len(source)=0
+                  OR list_unique(source)<>len(source)
+                  OR source<>list_sort(source)
+                  OR EXISTS (
+                    SELECT 1 FROM unnest(source) AS item(value)
+                    WHERE value IS NULL OR trim(value)=''
+                      OR value NOT IN (
+                        'sackmann','tennis-data.co.uk','wikimedia','community',
+                        'wta-api','tennis-tv'
+                      )
+                  )
+                """
+            ))[0]
+        )
+        if source_errors:
+            errors.append(f"invalid match sources: {source_errors}")
         duplicate_ids = int(
             _required_row(connection.execute(
                 f"SELECT count(*)-count(DISTINCT match_id) FROM read_parquet({matches})"

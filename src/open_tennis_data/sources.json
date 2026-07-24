@@ -1,6 +1,6 @@
 {
   "product_version": "3",
-  "policy_revision": "v3-2026-07-24",
+  "policy_revision": "v3.3-2026-07-24",
   "sources": [
     {
       "source": "sackmann",
@@ -10,9 +10,9 @@
       "allowed_fields": ["identity", "participants", "round", "result", "score", "tournament"],
       "attribution": "Jeff Sackmann / Tennis Abstract; CC BY-NC-SA 4.0",
       "rate_limit": "immutable bulk revision",
-      "parser_version": "3.2",
+      "parser_version": "3.3",
       "reviewed_at": "2026-07-24",
-      "policy_revision": "v3-2026-07-24"
+      "policy_revision": "v3.3-2026-07-24"
     },
     {
       "source": "tennis-data.co.uk",
@@ -22,9 +22,9 @@
       "allowed_fields": ["date", "participants", "round", "result", "score", "tournament"],
       "attribution": "Tennis-Data.co.uk public season files; source terms apply",
       "rate_limit": "one request per season file per build",
-      "parser_version": "3.2",
+      "parser_version": "3.3",
       "reviewed_at": "2026-07-24",
-      "policy_revision": "v3-2026-07-24"
+      "policy_revision": "v3.3-2026-07-24"
     },
     {
       "source": "wikimedia",
@@ -34,9 +34,9 @@
       "allowed_fields": ["date", "participants", "round", "result", "score", "tournament"],
       "attribution": "Wikimedia contributors; applicable page licence and revision",
       "rate_limit": "batched MediaWiki API requests with backoff",
-      "parser_version": "3.2",
+      "parser_version": "3.3",
       "reviewed_at": "2026-07-24",
-      "policy_revision": "v3-2026-07-24"
+      "policy_revision": "v3.3-2026-07-24"
     },
     {
       "source": "wta-api",
@@ -46,9 +46,9 @@
       "allowed_fields": ["date", "participants", "round", "result", "score", "tournament"],
       "attribution": "Not publishable without separate written WTA permission",
       "rate_limit": "collection disabled by source policy",
-      "parser_version": "3.2",
+      "parser_version": "3.3",
       "reviewed_at": "2026-07-24",
-      "policy_revision": "v3-2026-07-24"
+      "policy_revision": "v3.3-2026-07-24"
     },
     {
       "source": "tennis-tv",
@@ -58,9 +58,9 @@
       "allowed_fields": ["date", "participants", "round", "result", "score", "tournament"],
       "attribution": "Not publishable without separate written ATP Media permission",
       "rate_limit": "collection disabled by source policy",
-      "parser_version": "3.2",
+      "parser_version": "3.3",
       "reviewed_at": "2026-07-24",
-      "policy_revision": "v3-2026-07-24"
+      "policy_revision": "v3.3-2026-07-24"
     },
     {
       "source": "community",
@@ -70,9 +70,9 @@
       "allowed_fields": ["sourced_correction"],
       "attribution": "Community correction dedicated to CC0 1.0",
       "rate_limit": "not applicable",
-      "parser_version": "3.2",
+      "parser_version": "3.3",
       "reviewed_at": "2026-07-24",
-      "policy_revision": "v3-2026-07-24"
+      "policy_revision": "v3.3-2026-07-24"
     }
   ]
 }

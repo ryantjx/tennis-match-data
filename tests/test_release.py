@@ -19,18 +19,18 @@ from open_tennis_data.release import (
 )
 from open_tennis_data.schema import MATCH_COLUMNS
 from open_tennis_data.source_policy import SourcePolicyRegistry
-
-ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data"
+from tests.fixture_dataset import write_release_input
 
 
 class V3ReleaseTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.temporary = tempfile.TemporaryDirectory()
+        cls.data = Path(cls.temporary.name) / "data"
         cls.release = Path(cls.temporary.name) / "release"
+        write_release_input(cls.data)
         cls.manifest = create_v3_release(
-            DATA,
+            cls.data,
             cls.release,
             as_of="2026-07-24T04:17:00Z",
             repository="example/open-tennis-data",
@@ -61,6 +61,13 @@ class V3ReleaseTests(unittest.TestCase):
             ).fetchall()
         ]
         self.assertEqual(columns, list(MATCH_COLUMNS))
+        self.assertEqual(columns[-1], "source")
+        self.assertEqual(
+            connection.execute(
+                f"SELECT source FROM read_parquet('{self.release / 'completed.parquet'}')"
+            ).fetchone()[0],
+            ["sackmann", "tennis-data.co.uk"],
+        )
         counts = connection.execute(
             f"""
             SELECT
@@ -100,7 +107,7 @@ class V3ReleaseTests(unittest.TestCase):
     def test_identical_pinned_inputs_produce_identical_assets(self) -> None:
         repeated = Path(self.temporary.name) / "repeated"
         create_v3_release(
-            DATA,
+            self.data,
             repeated,
             as_of="2026-07-24T04:17:00Z",
             repository="example/open-tennis-data",
@@ -148,7 +155,7 @@ class V3ReleaseTests(unittest.TestCase):
 
     def test_source_policy_rejects_blocked_and_unknown_sources(self) -> None:
         registry = SourcePolicyRegistry.load()
-        registry.require_publishable({"tennis-data.co.uk", "wikimedia", "20s"})
+        registry.require_publishable({"tennis-data.co.uk", "wikimedia", "tour"})
         with self.assertRaisesRegex(ValueError, "not publishable"):
             registry.require_publishable({"wta-api"})
         with self.assertRaisesRegex(ValueError, "lack policy"):

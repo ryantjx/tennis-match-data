@@ -15,8 +15,13 @@ date semantics are superseded; new integrations should use v3 assets.
 
 ## Match assets
 
-All match-shaped files share the 19-column schema in
+All match-shaped files share the 20-column v3.3 schema in
 [`docs/SCHEMA.md`](docs/SCHEMA.md).
+
+Every row has a non-empty, sorted `source VARCHAR[]` value. A completed row
+can cite several contributors, such as `sackmann` for result cross-checking and
+`tennis-data.co.uk` for exact-date evidence. Fixtures cite `wikimedia`; an
+approved correction additionally cites `community`.
 
 - `completed.parquet`: terminal matches with verified venue-local match days.
 - `fixtures.parquet`: future slots. Dates and participants may be null;
@@ -55,12 +60,11 @@ cause all conflicting observations to be quarantined.
 Fixture dates are schedule observations, not guarantees. Undated draw slots
 remain visible with `date=null`.
 
-## Local bridge data
+## Local build data
 
-The tracked `data/` tree is the legacy bootstrap bridge and contains tables
-outside the v3 public scope. It is not the v3 release contract. It will be
-removed from the repository only after the first verified stable v3 release;
-preserved Git history will remain large.
+Generated Parquet is not tracked in the current repository tree. Create a
+local `data/` directory with `open-tennis-data bootstrap`, or query a release
+with `--release`. Use `--data` for local development and validation.
 
-Use the release assets for consumer applications and use `--data` only for
-development, validation, or historical compatibility.
+Old generated data remains in preserved Git history. A shallow clone avoids
+downloading it.

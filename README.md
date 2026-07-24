@@ -150,8 +150,9 @@ ORDER BY date, tournament_name;
 | `manifest.json` | Public release contract and stable asset URLs |
 | `SHA256SUMS` | Checksums for every release payload |
 
-The match-shaped assets retain the compatible 19-column schema and Parquet
-metadata version `3.2`. See [`docs/SCHEMA.md`](docs/SCHEMA.md).
+Match-shaped assets use the v3.3 20-column schema. The final `source` column is
+a sorted, non-empty list of canonical source labels contributing to the row.
+See [`docs/SCHEMA.md`](docs/SCHEMA.md).
 
 ## Build and verify
 

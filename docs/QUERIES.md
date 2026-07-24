@@ -139,7 +139,7 @@ open-tennis-data query --release TAG --sql "
 ### Search for a player
 
 Player names are lists so that team-event participants remain compatible with
-the 19-column schema.
+the match schema.
 
 ```bash
 open-tennis-data query --release TAG --sql "
@@ -241,6 +241,30 @@ open-tennis-data query --release TAG --sql "
   WHERE status <> 'fixture'
      OR winner_id IS NOT NULL
      OR score IS NOT NULL
+"
+```
+
+### Missing, duplicated, or unsorted source attribution
+
+```bash
+open-tennis-data query --release TAG --sql "
+  SELECT count(*) AS invalid_source_rows
+  FROM all_matches
+  WHERE source IS NULL
+     OR len(source) = 0
+     OR list_unique(source) <> len(source)
+     OR source <> list_sort(source)
+"
+```
+
+Source coverage by contributing system:
+
+```bash
+open-tennis-data query --release TAG --sql "
+  SELECT source_name, count(*) AS rows
+  FROM all_matches, unnest(source) AS item(source_name)
+  GROUP BY source_name
+  ORDER BY rows DESC, source_name
 "
 ```
 
