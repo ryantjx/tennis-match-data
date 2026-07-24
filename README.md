@@ -6,6 +6,12 @@ matches and future fixtures share one 19-column Parquet contract and are
 published as separate lifecycle views. Annual tournament editions and compact
 provenance remain auxiliary tables so match rows stay lean.
 
+> **Transition notice:** the current v3.2 exact-date remediation keeps
+> unresolved completed dates null and limits completed downloads to rows with
+> day-level evidence. It is an interim research-tier implementation, not the
+> full v4 source-policy, licensing, atomic historical/future, and release
+> contract. The authoritative target is [OBJECTIVE.md](OBJECTIVE.md).
+
 Repository: https://github.com/ryantjx/tennis-match-data
 
 Dataset inventory, health, file URLs, and notes: [DATA.md](DATA.md)

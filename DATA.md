@@ -4,6 +4,12 @@ This is the operational index for the published tennis data: what each file
 contains, where to obtain it, how to assess its health, and which limitations
 matter when querying it. All structured data artifacts are Parquet.
 
+> **Transition notice:** the current v3.2 remediation no longer substitutes a
+> tournament start date for an unresolved completed match. Canonical unresolved
+> dates remain null and completed downloads contain the exact-dated subset.
+> This interim research-tier behavior is not the complete v4 contract in
+> [OBJECTIVE.md](OBJECTIVE.md).
+
 ## Health
 
 [![Validate data](https://github.com/ryantjx/tennis-match-data/actions/workflows/ci.yml/badge.svg)](https://github.com/ryantjx/tennis-match-data/actions/workflows/ci.yml)
