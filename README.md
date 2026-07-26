@@ -1,13 +1,34 @@
 # Open Tennis Data v3
 
-Open Tennis Data v3 is a backend-only, self-updating research dataset of
-ATP/WTA top-level main-draw singles matches from 2020 onward. Verified results
-and future fixtures are distributed as deterministic Parquet files through
-GitHub Releases and can be queried with DuckDB, `curl`, or the included CLI.
+Open Tennis Data v3 is a self-updating research dataset of ATP/WTA top-level
+main-draw singles matches from 2020 onward. Verified results and future
+fixtures are distributed as deterministic Parquet files through GitHub
+Releases and can be explored in the read-only browser interface or queried
+with DuckDB, `curl`, and the included CLI.
 
 V3 currently publishes preview releases. The stable `latest` channel remains
 fail-closed until the closed-event completeness gate in
 [`OBJECTIVE.md`](OBJECTIVE.md) passes.
+
+## Explore in your browser
+
+The [Open Tennis Data Explorer](https://ryantjx.github.io/tennis-match-data/)
+lists the players, tournaments, seasons, levels, and surfaces available in the
+newest published v3 release. Its guided filters and match results run locally
+in the browser against a checksum-verified Pages snapshot; it is not a hosted
+query API, and GitHub Releases remain the canonical distribution.
+
+To preview the site locally, prepare a release snapshot and serve the
+repository root:
+
+```bash
+python3 scripts/prepare-site-data.py --output site/data
+python3 -m http.server 8000 --directory .
+```
+
+Then open <http://127.0.0.1:8000/site/>. Pin an immutable preview when needed
+with `--tag data-v3-YYYYMMDDTHHMMSSZ`. Generated files under `site/data/` are
+deployment artifacts and are never committed.
 
 ## Install
 
@@ -199,5 +220,5 @@ reusable. Read [`DATA_LICENSE.md`](DATA_LICENSE.md) and
 [`docs/SOURCES.md`](docs/SOURCES.md).
 
 Corrections and collector changes are described in
-[`CONTRIBUTING.md`](CONTRIBUTING.md). There is intentionally no frontend or
-hosted query service.
+[`CONTRIBUTING.md`](CONTRIBUTING.md). The companion frontend is read-only and
+does not change the absence of a hosted query service.
