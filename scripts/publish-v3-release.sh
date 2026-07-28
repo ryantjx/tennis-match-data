@@ -33,6 +33,18 @@ from pathlib import Path
 print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["release_status"])
 PY
 )
+manifest_tag=$(python3 - "$release_directory/manifest.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["release_tag"])
+PY
+)
+if test "$release_tag" != "$manifest_tag"; then
+  echo "release tag does not match manifest: $release_tag != $manifest_tag" >&2
+  exit 1
+fi
 
 open-tennis-data verify-release --directory "$release_directory"
 if test "$release_status" = stable; then

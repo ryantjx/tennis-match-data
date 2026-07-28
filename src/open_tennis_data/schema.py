@@ -65,4 +65,8 @@ SOURCE_LICENSES = {
     "tennis-data.co.uk": "Tennis-Data redistribution terms",
     "wta-api": "WTA data terms",
     "tennis-tv": "Tennis TV data terms",
+    "atp-site": "ATP Tour terms and written grant required",
+    "wta-site": "WTA terms and written grant required",
+    "atp-oop": "ATP/ProTennisLive terms and written grant required",
+    "wta-oop": "WTA terms and written grant required",
 }

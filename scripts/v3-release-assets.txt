@@ -9,5 +9,11 @@ coverage.parquet
 health.parquet
 quarantine.parquet
 catalog.parquet
+evidence_artifacts.parquet
+evidence_artifact_evaluations.parquet
+venue_evidence.parquet
+schedule_observations.parquet
+schedule_observation_links.parquet
+migration_dispositions.parquet
 manifest.json
 SHA256SUMS

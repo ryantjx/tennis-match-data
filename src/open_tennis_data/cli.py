@@ -229,6 +229,9 @@ def command_release(args: argparse.Namespace) -> int:
         repository=args.repository,
         release_tag=args.tag,
         policy_path=Path(args.source_policy) if args.source_policy else None,
+        parent_manifest=(
+            Path(args.parent_manifest) if args.parent_manifest else None
+        ),
     )
     print(
         f"built v3 {manifest['release_status']} release {manifest['release_tag']}: "
@@ -489,6 +492,7 @@ def parser() -> argparse.ArgumentParser:
     release.add_argument("--tag")
     release.add_argument("--repository", default=DEFAULT_REPOSITORY)
     release.add_argument("--source-policy")
+    release.add_argument("--parent-manifest")
     release.set_defaults(handler=command_release)
 
     verify_release = commands.add_parser(

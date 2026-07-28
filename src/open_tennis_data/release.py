@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import urllib.parse
@@ -52,8 +53,16 @@ V3_PARQUET_ASSETS = (
     "health.parquet",
     "quarantine.parquet",
     "catalog.parquet",
+    "evidence_artifacts.parquet",
+    "evidence_artifact_evaluations.parquet",
+    "venue_evidence.parquet",
+    "schedule_observations.parquet",
+    "schedule_observation_links.parquet",
+    "migration_dispositions.parquet",
 )
 V3_RELEASE_ASSETS = (*V3_PARQUET_ASSETS, "manifest.json", "SHA256SUMS")
+LEGACY_V3_PARQUET_ASSETS = V3_PARQUET_ASSETS[:-6]
+INTEGRITY_ASSETS = V3_PARQUET_ASSETS[-6:]
 
 
 def _utc_timestamp(value: str | datetime | None) -> datetime:
@@ -144,6 +153,12 @@ def register_release_views(
         "health": "health.parquet",
         "quarantine": "quarantine.parquet",
         "catalog": "catalog.parquet",
+        "evidence_artifacts": "evidence_artifacts.parquet",
+        "evidence_artifact_evaluations": "evidence_artifact_evaluations.parquet",
+        "venue_evidence": "venue_evidence.parquet",
+        "schedule_observations": "schedule_observations.parquet",
+        "schedule_observation_links": "schedule_observation_links.parquet",
+        "migration_dispositions": "migration_dispositions.parquet",
     }
     for table, filename in table_assets.items():
         location = assets.get(filename)
@@ -403,6 +418,8 @@ def _write_supporting_assets(
         row_group_size=OBSERVATION_ROW_GROUP_SIZE,
         compression_level=RELEASE_COMPRESSION_LEVEL,
     )
+
+
     _copy_parquet(
         connection,
         "WITH released AS (SELECT * FROM v3_completed "
@@ -514,6 +531,71 @@ def _write_supporting_assets(
     )
 
 
+def _write_integrity_assets(
+    connection: duckdb.DuckDBPyConnection,
+    root: Path,
+    output: Path,
+) -> None:
+    schemas = {
+        "evidence_artifacts.parquet": """
+            SELECT NULL::VARCHAR evidence_artifact_id,NULL::VARCHAR source_label,
+              NULL::VARCHAR source_url,NULL::VARCHAR publisher_revision,
+              NULL::TIMESTAMPTZ retrieved_at,NULL::TIMESTAMPTZ publisher_modified_at,
+              NULL::VARCHAR media_type,NULL::BIGINT byte_length,NULL::VARCHAR sha256,
+              NULL::VARCHAR storage_mode,NULL::VARCHAR retention_basis WHERE false
+        """,
+        "evidence_artifact_evaluations.parquet": """
+            SELECT NULL::VARCHAR evaluation_id,NULL::VARCHAR evidence_artifact_id,
+              NULL::VARCHAR policy_revision,NULL::TIMESTAMPTZ evaluated_at,
+              NULL::BOOLEAN eligible_for_public_projection,
+              NULL::VARCHAR[] allowed_fields,NULL::VARCHAR[] allowed_roles,
+              NULL::VARCHAR reason,NULL::VARCHAR supersedes_evaluation_id WHERE false
+        """,
+        "venue_evidence.parquet": """
+            SELECT NULL::VARCHAR venue_evidence_id,NULL::VARCHAR event_edition_id,
+              NULL::VARCHAR venue_name,NULL::VARCHAR city,NULL::VARCHAR country,
+              NULL::VARCHAR iana_timezone,NULL::DATE valid_from,NULL::DATE valid_to,
+              NULL::VARCHAR source_url,NULL::VARCHAR evidence_artifact_id,
+              NULL::VARCHAR review_status WHERE false
+        """,
+        "schedule_observations.parquet": """
+            SELECT NULL::VARCHAR observation_id,NULL::VARCHAR source_label,
+              NULL::VARCHAR source_event_id,NULL::VARCHAR source_fixture_id,
+              NULL::DATE asserted_local_date,NULL::TIME asserted_local_time,
+              NULL::VARCHAR court,NULL::VARCHAR status,NULL::VARCHAR source_timezone,
+              NULL::VARCHAR source_venue_text,NULL::VARCHAR evidence_artifact_id,
+              NULL::TIMESTAMPTZ observed_at,NULL::VARCHAR parser_version,
+              NULL::VARCHAR policy_revision WHERE false
+        """,
+        "schedule_observation_links.parquet": """
+            SELECT NULL::VARCHAR link_revision_id,NULL::VARCHAR observation_id,
+              NULL::VARCHAR fixture_key,NULL::VARCHAR match_id,
+              NULL::VARCHAR resolution_method,NULL::VARCHAR confidence_basis,
+              NULL::TIMESTAMPTZ linked_at,NULL::VARCHAR supersedes_link_revision_id,
+              NULL::VARCHAR review_status WHERE false
+        """,
+        "migration_dispositions.parquet": """
+            SELECT NULL::VARCHAR baseline_identity,NULL::VARCHAR disposition,
+              NULL::VARCHAR replacement_observation_id,NULL::VARCHAR reason,
+              NULL::VARCHAR reviewer,NULL::TIMESTAMPTZ reviewed_at WHERE false
+        """,
+    }
+    for filename, empty_query in schemas.items():
+        source = root / "integrity" / filename
+        query = (
+            f"SELECT * FROM read_parquet({_quoted(source)}, hive_partitioning=false)"
+            if source.is_file()
+            else empty_query
+        )
+        _copy_parquet(
+            connection,
+            query + " ORDER BY ALL",
+            output / filename,
+            row_group_size=OBSERVATION_ROW_GROUP_SIZE,
+            compression_level=RELEASE_COMPRESSION_LEVEL,
+        )
+
+
 def _write_catalog_and_manifest(
     connection: duckdb.DuckDBPyConnection,
     output: Path,
@@ -522,6 +604,7 @@ def _write_catalog_and_manifest(
     repository: str,
     release_tag: str,
     policy_revisions: Sequence[str],
+    parent_release: Mapping[str, Any],
 ) -> dict[str, Any]:
     asset_rows: list[dict[str, Any]] = []
     for path in sorted(output.glob("*.parquet")):
@@ -585,6 +668,9 @@ def _write_catalog_and_manifest(
         "product_version": "3",
         "collector_version": "3.3.0",
         "schema_version": SCHEMA_VERSION,
+        "release_contract_version": "3.4",
+        "parent_release": dict(parent_release),
+        "source_cutoff_at": as_of.isoformat().replace("+00:00", "Z"),
         "source_policy_revisions": list(policy_revisions),
         "release_status": "preview",
         "release_tag": release_tag,
@@ -625,6 +711,7 @@ def create_v3_release(
     repository: str = DEFAULT_REPOSITORY,
     release_tag: str | None = None,
     policy_path: Path | None = None,
+    parent_manifest: Path | None = None,
 ) -> dict[str, Any]:
     """Build the deterministic, backend-only v3 release directory."""
     root = root.resolve()
@@ -646,6 +733,7 @@ def create_v3_release(
         timestamp.date(),
         registry,
     )
+    _write_integrity_assets(connection, root, output)
     source_labels = {
         str(row[0])
         for row in connection.execute(
@@ -654,6 +742,21 @@ def create_v3_release(
         ).fetchall()
     }
     registry.require_publishable(source_labels)
+    if parent_manifest is None:
+        parent_release: Mapping[str, Any] = {
+            "kind": "genesis",
+            "seed_sha256": hashlib.sha256(b"open-tennis-data-v3.4-genesis").hexdigest(),
+        }
+    else:
+        parent_payload = json.loads(parent_manifest.read_text(encoding="utf-8"))
+        parent_tag = str(parent_payload.get("release_tag") or "")
+        if not parent_tag.startswith("data-v3-"):
+            raise ValueError("parent manifest does not contain an immutable v3 tag")
+        parent_release = {
+            "kind": "release",
+            "release_tag": parent_tag,
+            "manifest_sha256": sha256_file(parent_manifest),
+        }
     manifest = _write_catalog_and_manifest(
         connection,
         output,
@@ -661,6 +764,7 @@ def create_v3_release(
         repository=repository,
         release_tag=tag,
         policy_revisions=registry.revisions,
+        parent_release=parent_release,
     )
     terminal_errors = int(
         _required_row(connection.execute(
@@ -695,17 +799,28 @@ def validate_v3_release(
     """Validate a staged or redownloaded v3 release without network access."""
     directory = directory.resolve()
     errors: list[str] = []
+    manifest_path = directory / "manifest.json"
+    if not manifest_path.is_file():
+        return ["missing release assets: manifest.json"]
+    try:
+        preliminary_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"invalid manifest.json: {exc}"]
+    parquet_contract = (
+        V3_PARQUET_ASSETS
+        if preliminary_manifest.get("release_contract_version") == "3.4"
+        else LEGACY_V3_PARQUET_ASSETS
+    )
+    release_contract = (*parquet_contract, "manifest.json", "SHA256SUMS")
     missing = [
         filename
-        for filename in V3_RELEASE_ASSETS
+        for filename in release_contract
         if not (directory / filename).is_file()
     ]
     if missing:
         return [f"missing release assets: {', '.join(missing)}"]
     try:
-        manifest = json.loads(
-            (directory / "manifest.json").read_text(encoding="utf-8")
-        )
+        manifest = preliminary_manifest
     except (OSError, json.JSONDecodeError) as exc:
         return [f"invalid manifest.json: {exc}"]
     if manifest.get("product_version") != "3":
@@ -734,7 +849,7 @@ def validate_v3_release(
         for item in manifest.get("assets", [])
         if isinstance(item, Mapping)
     }
-    expected_parquet = set(V3_PARQUET_ASSETS)
+    expected_parquet = set(parquet_contract)
     if set(manifest_assets) != expected_parquet:
         errors.append(
             "manifest Parquet assets differ from the v3 contract: "
@@ -758,7 +873,7 @@ def validate_v3_release(
             errors.append(f"invalid SHA256SUMS entry: {line!r}")
             continue
         checksum_entries[parts[1]] = parts[0]
-    checksum_expected = {*V3_PARQUET_ASSETS, "manifest.json"}
+    checksum_expected = {*parquet_contract, "manifest.json"}
     if set(checksum_entries) != checksum_expected:
         errors.append("SHA256SUMS does not enumerate every release payload")
     for name, expected in checksum_entries.items():
@@ -768,7 +883,7 @@ def validate_v3_release(
 
     connection = duckdb.connect()
     try:
-        for name in V3_PARQUET_ASSETS:
+        for name in parquet_contract:
             path = directory / name
             if not path.is_file():
                 continue
@@ -923,6 +1038,28 @@ def validate_v3_release(
                 errors.append(
                     f"observations without recorded retrieval time: {retrieval_errors}"
                 )
+        if manifest.get("release_contract_version") == "3.4":
+            parent = manifest.get("parent_release")
+            if not isinstance(parent, Mapping) or parent.get("kind") not in {
+                "genesis",
+                "release",
+            }:
+                errors.append("manifest has invalid parent_release")
+            elif parent.get("kind") == "release" and (
+                not str(parent.get("release_tag") or "").startswith("data-v3-")
+                or len(str(parent.get("manifest_sha256") or "")) != 64
+            ):
+                errors.append("manifest has invalid pinned parent release")
+            dispositions = int(
+                _required_row(connection.execute(
+                    f"SELECT count(*) FROM read_parquet("
+                    f"{_quoted(directory / 'migration_dispositions.parquet')}) "
+                    "WHERE disposition NOT IN "
+                    "('retained','replaced','quarantined','excluded')"
+                ))[0]
+            )
+            if dispositions:
+                errors.append(f"invalid migration dispositions: {dispositions}")
     except duckdb.Error as exc:
         errors.append(f"release validation query failed: {exc}")
     finally:
