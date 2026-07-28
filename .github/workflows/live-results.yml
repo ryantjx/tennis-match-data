@@ -6,14 +6,14 @@ on:
     - cron: "17 4 * * *"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: tennis-v3-release
   cancel-in-progress: false
 
 jobs:
-  release:
+  collect:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -26,27 +26,29 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install .
-      - name: Build a fresh 2020+ staging dataset
+      - name: Resolve one immutable parent release
+        id: parent
         run: |
-          open-tennis-data bootstrap \
-            --through-year "$(date -u +%Y)" \
-            --as-of "$(date -u +%F)" \
-            --output "$RUNNER_TEMP/staged-data"
-      - name: Validate staging
-        run: open-tennis-data validate --data "$RUNNER_TEMP/staged-data"
-      - name: Build deterministic v3 assets
-        id: release
-        run: |
-          timestamp=$(date -u +%Y%m%dT%H%M%SZ)
-          tag="data-v3-$timestamp"
-          open-tennis-data release \
-            --data "$RUNNER_TEMP/staged-data" \
-            --output "$RUNNER_TEMP/v3-release" \
-            --as-of "$(date -u +%FT%TZ)" \
-            --tag "$tag"
+          tag=$(gh release list --limit 100 --json tagName,publishedAt \
+            --jq '[.[] | select(.tagName | startswith("data-v3-"))] | sort_by(.publishedAt) | last | .tagName')
+          test -n "$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - name: Verify, upload, redownload, and publish atomically
+          gh release download "$tag" --dir "$RUNNER_TEMP/parent-release"
+      - name: Close the active-event source bundle
         run: |
-          scripts/publish-v3-release.sh \
-            "$RUNNER_TEMP/v3-release" \
-            "${{ steps.release.outputs.tag }}"
+          open-tennis-data collect-live \
+            --as-of "$(date -u +%FT%TZ)" \
+            --parent-release "${{ steps.parent.outputs.tag }}" \
+            --parent-manifest "$RUNNER_TEMP/parent-release/manifest.json" \
+            --permission-policy src/open_tennis_data/sources.json \
+            --output "$RUNNER_TEMP/live-bundle"
+          open-tennis-data validate --data "$RUNNER_TEMP/live-bundle"
+      - name: Upload closed-bundle telemetry
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: daily-live-bundle-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/live-bundle/bundle.json
+            ${{ runner.temp }}/live-bundle/telemetry.jsonl
+            ${{ runner.temp }}/live-bundle/rejections.jsonl
+          if-no-files-found: error

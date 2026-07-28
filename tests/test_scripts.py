@@ -21,8 +21,13 @@ class ScriptTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('cron: "17 4 * * *"', daily)
-        self.assertIn("open-tennis-data bootstrap", daily)
-        self.assertIn("scripts/publish-v3-release.sh", daily)
+        self.assertIn("open-tennis-data collect-live", daily)
+        self.assertIn("telemetry.jsonl", daily)
+        self.assertNotIn("scripts/publish-v3-release.sh", daily)
+        self.assertIn("open-tennis-data refresh-history", weekly)
+        self.assertIn("open-tennis-data reconcile", weekly)
+        self.assertIn("verify-tennis-data-independent.py", weekly)
+        self.assertIn("scripts/publish-v3-release.sh", weekly)
         self.assertIn('--years "2020:', weekly)
         for workflow in (daily, weekly):
             self.assertNotIn("git commit", workflow)

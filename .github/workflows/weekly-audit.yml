@@ -6,14 +6,14 @@ on:
     - cron: "41 7 * * 1"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: tennis-v3-audit
   cancel-in-progress: false
 
 jobs:
-  audit:
+  refresh:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -23,26 +23,78 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: python -m pip install .
-      - name: Build a fresh 2020+ audit dataset
+      - run: python -m pip install '.[verify]'
+      - name: Resolve and download one immutable parent release
+        id: parent
         run: |
-          open-tennis-data bootstrap \
-            --through-year "$(date -u +%Y)" \
-            --as-of "$(date -u +%F)" \
-            --output "$RUNNER_TEMP/data"
-      - name: Audit every v3 result season and current/future fixtures
+          tag=$(gh release list --limit 100 --json tagName,publishedAt \
+            --jq '[.[] | select(.tagName | startswith("data-v3-"))] | sort_by(.publishedAt) | last | .tagName')
+          test -n "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          gh release download "$tag" --dir "$RUNNER_TEMP/parent-release"
+      - name: Close the annual Tennis-Data bundle
         run: |
-          open-tennis-data audit-retroactive \
-            --data "$RUNNER_TEMP/data" \
+          open-tennis-data refresh-history \
             --years "2020:$(date -u +%Y)" \
-            --as-of "$(date -u +%F)" \
-            --output "$RUNNER_TEMP/retroactive-audit"
-      - name: Validate the audited staging state
-        run: open-tennis-data validate --data "$RUNNER_TEMP/data"
-      - name: Upload the immutable audit report
+            --parent-release "${{ steps.parent.outputs.tag }}" \
+            --parent-manifest "$RUNNER_TEMP/parent-release/manifest.json" \
+            --output "$RUNNER_TEMP/history-bundle"
+          open-tennis-data validate --data "$RUNNER_TEMP/history-bundle"
+      - name: Reconcile and build deterministic release assets
+        id: release
+        run: |
+          open-tennis-data reconcile \
+            --source-bundle "$RUNNER_TEMP/history-bundle" \
+            --parent-release "${{ steps.parent.outputs.tag }}" \
+            --parent-directory "$RUNNER_TEMP/parent-release" \
+            --output "$RUNNER_TEMP/reconciled-data"
+          open-tennis-data reconcile \
+            --source-bundle "$RUNNER_TEMP/history-bundle" \
+            --parent-release "${{ steps.parent.outputs.tag }}" \
+            --parent-directory "$RUNNER_TEMP/parent-release" \
+            --output "$RUNNER_TEMP/reconciled-replay"
+          diff -rq "$RUNNER_TEMP/reconciled-data" "$RUNNER_TEMP/reconciled-replay"
+          open-tennis-data validate --data "$RUNNER_TEMP/reconciled-data" \
+            | tee "$RUNNER_TEMP/production-validation.txt"
+          as_of=$(date -u +%FT%TZ)
+          timestamp=$(date -u -d "$as_of" +%Y%m%dT%H%M%SZ)
+          tag="data-v3-$timestamp"
+          open-tennis-data release \
+            --data "$RUNNER_TEMP/reconciled-data" \
+            --output "$RUNNER_TEMP/v3-release" \
+            --as-of "$as_of" \
+            --tag "$tag" \
+            --parent-manifest "$RUNNER_TEMP/parent-release/manifest.json"
+          open-tennis-data release \
+            --data "$RUNNER_TEMP/reconciled-replay" \
+            --output "$RUNNER_TEMP/v3-release-replay" \
+            --as-of "$as_of" \
+            --tag "$tag" \
+            --parent-manifest "$RUNNER_TEMP/parent-release/manifest.json"
+          diff -rq "$RUNNER_TEMP/v3-release" "$RUNNER_TEMP/v3-release-replay"
+          open-tennis-data verify-release --directory "$RUNNER_TEMP/v3-release" \
+            | tee -a "$RUNNER_TEMP/production-validation.txt"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Verify independently through Tennis-Data and PyArrow
+        run: |
+          python scripts/verify-tennis-data-independent.py \
+            --source-bundle "$RUNNER_TEMP/history-bundle" \
+            --dataset "$RUNNER_TEMP/reconciled-data" \
+            --baseline-release "$RUNNER_TEMP/parent-release" \
+            --output "$RUNNER_TEMP/independent-verification.json"
+      - name: Publish only after both validators pass
+        run: |
+          scripts/publish-v3-release.sh \
+            "$RUNNER_TEMP/v3-release" \
+            "${{ steps.release.outputs.tag }}"
+      - name: Upload immutable validation reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: retroactive-audit-${{ github.run_id }}
-          path: ${{ runner.temp }}/retroactive-audit/
-          if-no-files-found: error
+          name: longitudinal-verification-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/history-bundle/bundle.json
+            ${{ runner.temp }}/reconciled-data/acquisition-manifest.json
+            ${{ runner.temp }}/production-validation.txt
+            ${{ runner.temp }}/independent-verification.json
+          if-no-files-found: warn

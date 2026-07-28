@@ -11,9 +11,11 @@ policy metadata.
 
 ## Tennis-Data.co.uk
 
-Season XLS/XLSX files provide match-level historical date candidates for the
-2020+ backfill. Each source file is content-hashed and each row receives a
-native ID and row fingerprint.
+Season XLS/XLSX files provide complete terminal observations for the 2020+
+history. Each source file is content-hashed and each row receives a native ID,
+row fingerprint, and exactly one accepted or quarantined migration
+disposition. Late-December matches in the following season file are accepted
+only within that bounded crossover; implausible future-year dates fail closed.
 
 ATP files before 2003 use unsupported tournament-date semantics and are
 quarantined as `tournament_date_not_match_date`. Malformed dates, participants,
@@ -33,23 +35,27 @@ Community-maintained future data may be incomplete or rescheduled.
 
 ## Sackmann / Tennis Abstract
 
-The pinned bulk archive is retained for identity/result cross-checking and
-enrichment in the research dataset under CC BY-NC-SA 4.0.
+The pinned bulk archive is retained only for migration identity/result
+cross-checking under CC BY-NC-SA 4.0. V3.2 historical runtime ingestion and
+new public projections use Tennis-Data observations after the retention gate
+passes.
 
 `tourney_date` is a tournament date and never qualifies as evidence for the
 public match `date`. Qualifying, Challenger, WTA 125, ITF/Futures, doubles,
 rankings, and statistics from the archive are outside the v3 release scope.
 
-## WTA and Tennis TV
+## ATP/WTA sites and order-of-play documents
 
-Offline parser coverage remains for timestamp conversion, participant/result
-normalization, walkovers, missing fields, and source changes. Automated
-collection and public release are blocked in the registry: the public WTA
-terms prohibit automated harvesting/access, and Tennis TV terms prohibit
-automated scraping/extraction for third-party products.
+Offline HTML and PDF parser coverage includes overview, draw, result, schedule,
+player-list, order-of-play, combined-event classification, walkovers, ordering
+labels, missing fields, and source changes. Automated collection and public
+projection are blocked by the registry. Policy is evaluated before a browser
+or HTTP client is created, so the default path makes zero ATP/WTA requests.
 
-These adapters may be enabled only after separate written automated-access and
-redistribution permission is recorded in a new reviewed policy revision.
+An adapter may be enabled only after separate written permission is recorded
+with grant identity and digest, expiry, domains, routes, fields, uses,
+retention, redistribution, and positive request limits in a reviewed policy
+revision.
 
 ## Community corrections
 
