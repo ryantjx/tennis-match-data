@@ -10,6 +10,14 @@ from pathlib import Path
 
 import duckdb
 
+from open_tennis_data.acquisition import (
+    collect_live_bundle,
+    parse_year_range,
+    reconcile_history_bundle,
+    refresh_history_bundle,
+    validate_acquisition_dataset,
+    verify_bundle,
+)
 from open_tennis_data.dataset import (
     add_correction,
     audit_retroactive_dataset,
@@ -255,16 +263,84 @@ def command_verify_release(args: argparse.Namespace) -> int:
 
 
 def command_validate(args: argparse.Namespace) -> int:
-    errors = validate_dataset(
-        Path(args.data),
-        baseline_catalog=Path(args.baseline_catalog) if args.baseline_catalog else None,
-        immutable_before_year=args.immutable_before_year,
+    root = Path(args.data)
+    errors = (
+        verify_bundle(root)
+        if (root / "bundle.json").is_file()
+        else (
+            validate_acquisition_dataset(root)
+            if (root / "acquisition-manifest.json").is_file()
+            else validate_dataset(
+                root,
+                baseline_catalog=(
+                    Path(args.baseline_catalog) if args.baseline_catalog else None
+                ),
+                immutable_before_year=args.immutable_before_year,
+            )
+        )
     )
     for error in errors:
         print(error, file=sys.stderr)
     if errors:
         return 1
     print("valid Parquet dataset")
+    return 0
+
+
+def command_collect_live(args: argparse.Namespace) -> int:
+    manifest = collect_live_bundle(
+        parent_release=args.parent_release,
+        permission_policy=(
+            Path(args.permission_policy) if args.permission_policy else None
+        ),
+        output=Path(args.output),
+        offline_fixture_root=(
+            Path(args.offline_fixture_root) if args.offline_fixture_root else None
+        ),
+        parent_manifest=(
+            Path(args.parent_manifest) if args.parent_manifest else None
+        ),
+        collected_at=datetime.fromisoformat(args.as_of.replace("Z", "+00:00")),
+    )
+    print(
+        f"closed live source bundle {manifest['bundle_id']} at "
+        f"{manifest['source_cutoff_at']}"
+    )
+    return 0
+
+
+def command_refresh_history(args: argparse.Namespace) -> int:
+    manifest = refresh_history_bundle(
+        years=parse_year_range(args.years),
+        parent_release=args.parent_release,
+        output=Path(args.output),
+        offline_fixture_root=(
+            Path(args.offline_fixture_root) if args.offline_fixture_root else None
+        ),
+        parent_manifest=(
+            Path(args.parent_manifest) if args.parent_manifest else None
+        ),
+    )
+    print(
+        f"closed history source bundle {manifest['bundle_id']} with "
+        f"{len(manifest['artifacts'])} artifacts"
+    )
+    return 0
+
+
+def command_reconcile(args: argparse.Namespace) -> int:
+    manifest = reconcile_history_bundle(
+        source_bundle=Path(args.source_bundle),
+        parent_release=args.parent_release,
+        output=Path(args.output),
+        parent_directory=(
+            Path(args.parent_directory) if args.parent_directory else None
+        ),
+    )
+    print(
+        f"reconciled {manifest['accepted_rows']} accepted and "
+        f"{manifest['quarantined_rows']} quarantined rows"
+    )
     return 0
 
 
@@ -363,6 +439,39 @@ def parser() -> argparse.ArgumentParser:
         help="reuse exact Wikimedia page revisions from a prior source-audit.parquet",
     )
     build.set_defaults(handler=command_build)
+
+    collect_live = commands.add_parser(
+        "collect-live", help="close an active-event source bundle"
+    )
+    collect_live.add_argument(
+        "--as-of",
+        default=datetime.now(UTC).replace(microsecond=0).isoformat(),
+    )
+    collect_live.add_argument("--parent-release", required=True)
+    collect_live.add_argument("--permission-policy")
+    collect_live.add_argument("--parent-manifest")
+    collect_live.add_argument("--output", required=True)
+    collect_live.add_argument("--offline-fixture-root")
+    collect_live.set_defaults(handler=command_collect_live)
+
+    refresh_history = commands.add_parser(
+        "refresh-history", help="close a Tennis-Data annual-file source bundle"
+    )
+    refresh_history.add_argument("--years", required=True)
+    refresh_history.add_argument("--parent-release", required=True)
+    refresh_history.add_argument("--output", required=True)
+    refresh_history.add_argument("--offline-fixture-root")
+    refresh_history.add_argument("--parent-manifest")
+    refresh_history.set_defaults(handler=command_refresh_history)
+
+    reconcile = commands.add_parser(
+        "reconcile", help="reconcile one closed bundle against a pinned parent"
+    )
+    reconcile.add_argument("--source-bundle", required=True)
+    reconcile.add_argument("--parent-release", required=True)
+    reconcile.add_argument("--output", required=True)
+    reconcile.add_argument("--parent-directory")
+    reconcile.set_defaults(handler=command_reconcile)
 
     bootstrap = commands.add_parser(
         "bootstrap", help="initialize an empty repository with v3 history from 2020"

@@ -167,6 +167,12 @@ ORDER BY date, tournament_name;
 | `coverage.parquet` | Tour/year/level/lifecycle coverage and gate status |
 | `health.parquet` | Release freshness and lifecycle totals |
 | `quarantine.parquet` | Malformed, ambiguous, conflicting, or unsupported observations |
+| `evidence_artifacts.parquet` | Immutable evidence artifact identity, media metadata, digest, and retention mode |
+| `evidence_artifact_evaluations.parquet` | Time-versioned field/role eligibility decisions |
+| `migration_dispositions.parquet` | Exactly one accepted or quarantined disposition per historical source row |
+| `venue_evidence.parquet` | Venue/timezone evidence used by material date policy |
+| `schedule_observations.parquet` | Append-only fixture/schedule observation history |
+| `schedule_observation_links.parquet` | Links schedule revisions to stable lifecycle identities |
 | `catalog.parquet` | Row counts, sizes, checksums, and release timestamp |
 | `manifest.json` | Public release contract and stable asset URLs |
 | `SHA256SUMS` | Checksums for every release payload |
@@ -176,6 +182,34 @@ a sorted, non-empty list of canonical source labels contributing to the row.
 See [`docs/SCHEMA.md`](docs/SCHEMA.md).
 
 ## Build and verify
+
+V3.2 collection is bundle-first. Historical refreshes retain the annual source
+workbooks only in private temporary storage, close their hashes and row
+accounting into an immutable bundle, and reconcile that bundle against one
+pinned parent:
+
+```bash
+open-tennis-data refresh-history \
+  --years 2020:2026 \
+  --parent-release data-v3-20260727T075921Z \
+  --parent-manifest /tmp/parent-release/manifest.json \
+  --output /tmp/history-bundle
+
+open-tennis-data validate --data /tmp/history-bundle
+
+open-tennis-data reconcile \
+  --source-bundle /tmp/history-bundle \
+  --parent-release data-v3-20260727T075921Z \
+  --parent-directory /tmp/parent-release \
+  --output /tmp/reconciled-data
+```
+
+`collect-live` follows the same closed-bundle contract. ATP/WTA HTML and
+order-of-play PDF parsers can be exercised with `--offline-fixture-root`.
+Official-site fetchers evaluate the source policy before Chromium is imported
+or launched; the checked-in policy therefore makes zero official-site
+requests. A written, hashed, unexpired grant with explicit domains, routes,
+fields, uses, and request limits is required to change that behavior.
 
 Build an empty 2020+ staging dataset:
 

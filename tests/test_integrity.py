@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from datetime import UTC, date, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 from open_tennis_data.integrity import (
     lifecycle_match_id,
@@ -83,13 +85,20 @@ class IntegrityTests(unittest.TestCase):
 
     def test_official_network_policy_is_fail_closed(self) -> None:
         registry = SourcePolicyRegistry.load()
-        decision = registry.evaluate_network_request(
-            "atp-site",
-            "https://www.atptour.com/en/tournaments/washington/418/overview",
-            route="overview",
-            fields={"participants"},
-            at=datetime(2026, 7, 28, tzinfo=UTC),
-        )
+        with patch.dict(
+            os.environ,
+            {
+                "OPEN_TENNIS_ALLOW_ATP": "1",
+                "OPEN_TENNIS_POLICY_BYPASS": "true",
+            },
+        ):
+            decision = registry.evaluate_network_request(
+                "atp-site",
+                "https://www.atptour.com/en/tournaments/washington/418/overview",
+                route="overview",
+                fields={"participants"},
+                at=datetime(2026, 7, 28, tzinfo=UTC),
+            )
         self.assertFalse(decision.allowed)
         self.assertEqual(decision.reason, "policy_blocked")
 
@@ -138,6 +147,52 @@ class IntegrityTests(unittest.TestCase):
                 at=datetime(2026, 7, 28, tzinfo=UTC),
             )
             self.assertEqual(denied.reason, "domain_not_allowlisted")
+            self.assertEqual(
+                registry.evaluate_network_request(
+                    "atp-site",
+                    "https://www.atptour.com/tournament",
+                    route="results",
+                    fields={"participants"},
+                    at=datetime(2026, 7, 28, tzinfo=UTC),
+                ).reason,
+                "route_not_allowlisted",
+            )
+            self.assertEqual(
+                registry.evaluate_network_request(
+                    "atp-site",
+                    "https://www.atptour.com/tournament",
+                    route="overview",
+                    fields={"score"},
+                    at=datetime(2026, 7, 28, tzinfo=UTC),
+                ).reason,
+                "fields_not_allowlisted",
+            )
+            expired_policy = json.loads(path.read_text(encoding="utf-8"))
+            expired_policy["sources"][0]["grant_expires_at"] = "2026-07-27"
+            path.write_text(json.dumps(expired_policy), encoding="utf-8")
+            self.assertEqual(
+                SourcePolicyRegistry.load(path).evaluate_network_request(
+                    "atp-site",
+                    "https://www.atptour.com/tournament",
+                    route="overview",
+                    fields={"participants"},
+                    at=datetime(2026, 7, 28, tzinfo=UTC),
+                ).reason,
+                "expired_grant",
+            )
+            expired_policy["sources"][0]["grant_expires_at"] = "2026-12-31"
+            expired_policy["sources"][0]["maximum_requests_per_day"] = 0
+            path.write_text(json.dumps(expired_policy), encoding="utf-8")
+            self.assertEqual(
+                SourcePolicyRegistry.load(path).evaluate_network_request(
+                    "atp-site",
+                    "https://www.atptour.com/tournament",
+                    route="overview",
+                    fields={"participants"},
+                    at=datetime(2026, 7, 28, tzinfo=UTC),
+                ).reason,
+                "request_limit_disabled",
+            )
 
 
 if __name__ == "__main__":
